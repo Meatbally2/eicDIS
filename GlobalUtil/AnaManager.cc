@@ -1,4 +1,4 @@
-#include "anaManager.hh"
+#include "AnaManager.hh"
 
 // fixed based on simulation campaign
 const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
