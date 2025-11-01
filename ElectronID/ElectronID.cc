@@ -54,6 +54,9 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	hfs_dpz.clear();
 	hfs_de.clear();
 	hfs_theta.clear();
+	e_det.clear();
+	pi_det.clear();
+	else_det.clear();
 }
 
 int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
@@ -220,7 +223,15 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 		// Note that the rcpart_ variables are set in CalculateParticleValues
 		double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
 		double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
-		
+
+		if ( Check_eID(reconPart) == 0 )
+			e_det.push_back({recon_EoP, recon_isoE});
+		else if ( Check_eID(reconPart) == -211 )
+			pi_det.push_back({recon_EoP, recon_isoE});
+		else
+			else_det.push_back({recon_EoP, recon_isoE});
+
+
 		// Apply scattered electron ID cuts
 		if(recon_EoP < mEoP_min || recon_EoP > mEoP_max) continue;
 		if(recon_isoE < mIsoE) continue;

@@ -8,6 +8,8 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
 
     // Standard setup
 
+    SetePICStyle();
+
     std::string eID_type;
     if  ( is_truth_eID == 1 )
         eID_type = "truth";
@@ -28,6 +30,8 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
 
     // .. ElectronID setup
     ElectronID* eFinder = new ElectronID(Ee, Eh);
+
+    DefineHistograms();
 
     // Analysis loop
 
@@ -61,12 +65,24 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
                 eID_status = FOUND_PI;
             else
                 eID_status = FOUND_OTHERS;
+        }
 
-            // h_eID_status->Fill(eID_status);
-
-            // if ( eID_status != 0 && eID_status != -211 )
-            //     std::cout << "EID Status: " << eID_status << " id " << std::endl;
-        }	
+        // Fill histograms
+        for ( const auto& det_val : eFinder->e_det )
+        {
+            h_EoP_e->Fill(det_val.recon_EoP);
+            h_isoE_e->Fill(det_val.recon_isoE);
+        }
+        for ( const auto& det_val : eFinder->pi_det )
+        {
+            h_EoP_pi->Fill(det_val.recon_EoP);
+            h_isoE_pi->Fill(det_val.recon_isoE);
+        }
+        for ( const auto& det_val : eFinder->else_det )
+        {
+            h_EoP_else->Fill(det_val.recon_EoP);
+            h_isoE_else->Fill(det_val.recon_isoE);
+        }
 
         // Calculate kinematic variables using MC electron
 		TLorentzVector kprime;
@@ -77,10 +93,91 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
         ResetVariables();
     }
 
+    // Canvas
+    double draw_max = 0.;
+
+    TCanvas* c_EoP = new TCanvas("c_EoP", "c_EoP", 1000, 600);
+    c_EoP->SetLogy();
+
+    DrawComparison(c_EoP, h_EoP_e, h_EoP_pi, h_EoP_else, draw_max);
+
+    c_EoP->cd();
+    c_EoP->Update();
+
+    TLine* line_EoP_min = new TLine(eFinder->get_mEoP_min(), 0, eFinder->get_mEoP_min(), draw_max);
+    line_EoP_min->SetLineColor(kBlack);
+    line_EoP_min->SetLineStyle(7);
+    line_EoP_min->Draw("SAME");
+    TLine* line_EoP_max = new TLine(eFinder->get_mEoP_max(), 0, eFinder->get_mEoP_max(), draw_max);
+    line_EoP_max->SetLineColor(kBlack);
+    line_EoP_max->SetLineStyle(7);
+    line_EoP_max->Draw("SAME");
+
+    TCanvas* c_isoE = new TCanvas("c_isoE", "c_isoE", 1000, 600);
+    c_isoE->SetLogy();
+
+    DrawComparison(c_isoE, h_isoE_e, h_isoE_pi, h_isoE_else, draw_max);
+    c_isoE->cd();
+    c_isoE->Update();
+
+    TLine* line_isoE_min = new TLine(eFinder->get_mIsoE(), 0, eFinder->get_mIsoE(), draw_max);
+    line_isoE_min->SetLineColor(kBlack);
+    line_isoE_min->SetLineStyle(7);
+    line_isoE_min->Draw("SAME");
+
     // Save
 
     outFile->cd();
     outTree->Write(outTree->GetName(), 2);
+
+    c_EoP->Write(c_EoP->GetName(), 2);
+    c_isoE->Write(c_isoE->GetName(), 2);
+
+    return;
+}
+
+void DefineHistograms() {
+
+    h_EoP_e = new TH1D("h_EoP_e", "EoP e; E/p; Counts", 100, 0., 2.);
+    h_EoP_pi = new TH1D("h_EoP_pi", "EoP pi; E/p; Counts", 100, 0., 2.);
+    h_EoP_else = new TH1D("h_EoP_else", "EoP; E/p; Counts", 100, 0., 2.);
+
+    h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+    h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+    h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+
+    return;
+}
+
+void DrawComparison(TCanvas* c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &draw_max) {
+
+    c->cd();
+
+    h3->Draw("HIST");
+    h3->SetLineColor(kGray+2);
+    // h3->SetFillColor(kGray);
+    // h3->SetFillStyle(3003);
+    draw_max = 1.2*std::max({h1->GetMaximum(), h2->GetMaximum(), h3->GetMaximum()});
+    h3->SetMaximum(draw_max);
+
+    h2->Draw("HIST SAME");
+    h2->SetLineColor(kBlue);
+    // h2->SetFillColor(kBlue);
+    // h2->SetFillStyle(3003);
+
+    h1->Draw("HIST SAME");
+    h1->SetLineWidth(2);
+    h1->SetLineColor(kRed);
+    h1->SetFillColor(kRed);
+    h1->SetFillStyle(3003);
+
+    TLegend* leg = new TLegend(0.6, 0.6, 0.88, 0.88);
+    leg->SetBorderSize(0);
+    leg->SetFillStyle(0);
+    leg->AddEntry(h1, "Electrons", "f");
+    leg->AddEntry(h2, "Pions", "f");
+    leg->AddEntry(h3, "Others", "f");
+    leg->Draw();
 
     return;
 }

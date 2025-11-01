@@ -6,6 +6,7 @@
 
 #include "../GlobalUtil/AnaManager.cc"
 #include "../GlobalUtil/Constants.hh"
+#include "../GlobalUtil/ePICStyle.c"
 
 #include "ElectronID.cc"
 
@@ -16,8 +17,12 @@ void ResetVariables();
 void CalculateElectronKinematics(double fEe, double fEh, TLorentzVector kf, double& xB, double& Q2, double& W2, double& y, double& nu);
 TLorentzVector GetHadronBeam(double fEh);
 
+void DefineHistograms();
+void DrawComparison(TCanvas* c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double& draw_max);
+
 TFile* outFile;
 TTree* outTree;
+// ElectronID* eFinder;
 
 int eID_status;
 int mc_PBG;
@@ -29,5 +34,12 @@ double mc_W2;
 double mc_nu;
 
 enum { NO_FOUND, FOUND_E, FOUND_PI, FOUND_OTHERS };
+
+TH1D* h_EoP_e;
+TH1D* h_EoP_pi;
+TH1D* h_EoP_else;
+TH1D* h_isoE_e;
+TH1D* h_isoE_pi;
+TH1D* h_isoE_else;
 
 #endif

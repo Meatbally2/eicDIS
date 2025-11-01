@@ -35,11 +35,26 @@ public:
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
 
+	double get_mEoP_min() const { return mEoP_min; }
+	double get_mEoP_max() const { return mEoP_max; }
+	double get_mDeltaH_min() const { return mDeltaH_min; }
+	double get_mDeltaH_max() const { return mDeltaH_max; }
+	double get_mIsoR() const { return mIsoR; }
+	double get_mIsoE() const { return mIsoE; }
+
 	// for HFS QA
 	vector<double> hfs_dpt;
 	vector<double> hfs_dpz;
 	vector<double> hfs_de;
 	vector<double> hfs_theta;
+
+	struct DetValues {
+		double recon_EoP;
+		double recon_isoE;
+	};
+	vector<DetValues> e_det;
+	vector<DetValues> pi_det;
+	vector<DetValues> else_det;
 
 private:
 
