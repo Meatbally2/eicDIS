@@ -45,13 +45,20 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
 
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
+        if(e_mc.size() == 0) 
+            continue;
 
         // Use MC to find reconstructed electron (TruthID)
         auto e_truth = eFinder->GetTruthReconElectron();
-
+        if(e_truth.size() > 0) 
+        {
+            eID_status = NO_FOUND;
+            h_n_clusters_n_tracks->Fill( e_truth[0].getTracks().size(), e_truth[0].getClusters().size());
+        }
+            
         // Find scattered electrons (reconID)
         auto e_candidates = eFinder->FindScatteredElectron();
-        edm4eic::ReconstructedParticle e_rec;	
+        edm4eic::ReconstructedParticle e_rec;
         
         // If there are multiple candidates, select one with highest pT
         if(e_candidates.size() > 0) 
@@ -125,6 +132,10 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
     line_isoE_min->SetLineStyle(7);
     line_isoE_min->Draw("SAME");
 
+    TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
+    h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
+    h_n_clusters_n_tracks->Draw("COLZ TEXT");
+
     // Save
 
     outFile->cd();
@@ -132,6 +143,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
 
     c_EoP->Write(c_EoP->GetName(), 2);
     c_isoE->Write(c_isoE->GetName(), 2);
+    c_n_clusters_n_tracks->Write(c_n_clusters_n_tracks->GetName(), 2);
 
     return;
 }
@@ -145,6 +157,8 @@ void DefineHistograms() {
     h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
     h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
     h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+
+    h_n_clusters_n_tracks = new TH2D("h_n_clusters_n_tracks", "Number of clusters vs number of tracks; N_{tracks}; N_{clusters}", 5, -0.5, 4.5, 5, -0.5, 4.5);
 
     return;
 }
@@ -201,7 +215,7 @@ void CreateOutputTree(TString outFileName) {
 
 void ResetVariables() {
 
-	eID_status = NO_FOUND;
+	eID_status = NO_RECON;
     mc_PBG = 0;
 
 	mc_xB = -999;

@@ -199,6 +199,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(bool
 
 edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
+	// std::cout << "Finding scattered electron candidates..." << std::endl;
+
 	// Get all the edm4eic objects needed for electron ID
 	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 	
@@ -209,6 +211,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 	// Loop over all ReconstructedParticles for this event
 	for (const auto& reconPart : rcparts) {
+
+		// std::cout << "par id: " << reconPart.getPDG() << " cluster size: " << reconPart.getClusters().size() << ", track size: " << reconPart.getTracks().size() << std::endl;
 
 		// Require negative particle
 		if(reconPart.getCharge() >= 0) continue;

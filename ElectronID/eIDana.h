@@ -33,7 +33,7 @@ double mc_y;
 double mc_W2;
 double mc_nu;
 
-enum { NO_FOUND, FOUND_E, FOUND_PI, FOUND_OTHERS };
+enum { NO_RECON, FOUND_E, FOUND_PI, FOUND_OTHERS, NO_FOUND };
 
 TH1D* h_EoP_e;
 TH1D* h_EoP_pi;
@@ -41,5 +41,7 @@ TH1D* h_EoP_else;
 TH1D* h_isoE_e;
 TH1D* h_isoE_pi;
 TH1D* h_isoE_else;
+
+TH2D* h_n_clusters_n_tracks;
 
 #endif
