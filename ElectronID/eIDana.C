@@ -46,7 +46,12 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
         if(e_mc.size() == 0) 
+        {
+            eID_status = NO_MC;
+            outTree->Fill();
+            ResetVariables();
             continue;
+        }
 
         // Use MC to find reconstructed electron (TruthID)
         auto e_truth = eFinder->GetTruthReconElectron();

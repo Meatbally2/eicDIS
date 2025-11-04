@@ -33,7 +33,7 @@ double mc_y;
 double mc_W2;
 double mc_nu;
 
-enum { NO_RECON, FOUND_E, FOUND_PI, FOUND_OTHERS, NO_FOUND };
+enum { NO_RECON, FOUND_E, FOUND_PI, FOUND_OTHERS, NO_FOUND, NO_MC };
 
 TH1D* h_EoP_e;
 TH1D* h_EoP_pi;
