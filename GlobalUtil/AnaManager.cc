@@ -12,11 +12,11 @@ AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 AnaManager::~AnaManager() {
 }
 
-void AnaManager::Initialize(bool is_select_region_, int region_index_, bool is_analyse_all_files_, bool is_analyse_protons_) 
+void AnaManager::Initialize(bool is_select_region_, int region_index_, int starting_file, bool is_analyse_protons_) 
 {
     is_select_region = is_select_region_;
     region_index = region_index_;
-    is_analyse_all_files = is_analyse_all_files_;
+    starting_file = starting_file_;
     is_analyse_protons = is_analyse_protons_;
 
     return;
@@ -50,7 +50,7 @@ vector<std::string> AnaManager::GetInputNames()
         
         std::string file_name;
         if ( is_analyse_protons )
-            file_name = Form("../data/ep_25_05_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
+            file_name = Form("../data/ep_25_10_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
         else
             file_name = Form("../data/en_25_08_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
 
@@ -60,8 +60,17 @@ vector<std::string> AnaManager::GetInputNames()
         std::string line;
         while ( getline(data_file, line) )
         {
-            if ( !is_analyse_all_files )
-                if ( line_c > 3 )
+            if ( starting_file < 0 )
+                if ( line_c >= 10 )
+                    break;
+
+            if ( starting_file >= 0 )
+                if ( line_c < starting_file )
+                {
+                    line_c ++;
+                    continue;
+                } 
+                else if ( line_c >= starting_file + 2000 )
                     break;
 
             std::string fname;

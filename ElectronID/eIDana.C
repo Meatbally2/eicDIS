@@ -2,7 +2,7 @@
 
 #include "eIDana.h"
 
-void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all_file, int analyse_p)
+void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
@@ -19,7 +19,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
         eID_type = "recon"; 
 
     AnaManager* ana_manager = new AnaManager("eID" + eID_type);
-    ana_manager->Initialize(select_region, sr, all_file, analyse_p);
+    ana_manager->Initialize(select_region, sr, file0, analyse_p);
 
     // .. input setup
     auto reader = podio::ROOTReader();
@@ -30,6 +30,8 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
 
     // .. ElectronID setup
     ElectronID* eFinder = new ElectronID(Ee, Eh);
+    LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON);
+    eFinder->SetBoost(boost);
 
     DefineHistograms();
 
@@ -37,7 +39,13 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
 
     for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
     {
-        const auto event = podio::Frame(reader.readNextEntry("events"));
+        auto raw = reader.readNextEntry("events");
+        if(!raw) 
+        {
+            std::cerr << "readNextEntry returned null at event " << ev << "\n";
+            break;
+        }
+        podio::Frame event(std::move(raw));
         eFinder->SetEvent(&event);
 
         if(ev%100==0) 
@@ -64,16 +72,18 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
         // Find scattered electrons (reconID)
         auto e_candidates = eFinder->FindScatteredElectron();
         edm4eic::ReconstructedParticle e_rec;
-        
+
+        h_EminusPz->Fill(eFinder->GetEminusPzSum());
+
         // If there are multiple candidates, select one with highest pT
         if(e_candidates.size() > 0) 
         {			
             e_rec = eFinder->SelectHighestPT(e_candidates);
-            mc_PBG = eFinder->Check_eID(e_rec);
+            mc_PDG = eFinder->Check_eID(e_rec);
 
-            if ( mc_PBG == 0 )
+            if ( mc_PDG == 0 )
                 eID_status = FOUND_E;
-            else if ( mc_PBG == -211 )
+            else if ( mc_PDG == -211 )
                 eID_status = FOUND_PI;
             else
                 eID_status = FOUND_OTHERS;
@@ -137,6 +147,19 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int all
     line_isoE_min->SetLineStyle(7);
     line_isoE_min->Draw("SAME");
 
+    TCanvas* c_EminusPz = new TCanvas("c_EminusPz", "c_EminusPz", 1000, 600);
+    
+    h_EminusPz->SetLineColor(kBlue);
+    h_EminusPz->SetFillColor(kBlue);
+    h_EminusPz->SetFillStyle(3003);
+    h_EminusPz->Draw("HIST SAME");
+
+    c_EminusPz->Update();
+    TLine* line_2Ee = new TLine(2*Ee, 0, 2*Ee, gPad->GetUymax());
+    line_2Ee->SetLineColor(kBlack);
+    line_2Ee->SetLineStyle(7);
+    line_2Ee->Draw("SAME");
+
     TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
     h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
     h_n_clusters_n_tracks->Draw("COLZ TEXT");
@@ -162,6 +185,8 @@ void DefineHistograms() {
     h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
     h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
     h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+
+    h_EminusPz = new TH1D("h_EminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
 
     h_n_clusters_n_tracks = new TH2D("h_n_clusters_n_tracks", "Number of clusters vs number of tracks; N_{tracks}; N_{clusters}", 5, -0.5, 4.5, 5, -0.5, 4.5);
 
@@ -193,9 +218,9 @@ void DrawComparison(TCanvas* c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &draw_ma
     TLegend* leg = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
-    leg->AddEntry(h1, "Electrons", "f");
-    leg->AddEntry(h2, "Pions", "f");
-    leg->AddEntry(h3, "Others", "f");
+    leg->AddEntry(h1, "Electrons", "L");
+    leg->AddEntry(h2, "Pions", "L");
+    leg->AddEntry(h3, "Others", "L");
     leg->Draw();
 
     return;
@@ -207,7 +232,7 @@ void CreateOutputTree(TString outFileName) {
 	outTree = new TTree("T_eID", "T_eID");
 
     outTree->Branch("eID_status", &eID_status);
-    outTree->Branch("mc_PBG", &mc_PBG);
+    outTree->Branch("mc_PDG", &mc_PDG);
 
 	outTree->Branch("mc_xB", &mc_xB);
 	outTree->Branch("mc_Q2", &mc_Q2);
@@ -221,7 +246,7 @@ void CreateOutputTree(TString outFileName) {
 void ResetVariables() {
 
 	eID_status = NO_RECON;
-    mc_PBG = 0;
+    mc_PDG = 0;
 
 	mc_xB = -999;
 	mc_Q2 = -999;

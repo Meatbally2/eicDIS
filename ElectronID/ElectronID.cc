@@ -76,7 +76,20 @@ int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 	return 86;
 }
 
-edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(bool use_mc, int object_id, bool is_print, LorentzRotation boost) {
+void ElectronID::CheckClusters() {
+
+	auto& EcalEndcapNClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapNClusters");
+	auto& EcalBarrelScFiClusters = mEvent->get<edm4eic::ClusterCollection>("EcalBarrelScFiClusters");
+	auto& EcalEndcapPClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapPClusters");
+
+	std::cout << " Number of clusters in EcalEndcapN: " << EcalEndcapNClusters.size() << std::endl;
+	std::cout << " Number of clusters in EcalBarrelScFi: " << EcalBarrelScFiClusters.size() << std::endl;
+	std::cout << " Number of clusters in EcalEndcapP: " << EcalEndcapPClusters.size() << std::endl;
+
+	return;
+}
+
+edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(bool use_mc, int object_id, bool is_print) {
 
 	// edm4eic::HadronicFinalStateCollection meRecon;
 	edm4eic::ReconstructedParticleCollection meRecon;
@@ -199,7 +212,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(bool
 
 edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
-	// std::cout << "Finding scattered electron candidates..." << std::endl;
+	// std::cout << "\nFinding scattered electron candidates..." << std::endl;
+	// CheckClusters();
 
 	// Get all the edm4eic objects needed for electron ID
 	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
@@ -408,6 +422,23 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 	}
 
 	return;
+}
+
+double ElectronID::GetEminusPzSum() {
+
+	double reconEminusPzSum = 0.;
+	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+
+	for (const auto& reconPart : rcparts) {
+		// PxPyPzEVector v(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		PxPyPzEVector v(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
+		v = boost(v);
+		reconEminusPzSum += (v.E() - v.Pz());
+	}
+
+	// std::cout << " recon E - Pz sum: " << reconEminusPzSum << std::endl;
+
+	return reconEminusPzSum;
 }
 
 edm4eic::ReconstructedParticle ElectronID::SelectHighestPT(const edm4eic::ReconstructedParticleCollection& ecandidates) {

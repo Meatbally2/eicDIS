@@ -25,15 +25,18 @@ public:
 	inline void SetIsolation(double isor, double isoe) {mIsoR = isor; mIsoE = isoe;}	
 
 	void SetEvent(const podio::Frame* event); 
+	void SetBoost(LorentzRotation fboost) { boost = fboost; }
 
 	int Check_eID(edm4eic::ReconstructedParticle e_rec);
-	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(bool use_mc, int object_id, bool is_print, LorentzRotation boost);
+	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(bool use_mc, int object_id, bool is_print);
 	edm4eic::ReconstructedParticleCollection FindScatteredElectron();	
 	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();	
 	edm4hep::MCParticleCollection GetMCElectron();	
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
+	double GetEminusPzSum();
+	void CheckClusters();
 
 	double get_mEoP_min() const { return mEoP_min; }
 	double get_mEoP_max() const { return mEoP_max; }
@@ -62,6 +65,7 @@ private:
 
 	double mEe;
 	double mEh;
+	LorentzRotation boost;
 
 	double mEoP_min;
 	double mEoP_max;
