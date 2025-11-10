@@ -2,8 +2,8 @@
 
 #include "eIDana.h"
 
-// void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
-void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p)
+void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
+// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
@@ -20,13 +20,13 @@ void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p
         eID_type = "recon"; 
 
     AnaManager* ana_manager = new AnaManager("eID" + eID_type + ev_type);
-    // ana_manager->Initialize(select_region, sr, file0, analyse_p);
-    ana_manager->InitializeForLocal(ev_type);
+    ana_manager->Initialize(select_region, sr, file0, analyse_p);
+    // ana_manager->InitializeForLocal(ev_type);
 
     // .. input setup
     auto reader = podio::ROOTReader();
-    // reader.openFiles(ana_manager->GetInputNames());
-    reader.openFiles(ana_manager->GetLocalInputNames());
+    reader.openFiles(ana_manager->GetInputNames());
+    // reader.openFiles(ana_manager->GetLocalInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 

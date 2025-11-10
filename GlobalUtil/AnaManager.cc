@@ -77,7 +77,7 @@ vector<std::string> AnaManager::GetInputNames()
         if ( is_analyse_protons )
             file_name = Form("../data/ep_25_10_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
         else
-            file_name = Form("../data/en_25_08_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
+            file_name = Form("../data/en_25_05_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
 
         std::ifstream data_file(file_name);
 

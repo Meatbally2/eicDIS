@@ -14,8 +14,8 @@
 // #include <Math/LorentzRotation.h>
 // using ROOT::Math::LorentzRotation;
 
-// void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p);
-void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p);
+void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p);
+// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p);
 void CreateOutputTree(TString outFileName);
 void ResetVariables();
 
