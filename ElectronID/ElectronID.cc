@@ -59,6 +59,17 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	else_det.clear();
 }
 
+edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
+
+	auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	for(const auto& assoc : RecoMC) {
+		if(assoc.getRec() == e_rec)
+			return assoc.getSim();
+	}
+
+	return edm4hep::MCParticle();
+}
+
 int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
@@ -424,21 +435,23 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 	return;
 }
 
-double ElectronID::GetEminusPzSum() {
+void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum) {
 
-	double reconEminusPzSum = 0.;
 	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 
 	for (const auto& reconPart : rcparts) {
-		// PxPyPzEVector v(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-		PxPyPzEVector v(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
-		v = boost(v);
-		reconEminusPzSum += (v.E() - v.Pz());
+		PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		vC = boost(vC);
+		CalEminusPzSum += (vC.E() - vC.Pz());
+
+		PxPyPzEVector vT(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
+		vT = boost(vT);
+		TrackEminusPzSum += (vT.E() - vT.Pz());
 	}
 
 	// std::cout << " recon E - Pz sum: " << reconEminusPzSum << std::endl;
 
-	return reconEminusPzSum;
+	return;
 }
 
 edm4eic::ReconstructedParticle ElectronID::SelectHighestPT(const edm4eic::ReconstructedParticleCollection& ecandidates) {

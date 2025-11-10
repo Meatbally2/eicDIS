@@ -2,7 +2,8 @@
 
 #include "eIDana.h"
 
-void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
+// void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
+void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
@@ -18,12 +19,14 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     else
         eID_type = "recon"; 
 
-    AnaManager* ana_manager = new AnaManager("eID" + eID_type);
-    ana_manager->Initialize(select_region, sr, file0, analyse_p);
+    AnaManager* ana_manager = new AnaManager("eID" + eID_type + ev_type);
+    // ana_manager->Initialize(select_region, sr, file0, analyse_p);
+    ana_manager->InitializeForLocal(ev_type);
 
     // .. input setup
     auto reader = podio::ROOTReader();
-    reader.openFiles(ana_manager->GetInputNames());
+    // reader.openFiles(ana_manager->GetInputNames());
+    reader.openFiles(ana_manager->GetLocalInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 
@@ -53,19 +56,20 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
 
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
-        if(e_mc.size() == 0) 
+        if(e_mc.size() > 0) 
         {
-            eID_status = NO_MC;
-            outTree->Fill();
-            ResetVariables();
-            continue;
+            eID_status = FOUND_MC;
+            // Calculate kinematic variables using MC electron
+            TLorentzVector kprime;
+            kprime.SetXYZM(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, MASS_ELECTRON);
+            CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
         }
 
         // Use MC to find reconstructed electron (TruthID)
         auto e_truth = eFinder->GetTruthReconElectron();
         if(e_truth.size() > 0) 
         {
-            eID_status = NO_FOUND;
+            eID_status = FOUND_TRUTH;
             h_n_clusters_n_tracks->Fill( e_truth[0].getTracks().size(), e_truth[0].getClusters().size());
         }
             
@@ -73,7 +77,11 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
         auto e_candidates = eFinder->FindScatteredElectron();
         edm4eic::ReconstructedParticle e_rec;
 
-        h_EminusPz->Fill(eFinder->GetEminusPzSum());
+        double TrackEminusPzSum = 0;
+        double CalEminusPzSum = 0;
+        eFinder->GetEminusPzSum(TrackEminusPzSum, CalEminusPzSum);
+        h_TrackEminusPz->Fill(TrackEminusPzSum);
+        h_CalEminusPz->Fill(CalEminusPzSum);
 
         // If there are multiple candidates, select one with highest pT
         if(e_candidates.size() > 0) 
@@ -87,6 +95,20 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
                 eID_status = FOUND_PI;
             else
                 eID_status = FOUND_OTHERS;
+
+            auto recoMC = eFinder->GetMC(e_rec);
+            if ( recoMC.isAvailable() )
+            {
+                TLorentzVector recokprime;
+                recokprime.SetXYZM(recoMC.getMomentum().x, recoMC.getMomentum().y, recoMC.getMomentum().z, MASS_ELECTRON);
+                CalculateElectronKinematics(Ee, Eh, recokprime, rec_xB, rec_Q2, rec_W2, rec_y, rec_nu);
+            }
+
+            h_cand_mul->Fill(e_candidates.size());
+            if ( mc_PDG == 0 )
+                h_cand_mul_eHighPt->Fill(e_candidates.size());
+            else
+                h_cand_mul_oHighPt->Fill(e_candidates.size());
         }
 
         // Fill histograms
@@ -106,11 +128,6 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
             h_isoE_else->Fill(det_val.recon_isoE);
         }
 
-        // Calculate kinematic variables using MC electron
-		TLorentzVector kprime;
-		kprime.SetXYZM(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, MASS_ELECTRON);
-		CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
-
         outTree->Fill();
         ResetVariables();
     }
@@ -121,44 +138,39 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     TCanvas* c_EoP = new TCanvas("c_EoP", "c_EoP", 1000, 600);
     c_EoP->SetLogy();
 
-    DrawComparison(c_EoP, h_EoP_e, h_EoP_pi, h_EoP_else, draw_max);
-
-    c_EoP->cd();
-    c_EoP->Update();
-
-    TLine* line_EoP_min = new TLine(eFinder->get_mEoP_min(), 0, eFinder->get_mEoP_min(), draw_max);
-    line_EoP_min->SetLineColor(kBlack);
-    line_EoP_min->SetLineStyle(7);
-    line_EoP_min->Draw("SAME");
-    TLine* line_EoP_max = new TLine(eFinder->get_mEoP_max(), 0, eFinder->get_mEoP_max(), draw_max);
-    line_EoP_max->SetLineColor(kBlack);
-    line_EoP_max->SetLineStyle(7);
-    line_EoP_max->Draw("SAME");
+    DrawParComparison(c_EoP, h_EoP_e, h_EoP_pi, h_EoP_else, draw_max);
+    DrawVerticalLine(c_EoP, eFinder->get_mEoP_min(), draw_max);
+    DrawVerticalLine(c_EoP, eFinder->get_mEoP_max(), draw_max);
 
     TCanvas* c_isoE = new TCanvas("c_isoE", "c_isoE", 1000, 600);
     c_isoE->SetLogy();
 
-    DrawComparison(c_isoE, h_isoE_e, h_isoE_pi, h_isoE_else, draw_max);
-    c_isoE->cd();
-    c_isoE->Update();
-
-    TLine* line_isoE_min = new TLine(eFinder->get_mIsoE(), 0, eFinder->get_mIsoE(), draw_max);
-    line_isoE_min->SetLineColor(kBlack);
-    line_isoE_min->SetLineStyle(7);
-    line_isoE_min->Draw("SAME");
+    DrawParComparison(c_isoE, h_isoE_e, h_isoE_pi, h_isoE_else, draw_max);
+    DrawVerticalLine(c_isoE, eFinder->get_mIsoE(), draw_max);
 
     TCanvas* c_EminusPz = new TCanvas("c_EminusPz", "c_EminusPz", 1000, 600);
-    
-    h_EminusPz->SetLineColor(kBlue);
-    h_EminusPz->SetFillColor(kBlue);
-    h_EminusPz->SetFillStyle(3003);
-    h_EminusPz->Draw("HIST SAME");
 
-    c_EminusPz->Update();
-    TLine* line_2Ee = new TLine(2*Ee, 0, 2*Ee, gPad->GetUymax());
-    line_2Ee->SetLineColor(kBlack);
-    line_2Ee->SetLineStyle(7);
-    line_2Ee->Draw("SAME");
+    DrawTCComparison(c_EminusPz, h_TrackEminusPz, h_CalEminusPz, draw_max);
+    DrawVerticalLine(c_EminusPz, 2*Ee, draw_max);
+
+    TCanvas* c_reco_mul = new TCanvas("c_reco_mul", "c_reco_mul", 1000, 600);
+
+    h_cand_mul->Draw("HIST");
+    h_cand_mul->SetLineColor(kGray+2);
+
+    h_cand_mul_eHighPt->Draw("HIST SAME");
+    h_cand_mul_eHighPt->SetLineColor(kBlue);
+
+    h_cand_mul_oHighPt->Draw("HIST SAME");
+    h_cand_mul_oHighPt->SetLineColor(kOrange+7);
+
+    TLegend* leg_mul = new TLegend(0.4, 0.6, 0.6, 0.88);
+    leg_mul->SetBorderSize(0);
+    leg_mul->SetFillStyle(0);
+    leg_mul->AddEntry(h_cand_mul, "All candidates", "L");
+    leg_mul->AddEntry(h_cand_mul_eHighPt, "Scat. e has highest p_{T}", "L");
+    leg_mul->AddEntry(h_cand_mul_oHighPt, "Others have highest p_{T}", "L");
+    leg_mul->Draw();
 
     TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
     h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
@@ -172,6 +184,14 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     c_EoP->Write(c_EoP->GetName(), 2);
     c_isoE->Write(c_isoE->GetName(), 2);
     c_n_clusters_n_tracks->Write(c_n_clusters_n_tracks->GetName(), 2);
+    c_EminusPz->Write(c_EminusPz->GetName(), 2);
+    c_reco_mul->Write(c_reco_mul->GetName(), 2);
+
+    c_EoP->SaveAs(Form("%dx%d_%s_EoP.pdf", 18, 275, ev_type.c_str()));
+    c_isoE->SaveAs(Form("%dx%d_%s_isoE.pdf", 18, 275, ev_type.c_str()));
+    c_EminusPz->SaveAs(Form("%dx%d_%s_EminusPz.pdf", 18, 275, ev_type.c_str()));
+    c_reco_mul->SaveAs(Form("%dx%d_%s_reco_mul.pdf", 18, 275, ev_type.c_str()));
+    c_n_clusters_n_tracks->SaveAs(Form("%dx%d_%s_n_clusters_n_tracks.pdf", 18, 275, ev_type.c_str()));
 
     return;
 }
@@ -186,14 +206,59 @@ void DefineHistograms() {
     h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
     h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
 
-    h_EminusPz = new TH1D("h_EminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
+    h_TrackEminusPz = new TH1D("h_TrackEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
+    h_CalEminusPz = new TH1D("h_CalEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
 
     h_n_clusters_n_tracks = new TH2D("h_n_clusters_n_tracks", "Number of clusters vs number of tracks; N_{tracks}; N_{clusters}", 5, -0.5, 4.5, 5, -0.5, 4.5);
+
+    h_cand_mul = new TH1D("h_cand_mul", "Scattered electron candidates multiplicity; N_{candidates}; Counts", 10, -0.5, 9.5);
+    h_cand_mul_eHighPt = new TH1D("h_cand_mul_eHighPt", "Scattered electron candidates multiplicity (high p_{T,e}); N_{candidates}; Counts", 10, -0.5, 9.5);
+    h_cand_mul_oHighPt = new TH1D("h_cand_mul_oHighPt", "Scattered electron candidates multiplicity (high p_{T,others}); N_{candidates}; Counts", 10, -0.5, 9.5);
 
     return;
 }
 
-void DrawComparison(TCanvas* c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &draw_max) {
+void DrawVerticalLine(TCanvas* &c, double x_pos, double y_max) {
+
+    c->cd();
+    c->Modified();
+    c->Update();
+
+    TLine* line = new TLine(x_pos, 0, x_pos, y_max);
+    line->SetLineColor(kBlack);
+    line->SetLineStyle(7);
+    line->Draw("SAME");
+
+    return;
+}
+
+void DrawTCComparison(TCanvas* &c, TH1D* &ht, TH1D* &hc, double &draw_max) {
+
+    c->cd();
+
+    hc->SetLineColor(kGray);
+    hc->SetFillColor(kGray);
+    hc->SetFillStyle(3003);
+    hc->Draw("HIST");
+    draw_max = 1.2*std::max({hc->GetMaximum(), ht->GetMaximum()});
+    hc->SetMaximum(draw_max);
+
+    ht->SetLineColor(kBlue);
+    ht->SetFillColor(kBlue);
+    ht->SetFillStyle(3003);
+    ht->Draw("HIST SAME");
+
+    TLegend* leg = new TLegend(0.2, 0.6, 0.4, 0.88);
+    leg->SetBorderSize(0);
+    leg->SetFillStyle(0);
+    leg->AddEntry(ht, "Using E_{Track}", "L");
+    leg->AddEntry(hc, "Using E_{Cluster}", "L");
+    leg->Draw();
+
+    return;
+}
+
+void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &draw_max) {
 
     c->cd();
 
@@ -245,7 +310,7 @@ void CreateOutputTree(TString outFileName) {
 
 void ResetVariables() {
 
-	eID_status = NO_RECON;
+	eID_status = NO_MC;
     mc_PDG = 0;
 
 	mc_xB = -999;
@@ -253,6 +318,12 @@ void ResetVariables() {
 	mc_W2 = -999;
 	mc_y = -999;
 	mc_nu = -999;
+
+    rec_xB = -999;
+	rec_Q2 = -999;
+	rec_W2 = -999;
+	rec_y = -999;
+	rec_nu = -999;
 
     return;
 }

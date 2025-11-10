@@ -28,6 +28,7 @@ public:
 	void SetBoost(LorentzRotation fboost) { boost = fboost; }
 
 	int Check_eID(edm4eic::ReconstructedParticle e_rec);
+	edm4hep::MCParticle GetMC(edm4eic::ReconstructedParticle e_rec);
 	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(bool use_mc, int object_id, bool is_print);
 	edm4eic::ReconstructedParticleCollection FindScatteredElectron();	
 	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();	
@@ -35,7 +36,7 @@ public:
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
-	double GetEminusPzSum();
+	void GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum);
 	void CheckClusters();
 
 	double get_mEoP_min() const { return mEoP_min; }
