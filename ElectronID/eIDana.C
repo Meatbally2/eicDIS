@@ -19,21 +19,22 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     else
         eID_type = "recon"; 
 
-    AnaManager* ana_manager = new AnaManager("eID" + eID_type + ev_type);
+    AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
     ana_manager->Initialize(select_region, sr, file0, analyse_p);
     // ana_manager->InitializeForLocal(ev_type);
 
     // .. input setup
     auto reader = podio::ROOTReader();
-    reader.openFiles(ana_manager->GetInputNames());
+    // reader.openFiles(ana_manager->GetInputNames());
     // reader.openFiles(ana_manager->GetLocalInputNames());
+    reader.openFiles(ana_manager->GetLowQInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 
 
     // .. ElectronID setup
     ElectronID* eFinder = new ElectronID(Ee, Eh);
-    LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON);
+    LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); // need to add a check for types of nucleon
     eFinder->SetBoost(boost);
 
     DefineHistograms();
@@ -187,11 +188,11 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     c_EminusPz->Write(c_EminusPz->GetName(), 2);
     c_reco_mul->Write(c_reco_mul->GetName(), 2);
 
-    c_EoP->SaveAs(Form("%dx%d_%s_EoP.pdf", 18, 275, ev_type.c_str()));
-    c_isoE->SaveAs(Form("%dx%d_%s_isoE.pdf", 18, 275, ev_type.c_str()));
-    c_EminusPz->SaveAs(Form("%dx%d_%s_EminusPz.pdf", 18, 275, ev_type.c_str()));
-    c_reco_mul->SaveAs(Form("%dx%d_%s_reco_mul.pdf", 18, 275, ev_type.c_str()));
-    c_n_clusters_n_tracks->SaveAs(Form("%dx%d_%s_n_clusters_n_tracks.pdf", 18, 275, ev_type.c_str()));
+    // c_EoP->SaveAs(Form("%dx%d_%s_EoP.pdf", 18, 275, ev_type.c_str()));
+    // c_isoE->SaveAs(Form("%dx%d_%s_isoE.pdf", 18, 275, ev_type.c_str()));
+    // c_EminusPz->SaveAs(Form("%dx%d_%s_EminusPz.pdf", 18, 275, ev_type.c_str()));
+    // c_reco_mul->SaveAs(Form("%dx%d_%s_reco_mul.pdf", 18, 275, ev_type.c_str()));
+    // c_n_clusters_n_tracks->SaveAs(Form("%dx%d_%s_n_clusters_n_tracks.pdf", 18, 275, ev_type.c_str()));
 
     return;
 }
@@ -304,6 +305,12 @@ void CreateOutputTree(TString outFileName) {
 	outTree->Branch("mc_W2", &mc_W2);
 	outTree->Branch("mc_y",	 &mc_y);
 	outTree->Branch("mc_nu", &mc_nu);
+
+    outTree->Branch("rec_xB", &rec_xB);
+	outTree->Branch("rec_Q2", &rec_Q2);
+	outTree->Branch("rec_W2", &rec_W2);
+	outTree->Branch("rec_y",  &rec_y);
+	outTree->Branch("rec_nu", &rec_nu);
     
     return;
 }
@@ -311,7 +318,7 @@ void CreateOutputTree(TString outFileName) {
 void ResetVariables() {
 
 	eID_status = NO_MC;
-    mc_PDG = 0;
+    mc_PDG = -999;
 
 	mc_xB = -999;
 	mc_Q2 = -999;

@@ -59,6 +59,28 @@ vector<std::string> AnaManager::GetLocalInputNames()
     return inFiles;
 }
 
+vector<std::string> AnaManager::GetLowQInputNames()
+{
+    std::vector<std::string> inFiles;
+
+    for ( int r = 0; r <= 1709; r ++ )
+    {
+        // if ( starting_file < 0 )
+        //     if ( r > 10 )
+        //         break;
+
+        if ( r == 1519 )
+            continue;
+
+        std::string fname = Form("epic:/RECO/25.05.0/epic_craterlake/SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run9.ab.%04d.eicrecon.edm4eic.root", r);
+        fname.erase(0, 5);
+        std::cout << "File " << r << " : " << fname << std::endl;
+        inFiles.push_back(address+fname);
+    }
+
+    return inFiles;
+}
+
 vector<std::string> AnaManager::GetInputNames()
 {
     std::vector<std::string> inFiles;

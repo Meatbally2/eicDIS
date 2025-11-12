@@ -14,6 +14,7 @@ public:
     std::string GetOutputName();
     vector<std::string> GetInputNames();
     vector<std::string> GetLocalInputNames();
+    vector<std::string> GetLowQInputNames();
 
 private:
     bool is_select_region;
