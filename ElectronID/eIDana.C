@@ -19,15 +19,16 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     else
         eID_type = "recon"; 
 
-    AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
+    // AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
+    AnaManager* ana_manager = new AnaManager("eID" + eID_type);
     ana_manager->Initialize(select_region, sr, file0, analyse_p);
     // ana_manager->InitializeForLocal(ev_type);
 
     // .. input setup
     auto reader = podio::ROOTReader();
-    // reader.openFiles(ana_manager->GetInputNames());
+    reader.openFiles(ana_manager->GetInputNames());
     // reader.openFiles(ana_manager->GetLocalInputNames());
-    reader.openFiles(ana_manager->GetLowQInputNames());
+    // reader.openFiles(ana_manager->GetLowQInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 

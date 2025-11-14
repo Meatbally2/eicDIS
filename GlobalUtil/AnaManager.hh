@@ -19,6 +19,7 @@ public:
 private:
     bool is_select_region;
     int region_index;
+    int file_index;
     int starting_file;
     bool is_analyse_protons;
     std::string ana_name;

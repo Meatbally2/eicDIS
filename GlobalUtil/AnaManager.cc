@@ -6,6 +6,8 @@ const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"
 
 const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
 
+const int step = 2000; // number of files to process in one batch
+
 AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 }
 
@@ -16,7 +18,8 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
 {
     is_select_region = is_select_region_;
     region_index = region_index_;
-    starting_file = starting_file_index_*2000;
+    file_index = starting_file_index_;
+    starting_file = starting_file_index_*step;
     is_analyse_protons = is_analyse_protons_;
 
     return;
@@ -37,10 +40,13 @@ std::string AnaManager::GetOutputName()
 {
     std::string outname;
 
+    if ( starting_file >= 0 )
+        ana_name += Form("_f%d", file_index);
+
     if ( is_analyse_protons )
-        outname = is_select_region ? Form("18x275_%s_%s.root", p_group[region_index].c_str(), ana_name.c_str()) : Form("18x275_%s.root", ana_name.c_str());
+        outname = is_select_region ? Form("tmp/18x275_%s_%s.root", p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/18x275_%s.root", ana_name.c_str());
     else
-        outname = is_select_region ? Form("10x166_%s_%s.root", n_group[region_index].c_str(), ana_name.c_str()) : Form("10x166_%s.root", ana_name.c_str());
+        outname = is_select_region ? Form("tmp/10x166_%s_%s.root", n_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/10x166_%s.root", ana_name.c_str());
 
     return outname;
 }
@@ -97,7 +103,7 @@ vector<std::string> AnaManager::GetInputNames()
         
         std::string file_name;
         if ( is_analyse_protons )
-            file_name = Form("../data/ep_25_10_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
+            file_name = Form("../data/ep_25_05_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
         else
             file_name = Form("../data/en_25_05_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
 
@@ -118,7 +124,7 @@ vector<std::string> AnaManager::GetInputNames()
                     line_c ++;
                     continue;
                 } 
-                else if ( line_c >= starting_file + 2000 )
+                else if ( line_c >= starting_file + step )
                     break;
             }
                 
