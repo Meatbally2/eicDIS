@@ -160,7 +160,7 @@ vector<std::string> AnaManager::GetInputNames()
             // fname.erase(0, 5);
 
             int compare = line.compare(prefix.size(), target.size(), target);
-            // std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
+            std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
             // std::cout << "compare: " << compare << std::endl;
 
             if ( compare != 0 )
