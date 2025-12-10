@@ -4,7 +4,8 @@
 const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
 const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
-const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
+// const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
+const std::string address =  "root://dtn-rucio.jlab.org:1094/";
 
 const int step = 2000; // number of files to process in one batch
 
@@ -94,27 +95,79 @@ vector<std::string> AnaManager::GetInputNames()
     int n_set = is_analyse_protons ? 4 : 3;
     
     int total_file = 0;
+
+    std::string campaign = is_analyse_protons ? "25.10.0" : "25.10.2";
+
+    std::string file_name = "../data/" + campaign + "_manifest.txt";
+    // std::string file_name = "../data/test.txt";
     
+    std::string prefix = "/volatile/eic/EPIC/RECO/" + campaign + "/epic_craterlake/DIS/";
+    // std::string phys_group = "/epic_craterlake/DIS/";
+
     for ( int r = 0; r < n_set; r ++ )
     {
         if ( is_select_region )
             if ( r != region_index )
                 continue;
-        
-        std::string file_name;
-        if ( is_analyse_protons )
-            file_name = Form("../data/ep_25_05_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
-        else
-            file_name = Form("../data/en_25_05_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
 
+        // std::cout << " r " << r << std::endl;
+        
+        // std::string file_name;
+        // if ( is_analyse_protons )
+        //     file_name = Form("../data/ep_25_05_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
+        // else
+        //     file_name = Form("../data/en_25_05_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
+
+        std::string target;
+        if ( is_analyse_protons )
+        {
+            std::string gen_group = "NC/"; 
+            std::string beam_group = "18x275/";
+            std::string sample_group = Form("minQ2=%.0f",pow(10,r));
+            target = gen_group + beam_group + sample_group;
+        }
+        else
+        {
+            std::string gen_group = "BeAGLE1.03.02-1.2/"; 
+            std::string beam_group = "eHe3/10x166/";
+            std::string sample_group;
+            if ( r == 0 )
+                sample_group = Form("q2_2to10/");
+            else if ( r == 1 )
+                sample_group = Form("q2_10to100/");
+            else
+                sample_group = Form("q2_100to10000/");
+
+            target = gen_group + beam_group + sample_group;
+            
+            // std::cout << "sample_group: " << sample_group << std::endl;
+            // std::cout << "target: " << target << std::endl;            
+        }
+
+        // std::cout << "prefix: " << prefix << std::endl;
+        // std::cout << "prefix size: " << prefix.size() << " target size: " << target.size() << std::endl; 
+
+   
         std::ifstream data_file(file_name);
 
         int line_c = 0;
         std::string line;
         while ( getline(data_file, line) )
         {
+            std::string fname;
+            std::stringstream ss(line);
+            ss >> fname;
+            // fname.erase(0, 5);
+
+            int compare = line.compare(prefix.size(), target.size(), target);
+            // std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
+            // std::cout << "compare: " << compare << std::endl;
+
+            if ( compare != 0 )
+                continue;
+
             if ( starting_file < 0 )
-                if ( line_c >= 10 )
+                if ( line_c >= 3 )
                     break;
 
             if ( starting_file >= 0 )
@@ -128,23 +181,24 @@ vector<std::string> AnaManager::GetInputNames()
                     break;
             }
                 
+            // inFiles.push_back(address+fname);
+            inFiles.push_back(address+line);
 
-            std::string fname;
-            std::stringstream ss(line);
-            ss >> fname;
-            fname.erase(0, 5);
-            inFiles.push_back(address+fname);
-
-            std::cout << "File " << total_file << ": " << fname << std::endl;
+            // std::cout << "File " << total_file << ": " << fname << std::endl;
+            //  std::cout << "File " << total_file << ": " << address+line << std::endl;
 
             line_c ++;
             total_file ++;
         }
 
         data_file.close();
+        
     }
 
     cout << "total of " << total_file << " files are found" << endl << endl;
+
+    // for ( const auto& line : inFiles )
+    //     std::cout << line << std::endl;
 
     return inFiles;
 }

@@ -24,6 +24,9 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     ana_manager->Initialize(select_region, sr, file0, analyse_p);
     // ana_manager->InitializeForLocal(ev_type);
 
+    ana_manager->GetInputNames();
+    // continue;
+
     // .. input setup
     auto reader = podio::ROOTReader();
     reader.openFiles(ana_manager->GetInputNames());
@@ -65,6 +68,8 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
             TLorentzVector kprime;
             kprime.SetXYZM(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, MASS_ELECTRON);
             CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
+            vMCe.SetPxPyPzE(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, e_mc[0].getEnergy());
+            vMCe = boost(vMCe);
         }
 
         // Use MC to find reconstructed electron (TruthID)
@@ -89,6 +94,12 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
         if(e_candidates.size() > 0) 
         {			
             e_rec = eFinder->SelectHighestPT(e_candidates);
+
+            vTRACKe.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
+            vCLUSTERe.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, eFinder->GetCalorimeterEnergy(e_rec));
+            vTRACKe = boost(vTRACKe);
+            vCLUSTERe = boost(vCLUSTERe);
+
             mc_PDG = eFinder->Check_eID(e_rec);
 
             if ( mc_PDG == 0 )
@@ -312,7 +323,11 @@ void CreateOutputTree(TString outFileName) {
 	outTree->Branch("rec_W2", &rec_W2);
 	outTree->Branch("rec_y",  &rec_y);
 	outTree->Branch("rec_nu", &rec_nu);
-    
+
+    outTree->Branch("vMCe", &vMCe);
+	outTree->Branch("vTRACKe", &vTRACKe);
+	outTree->Branch("vCLUSTERe", &vCLUSTERe);
+
     return;
 }
 
@@ -332,6 +347,10 @@ void ResetVariables() {
 	rec_W2 = -999;
 	rec_y = -999;
 	rec_nu = -999;
+
+    vMCe.SetPxPyPzE(0, 0, 0, 0);
+	vTRACKe.SetPxPyPzE(0, 0, 0, 0);
+	vCLUSTERe.SetPxPyPzE(0, 0, 0, 0);
 
     return;
 }

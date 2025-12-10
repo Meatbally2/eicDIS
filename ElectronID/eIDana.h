@@ -45,6 +45,10 @@ double rec_W2;
 double rec_y;
 double rec_nu;
 
+PxPyPzEVector vMCe;
+PxPyPzEVector vTRACKe;
+PxPyPzEVector vCLUSTERe;
+
 TH1D* h_EoP_e;
 TH1D* h_EoP_pi;
 TH1D* h_EoP_else;
