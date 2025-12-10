@@ -15,6 +15,7 @@ public:
     vector<std::string> GetInputNames();
     vector<std::string> GetLocalInputNames();
     vector<std::string> GetLowQInputNames();
+    vector<std::string> ValidateFiles(std::vector<std::string>& fileNames);
 
 private:
     bool is_select_region;

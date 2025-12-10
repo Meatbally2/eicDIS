@@ -195,10 +195,52 @@ vector<std::string> AnaManager::GetInputNames()
         
     }
 
-    cout << "total of " << total_file << " files are found" << endl << endl;
+    cout << "total of " << total_file << " files are found" << endl;
+
+    // Validate input files
+    std::vector<std::string> validFiles = ValidateFiles(inFiles);
+    if (validFiles.empty()) {
+        std::cerr << "No valid input files found." << std::endl;
+        return {};
+    }
+
+    std::cout << "Number of valid input files: " << validFiles.size() << std::endl;
 
     // for ( const auto& line : inFiles )
     //     std::cout << line << std::endl;
 
-    return inFiles;
+    return validFiles;
+}
+
+vector<std::string> AnaManager::ValidateFiles(std::vector<std::string>& fileNames)
+{
+    // Provided by Sakib R. :D
+
+    std::vector<std::string> validFiles;
+
+    for (const auto& fileName : fileNames) {
+        TFile* file = TFile::Open(fileName.c_str());
+        
+        if (!file || file->IsZombie()) {
+            std::cerr << "Corrupted or inaccessible file: " << fileName << std::endl;
+            if (file) 
+            {
+                file->Close();
+                delete file;
+            }
+            continue;
+        }
+        
+        if (file->TestBit(TFile::kRecovered)) {
+            std::cerr << "File was recovered (possibly corrupted): " << fileName << std::endl;
+            delete file;
+            continue;
+        }
+        
+        file->Close();
+        delete file;
+        validFiles.push_back(fileName);
+    }
+    
+    return validFiles;
 }
