@@ -221,7 +221,7 @@ vector<std::string> AnaManager::ValidateFiles(std::vector<std::string>& fileName
 
     for (const auto& fileName : fileNames) {
 
-        std::cout << "Validating file " << ": " << fileName << std::endl;
+        std::cerr << "Validating file " << ": " << fileName << std::endl;
 
         TFile* file = TFile::Open(fileName.c_str());
         
