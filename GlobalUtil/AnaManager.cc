@@ -123,7 +123,7 @@ vector<std::string> AnaManager::GetInputNames()
         {
             std::string gen_group = "NC/"; 
             std::string beam_group = "18x275/";
-            std::string sample_group = Form("minQ2=%.0f",pow(10,r));
+            std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
             target = gen_group + beam_group + sample_group;
         }
         else
@@ -160,7 +160,7 @@ vector<std::string> AnaManager::GetInputNames()
             // fname.erase(0, 5);
 
             int compare = line.compare(prefix.size(), target.size(), target);
-            std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
+            // std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
             // std::cout << "compare: " << compare << std::endl;
 
             if ( compare != 0 )
