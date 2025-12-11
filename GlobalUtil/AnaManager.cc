@@ -218,26 +218,34 @@ vector<std::string> AnaManager::ValidateFiles(std::vector<std::string>& fileName
 
     std::vector<std::string> validFiles;
 
+
     for (const auto& fileName : fileNames) {
+
+        std::cout << "Validating file " << ": " << fileName << std::endl;
+
         TFile* file = TFile::Open(fileName.c_str());
         
         if (!file || file->IsZombie()) {
-            std::cerr << "Corrupted or inaccessible file: " << fileName << std::endl;
-            if (file) 
-            {
-                file->Close();
-                delete file;
-            }
+            std::cerr << "!!! Skipping corrupted or inaccessible file: " << fileName << std::endl;
+            if (file) delete file;
             continue;
         }
-        
-        if (file->TestBit(TFile::kRecovered)) {
-            std::cerr << "File was recovered (possibly corrupted): " << fileName << std::endl;
+
+        // Some files may open but contain no keys (recovered/empty). Treat as invalid.
+        TList* keys = file->GetListOfKeys();
+        Long64_t nkeys = keys ? keys->GetSize() : 0;
+        if (nkeys == 0) {
+            std::cerr << "!!! Skipping file with no keys (empty/recovered): " << fileName << std::endl;
             delete file;
             continue;
         }
         
-        file->Close();
+        if (file->TestBit(TFile::kRecovered)) {
+            std::cerr << "!!! Skipping recovered file (possibly corrupted): " << fileName << std::endl;
+            delete file;
+            continue;
+        }
+        
         delete file;
         validFiles.push_back(fileName);
     }
