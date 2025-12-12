@@ -32,6 +32,7 @@ TTree* outTree;
 
 int eID_status;
 int mc_PDG;
+double EminusPz;
 
 double mc_xB;
 double mc_Q2;

@@ -1,0 +1,81 @@
+// Find inclusive scattered electrons
+
+#include "beamAna.h"
+
+void beamAna(int Ee, int Eh, int select_region, int sr, int all_file, int analyse_p)
+{
+    std::cout << "** Analysing incoming beam, energy is set to: " << Ee << "x" << Eh << std::endl;
+
+    // Standard setup
+
+    SetePICStyle();
+
+    AnaManager* ana_manager = new AnaManager("beam");
+    ana_manager->Initialize(select_region, sr, all_file, analyse_p);
+
+    // .. input setup
+    auto reader = podio::ROOTReader();
+    reader.openFiles(ana_manager->GetInputNames());
+
+    // .. output setup;
+    CreateOutputTree(ana_manager->GetOutputName()); 
+
+    // .. Beam class setup
+    BeamMC* inFinder = new BeamMC(Ee, Eh);
+
+    // Analysis loop
+
+    for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
+    {
+        auto raw = reader.readNextEntry("events");
+        if(!raw) 
+        {
+            std::cerr << "readNextEntry returned null at event " << ev << "\n";
+            continue;
+        }
+        podio::Frame event(std::move(raw));
+        inFinder->SetEvent(&event);
+
+        if(ev%100==0) 
+            cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
+
+        inFinder->GetMCinfo(vectE, vectN, N_PDG);
+        outTree->Fill();
+        ResetVariables();
+    }
+
+    outFile->cd();
+    outTree->Write(outTree->GetName(), 2);
+
+    return;
+}
+
+void DefineHistograms() {
+
+    return;
+}
+
+
+void CreateOutputTree(TString outFileName) {
+
+	outFile = new TFile(outFileName, "RECREATE");
+	outTree = new TTree("T_Beam", "T_Beam");
+
+    outTree->Branch("N_PDG", &N_PDG);
+
+    outTree->Branch("vectE", &vectE);
+	outTree->Branch("vectN", &vectN);
+
+    return;
+}
+
+void ResetVariables() {
+
+	N_PDG = 0;
+
+	vectE.SetPxPyPzE(0, 0, 0, 0);
+	vectN.SetPxPyPzE(0, 0, 0, 0);
+
+	return;
+}
+

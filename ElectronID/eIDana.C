@@ -89,6 +89,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
         eFinder->GetEminusPzSum(TrackEminusPzSum, CalEminusPzSum);
         h_TrackEminusPz->Fill(TrackEminusPzSum);
         h_CalEminusPz->Fill(CalEminusPzSum);
+        EminusPz = TrackEminusPzSum;
 
         // If there are multiple candidates, select one with highest pT
         if(e_candidates.size() > 0) 
@@ -311,6 +312,7 @@ void CreateOutputTree(TString outFileName) {
 
     outTree->Branch("eID_status", &eID_status);
     outTree->Branch("mc_PDG", &mc_PDG);
+    outTree->Branch("EminusPz", &EminusPz);
 
 	outTree->Branch("mc_xB", &mc_xB);
 	outTree->Branch("mc_Q2", &mc_Q2);
@@ -335,6 +337,7 @@ void ResetVariables() {
 
 	eID_status = NO_MC;
     mc_PDG = -999;
+    EminusPz = -999;
 
 	mc_xB = -999;
 	mc_Q2 = -999;
