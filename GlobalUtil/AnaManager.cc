@@ -90,6 +90,8 @@ vector<std::string> AnaManager::GetLowQInputNames()
 
 vector<std::string> AnaManager::GetInputNames()
 {
+    std::cout << "** Gathering input files for analysis..." << std::endl;
+
     std::vector<std::string> inFiles;
 
     int n_set = is_analyse_protons ? 4 : 3;
@@ -166,7 +168,8 @@ vector<std::string> AnaManager::GetInputNames()
             if ( compare != 0 )
                 continue;
 
-            if ( starting_file < 0 )
+            // std::cout << "file index: " << file_index << " line_c: " << line_c << std::endl;
+            if ( file_index == -1 )
                 if ( line_c >= 3 )
                     break;
 
@@ -191,7 +194,7 @@ vector<std::string> AnaManager::GetInputNames()
             total_file ++;
         }
 
-        data_file.close();
+        // data_file.close();
         
     }
 
@@ -204,7 +207,7 @@ vector<std::string> AnaManager::GetInputNames()
         return {};
     }
 
-    std::cout << "Number of valid input files: " << validFiles.size() << std::endl;
+    std::cout << "Number of valid input files: " << validFiles.size() << " .. passing them to PODIO" << std::endl;
 
     // for ( const auto& line : inFiles )
     //     std::cout << line << std::endl;
@@ -216,12 +219,14 @@ vector<std::string> AnaManager::ValidateFiles(std::vector<std::string>& fileName
 {
     // Provided by Sakib R. :D
 
+    std::cout << "** Validating input files..." << std::endl;
+
     std::vector<std::string> validFiles;
 
-
+    int count = 0;
     for (const auto& fileName : fileNames) {
 
-        std::cerr << "Validating file " << ": " << fileName << std::endl;
+        // std::cerr << "Validating file " << count++ << ": " << fileName << std::endl;
 
         TFile* file = TFile::Open(fileName.c_str());
         

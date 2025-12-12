@@ -24,7 +24,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     ana_manager->Initialize(select_region, sr, file0, analyse_p);
     // ana_manager->InitializeForLocal(ev_type);
 
-    ana_manager->GetInputNames();
+    // ana_manager->GetInputNames();
     // continue;
 
     // .. input setup
