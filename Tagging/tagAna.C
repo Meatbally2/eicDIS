@@ -6,11 +6,22 @@ void tagAna(int Ee, int Eh, int select_region, int sr, int all_file, int analyse
 
     // Standard setup
 
-    SetePICStyle();
-
     AnaManager* ana_manager = new AnaManager("tag");
     ana_manager->Initialize(select_region, sr, all_file, analyse_p);
 
+    std::string type_title = analyse_p ? "ep" : "e^{3}He";
+    std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    draw_manager = new DrawManager(type_title, energy_title, ana_manager->campaign);
+    draw_manager->SetEPIC();
+
+    if (select_region)
+    {
+        if ( analyse_p )
+            draw_manager->SetQ2min(pow(10,sr));
+        else
+            draw_manager->SetQ2range(pow(10,sr), pow(10,sr+1));
+    }
+    
     // .. input setup
     auto reader = podio::ROOTReader();
     reader.openFiles(ana_manager->GetInputNames());
@@ -145,17 +156,19 @@ void plot_ff()
         canvases = ff->draw_histograms();
         
         for (auto c : canvases)
-            c->Write();
+            draw_manager->LableAndCollect(c);
 
         canvases.clear();
     }
         
     canvases = zdcFinder->draw_histograms();
     for (auto c : canvases)
-        c->Write();
+        draw_manager->LableAndCollect(c);
 
     canvases.clear();
     
+    draw_manager->SaveToTree(outFile);
+
     return;
 }
 

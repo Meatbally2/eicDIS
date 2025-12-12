@@ -17,6 +17,8 @@ public:
     vector<std::string> GetLowQInputNames();
     vector<std::string> ValidateFiles(std::vector<std::string>& fileNames);
 
+    std::string campaign;
+    
 private:
     bool is_select_region;
     int region_index;

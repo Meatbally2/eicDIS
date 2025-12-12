@@ -7,8 +7,8 @@
 #include "podio/ROOTReader.h"
 
 #include "../GlobalUtil/AnaManager.cc"
+#include "../GlobalUtil/DrawManager.cc"
 #include "../GlobalUtil/Constants.hh"
-#include "../GlobalUtil/ePICStyle.c"
 
 #include "FarForward.cc"
 
@@ -24,6 +24,7 @@ void plot_ff();
 
 TFile* outFile;
 TTree* outTree;
+DrawManager* draw_manager;
 
 FarForward* rpFinder;
 FarForward* omdFinder;

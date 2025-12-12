@@ -7,7 +7,7 @@ const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"
 // const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
 const std::string address =  "root://dtn-rucio.jlab.org:1094/";
 
-const int step = 2000; // number of files to process in one batch
+const int step = 200; // number of files to process in one batch
 
 AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 }
@@ -23,6 +23,8 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     starting_file = starting_file_index_*step;
     is_analyse_protons = is_analyse_protons_;
 
+    campaign = is_analyse_protons ? "25.10.0" : "25.10.2";
+    
     return;
 }
 
@@ -98,8 +100,6 @@ vector<std::string> AnaManager::GetInputNames()
     
     int total_file = 0;
 
-    std::string campaign = is_analyse_protons ? "25.10.0" : "25.10.2";
-
     std::string file_name = "../data/" + campaign + "_manifest.txt";
     // std::string file_name = "../data/test.txt";
     
@@ -170,7 +170,7 @@ vector<std::string> AnaManager::GetInputNames()
 
             // std::cout << "file index: " << file_index << " line_c: " << line_c << std::endl;
             if ( file_index == -1 )
-                if ( line_c >= 3 )
+                if ( line_c >= 1 )
                     break;
 
             if ( starting_file >= 0 )
