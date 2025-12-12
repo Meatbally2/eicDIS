@@ -2,7 +2,7 @@
 #define DRAWMANAGER_HH
 
 
-#include "ePIC_style.c"
+#include "ePIC_style.C"
 
 class DrawManager{
 
