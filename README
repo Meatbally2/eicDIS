@@ -1,0 +1,10 @@
+Analysis code for ep and eHe3 DIS study. In each directory, the ana.C is the main root macro that can be called to do a specific task. QA plots and output tree are produced to /tmp (one will need to create this in the analysis directory the first time they run the code). In general, the .cc files contain the class code for handling the root branches and select out information.
+
+* BeamMC - Get incombing beam information
+* ElectronID - Identify scattered electron
+* Tagging - spectator tagging
+
+AnaManager.cc handles the file paths for analysis. Modify it to what you need. 
+
+Coming soon:
+- get manifest.txt from server instead of downloading and uploading it.
