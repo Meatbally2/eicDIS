@@ -32,7 +32,7 @@ public:
 	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(bool use_mc, int object_id, bool is_print);
 	edm4eic::ReconstructedParticleCollection FindScatteredElectron();
 	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();
-	const edm4hep::MCParticleCollection& GetMCElectron();
+	const edm4hep::MCParticleCollection& GetMCElectron() const;
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);

@@ -113,9 +113,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(bool
 
 	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 
-	// Reserve capacity to reduce memory reallocations
+	// Reserve capacity for vector members to reduce memory reallocations
 	size_t estimated_size = rcparts.size() > 0 ? rcparts.size() - 1 : 0;
-	meRecon.reserve(estimated_size);
 	hfs_dpt.reserve(estimated_size);
 	hfs_dpz.reserve(estimated_size);
 	hfs_de.reserve(estimated_size);
@@ -211,8 +210,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates;
 	scatteredElectronCandidates->setSubsetCollection();
 
-	// Reserve capacity to reduce memory reallocations
-	scatteredElectronCandidates.reserve(rcparts.size());
+	// Reserve capacity for vector members to reduce memory reallocations
 	e_det.reserve(rcparts.size());
 	pi_det.reserve(rcparts.size());
 	else_det.reserve(rcparts.size());
