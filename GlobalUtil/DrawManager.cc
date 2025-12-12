@@ -1,4 +1,4 @@
-#include "drawManager.hh"
+#include "DrawManager.hh"
 
 DrawManager::DrawManager(std::string type_, std::string energy_, std::string campaign_) 
 : type(type_), energy(energy_), campaign(campaign_) {
