@@ -3,7 +3,6 @@
 #include "eIDana.h"
 
 void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
-// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
@@ -17,21 +16,14 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     else if ( is_truth_eID == 2 )
         eID_type = "mc";
     else
-        eID_type = "recon"; 
+        eID_type = "recon";
 
-    // AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
     AnaManager* ana_manager = new AnaManager("eID" + eID_type);
     ana_manager->Initialize(select_region, sr, file0, analyse_p);
-    // ana_manager->InitializeForLocal(ev_type);
-
-    // ana_manager->GetInputNames();
-    // continue;
 
     // .. input setup
     auto reader = podio::ROOTReader();
     reader.openFiles(ana_manager->GetInputNames());
-    // reader.openFiles(ana_manager->GetLocalInputNames());
-    // reader.openFiles(ana_manager->GetLowQInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 
@@ -60,7 +52,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
         cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
 
         // Generator information (mcID)
-        edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
+        const auto& e_mc = eFinder->GetMCElectron();
         if(e_mc.size() > 0) 
         {
             eID_status = FOUND_MC;
@@ -126,17 +118,17 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
         }
 
         // Fill histograms
-        for ( const auto& det_val : eFinder->e_det )
+        for (const auto& det_val : eFinder->e_det)
         {
             h_EoP_e->Fill(det_val.recon_EoP);
             h_isoE_e->Fill(det_val.recon_isoE);
         }
-        for ( const auto& det_val : eFinder->pi_det )
+        for (const auto& det_val : eFinder->pi_det)
         {
             h_EoP_pi->Fill(det_val.recon_EoP);
             h_isoE_pi->Fill(det_val.recon_isoE);
         }
-        for ( const auto& det_val : eFinder->else_det )
+        for (const auto& det_val : eFinder->else_det)
         {
             h_EoP_else->Fill(det_val.recon_EoP);
             h_isoE_else->Fill(det_val.recon_isoE);
@@ -201,13 +193,17 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     c_EminusPz->Write(c_EminusPz->GetName(), 2);
     c_reco_mul->Write(c_reco_mul->GetName(), 2);
 
-    // c_EoP->SaveAs(Form("%dx%d_%s_EoP.pdf", 18, 275, ev_type.c_str()));
-    // c_isoE->SaveAs(Form("%dx%d_%s_isoE.pdf", 18, 275, ev_type.c_str()));
-    // c_EminusPz->SaveAs(Form("%dx%d_%s_EminusPz.pdf", 18, 275, ev_type.c_str()));
-    // c_reco_mul->SaveAs(Form("%dx%d_%s_reco_mul.pdf", 18, 275, ev_type.c_str()));
-    // c_n_clusters_n_tracks->SaveAs(Form("%dx%d_%s_n_clusters_n_tracks.pdf", 18, 275, ev_type.c_str()));
+    // Cleanup
+    delete ana_manager;
+    delete eFinder;
+    delete c_EoP;
+    delete c_isoE;
+    delete c_EminusPz;
+    delete c_reco_mul;
+    delete c_n_clusters_n_tracks;
 
-    return;
+    outFile->Close();
+    delete outFile;
 }
 
 void DefineHistograms() {
@@ -228,8 +224,6 @@ void DefineHistograms() {
     h_cand_mul = new TH1D("h_cand_mul", "Scattered electron candidates multiplicity; N_{candidates}; Counts", 10, -0.5, 9.5);
     h_cand_mul_eHighPt = new TH1D("h_cand_mul_eHighPt", "Scattered electron candidates multiplicity (high p_{T,e}); N_{candidates}; Counts", 10, -0.5, 9.5);
     h_cand_mul_oHighPt = new TH1D("h_cand_mul_oHighPt", "Scattered electron candidates multiplicity (high p_{T,others}); N_{candidates}; Counts", 10, -0.5, 9.5);
-
-    return;
 }
 
 void DrawVerticalLine(TCanvas* &c, double x_pos, double y_max) {
@@ -242,8 +236,6 @@ void DrawVerticalLine(TCanvas* &c, double x_pos, double y_max) {
     line->SetLineColor(kBlack);
     line->SetLineStyle(7);
     line->Draw("SAME");
-
-    return;
 }
 
 void DrawTCComparison(TCanvas* &c, TH1D* &ht, TH1D* &hc, double &draw_max) {
@@ -268,8 +260,6 @@ void DrawTCComparison(TCanvas* &c, TH1D* &ht, TH1D* &hc, double &draw_max) {
     leg->AddEntry(ht, "Using E_{Track}", "L");
     leg->AddEntry(hc, "Using E_{Cluster}", "L");
     leg->Draw();
-
-    return;
 }
 
 void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &draw_max) {
@@ -278,15 +268,11 @@ void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &dra
 
     h3->Draw("HIST");
     h3->SetLineColor(kGray+2);
-    // h3->SetFillColor(kGray);
-    // h3->SetFillStyle(3003);
     draw_max = 1.2*std::max({h1->GetMaximum(), h2->GetMaximum(), h3->GetMaximum()});
     h3->SetMaximum(draw_max);
 
     h2->Draw("HIST SAME");
     h2->SetLineColor(kBlue);
-    // h2->SetFillColor(kBlue);
-    // h2->SetFillStyle(3003);
 
     h1->Draw("HIST SAME");
     h1->SetLineWidth(2);
@@ -301,8 +287,6 @@ void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &dra
     leg->AddEntry(h2, "Pions", "L");
     leg->AddEntry(h3, "Others", "L");
     leg->Draw();
-
-    return;
 }
 
 void CreateOutputTree(TString outFileName) {
@@ -329,8 +313,6 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("vMCe", &vMCe);
 	outTree->Branch("vTRACKe", &vTRACKe);
 	outTree->Branch("vCLUSTERe", &vCLUSTERe);
-
-    return;
 }
 
 void ResetVariables() {
@@ -354,8 +336,6 @@ void ResetVariables() {
     vMCe.SetPxPyPzE(0, 0, 0, 0);
 	vTRACKe.SetPxPyPzE(0, 0, 0, 0);
 	vCLUSTERe.SetPxPyPzE(0, 0, 0, 0);
-
-    return;
 }
 
 void CalculateElectronKinematics(double fEe, double fEh, TLorentzVector kf, double& xB, double& Q2, double& W2, double& y, double& nu) {

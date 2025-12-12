@@ -27,12 +27,12 @@ public:
 	void SetEvent(const podio::Frame* event); 
 	void SetBoost(LorentzRotation fboost) { boost = fboost; }
 
-	int Check_eID(edm4eic::ReconstructedParticle e_rec);
-	edm4hep::MCParticle GetMC(edm4eic::ReconstructedParticle e_rec);
+	int Check_eID(const edm4eic::ReconstructedParticle& e_rec);
+	edm4hep::MCParticle GetMC(const edm4eic::ReconstructedParticle& e_rec);
 	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(bool use_mc, int object_id, bool is_print);
-	edm4eic::ReconstructedParticleCollection FindScatteredElectron();	
-	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();	
-	edm4hep::MCParticleCollection GetMCElectron();	
+	edm4eic::ReconstructedParticleCollection FindScatteredElectron();
+	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();
+	const edm4hep::MCParticleCollection& GetMCElectron();
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
@@ -84,6 +84,10 @@ private:
 	double rcpart_deltaH;
 
 	int eScatIndex;
+
+	// Cache for MC electron to avoid repeated lookups
+	mutable edm4hep::MCParticleCollection mCachedMCElectron;
+	mutable bool mMCElectronCached;
 };
 
 #endif
