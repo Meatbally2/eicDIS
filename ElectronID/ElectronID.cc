@@ -14,7 +14,7 @@ ElectronID::ElectronID() {
 	mEh = 100.;
 	std::cout << "!!! ElectronID: You have not specified beam energies...defaulting to 10x100 GeV !!!" << std::endl;
 
-	mEoP_min = 0.9;
+	mEoP_min = 0.8;
 	mEoP_max = 1.2;
 
 	mDeltaH_min = 0.*mEe;
@@ -31,7 +31,7 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mEe = Ee;
 	mEh = Eh;
 
-	mEoP_min = 0.9;
+	mEoP_min = 0.8;
 	mEoP_max = 1.2;
 
 	mDeltaH_min = 0.*mEe;

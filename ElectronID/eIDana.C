@@ -186,7 +186,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
 
     h_cand_mul->Draw("HIST");
     h_cand_mul->SetLineColor(kGray+2);
-    h_cand_mul->GetYaxis()->SetRangeUser(1, h_cand_mul->GetMaximum()*1.2);
+    h_cand_mul->GetYaxis()->SetRangeUser(1, h_cand_mul->GetMaximum()*1.5);
 
     h_cand_mul_eHighPt->Draw("HIST SAME");
     h_cand_mul_eHighPt->SetLineColor(kBlue);
