@@ -198,11 +198,11 @@ vector<std::string> AnaManager::GetInputNames()
         }
 
         // data_file.close();
-        
+
+        cout << "collected files at line: " << line0 - 1 << endl;
     }
 
     cout << "total of " << total_file << " files are found" << endl;
-    cout << "collected all files at line: " << line0 - 1 << endl;
 
     // Validate input files
     std::vector<std::string> validFiles = ValidateFiles(inFiles);
