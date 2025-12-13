@@ -153,9 +153,12 @@ vector<std::string> AnaManager::GetInputNames()
         std::ifstream data_file(file_name);
 
         int line_c = 0;
+        int line0 = 0;
         std::string line;
         while ( getline(data_file, line) )
         {
+            line0 ++;
+
             std::string fname;
             std::stringstream ss(line);
             ss >> fname;
@@ -199,6 +202,7 @@ vector<std::string> AnaManager::GetInputNames()
     }
 
     cout << "total of " << total_file << " files are found" << endl;
+    cout << "collected all files at line: " << line0 - 1 << endl;
 
     // Validate input files
     std::vector<std::string> validFiles = ValidateFiles(inFiles);
