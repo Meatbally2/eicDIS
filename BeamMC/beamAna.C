@@ -8,8 +8,6 @@ void beamAna(int Ee, int Eh, int select_region, int sr, int all_file, int analys
 
     // Standard setup
 
-    SetePICStyle();
-
     AnaManager* ana_manager = new AnaManager("beam");
     ana_manager->Initialize(select_region, sr, all_file, analyse_p);
 
