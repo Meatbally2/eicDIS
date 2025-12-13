@@ -17,6 +17,7 @@ public:
     void SetLumi(double L);
     void SetQ2range(double Q2_min, double Q2_max);
     void SetQ2min(double Q2_min);
+    std::pair<double, double> PixelToNDC(int x_px, int y_px);
 
     std::string type;
     std::string energy;

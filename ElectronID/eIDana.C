@@ -9,8 +9,6 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
 
     // Standard setup
 
-    SetePICStyle();
-
     std::string eID_type;
     if  ( is_truth_eID == 1 )
         eID_type = "truth";
@@ -26,6 +24,19 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
 
     // ana_manager->GetInputNames();
     // continue;
+
+    std::string type_title = analyse_p ? "ep" : "e^{3}He";
+    std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    DrawManager* draw_manager = new DrawManager(type_title, energy_title, ana_manager->campaign);
+    draw_manager->SetEPIC();
+
+    if (select_region)
+    {
+        if ( analyse_p )
+            draw_manager->SetQ2min(pow(10,sr));
+        else
+            draw_manager->SetQ2range(pow(10,sr), pow(10,sr+1));
+    }
 
     // .. input setup
     auto reader = podio::ROOTReader();
@@ -155,22 +166,27 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     DrawParComparison(c_EoP, h_EoP_e, h_EoP_pi, h_EoP_else, draw_max);
     DrawVerticalLine(c_EoP, eFinder->get_mEoP_min(), draw_max);
     DrawVerticalLine(c_EoP, eFinder->get_mEoP_max(), draw_max);
+    draw_manager->LableAndCollect(c_EoP);
 
     TCanvas* c_isoE = new TCanvas("c_isoE", "c_isoE", 1000, 600);
     c_isoE->SetLogy();
 
     DrawParComparison(c_isoE, h_isoE_e, h_isoE_pi, h_isoE_else, draw_max);
     DrawVerticalLine(c_isoE, eFinder->get_mIsoE(), draw_max);
+    draw_manager->LableAndCollect(c_isoE);
 
     TCanvas* c_EminusPz = new TCanvas("c_EminusPz", "c_EminusPz", 1000, 600);
 
     DrawTCComparison(c_EminusPz, h_TrackEminusPz, h_CalEminusPz, draw_max);
     DrawVerticalLine(c_EminusPz, 2*Ee, draw_max);
+    draw_manager->LableAndCollect(c_EminusPz);
 
     TCanvas* c_reco_mul = new TCanvas("c_reco_mul", "c_reco_mul", 1000, 600);
+    c_reco_mul->SetLogy();
 
     h_cand_mul->Draw("HIST");
     h_cand_mul->SetLineColor(kGray+2);
+    h_cand_mul->GetYaxis()->SetRangeUser(1, h_cand_mul->GetMaximum()*1.2);
 
     h_cand_mul_eHighPt->Draw("HIST SAME");
     h_cand_mul_eHighPt->SetLineColor(kBlue);
@@ -178,7 +194,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     h_cand_mul_oHighPt->Draw("HIST SAME");
     h_cand_mul_oHighPt->SetLineColor(kOrange+7);
 
-    TLegend* leg_mul = new TLegend(0.4, 0.6, 0.6, 0.88);
+    TLegend* leg_mul = new TLegend(0.6, 0.6, 0.8, 0.88);
     leg_mul->SetBorderSize(0);
     leg_mul->SetFillStyle(0);
     leg_mul->AddEntry(h_cand_mul, "All candidates", "L");
@@ -186,20 +202,25 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     leg_mul->AddEntry(h_cand_mul_oHighPt, "Others have highest p_{T}", "L");
     leg_mul->Draw();
 
+    draw_manager->LableAndCollect(c_reco_mul);
+
     TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
     h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
     h_n_clusters_n_tracks->Draw("COLZ TEXT");
 
+    draw_manager->LableAndCollect(c_n_clusters_n_tracks);
     // Save
 
     outFile->cd();
     outTree->Write(outTree->GetName(), 2);
 
-    c_EoP->Write(c_EoP->GetName(), 2);
-    c_isoE->Write(c_isoE->GetName(), 2);
-    c_n_clusters_n_tracks->Write(c_n_clusters_n_tracks->GetName(), 2);
-    c_EminusPz->Write(c_EminusPz->GetName(), 2);
-    c_reco_mul->Write(c_reco_mul->GetName(), 2);
+    draw_manager->SaveToTree(outFile);
+
+    // c_EoP->Write(c_EoP->GetName(), 2);
+    // c_isoE->Write(c_isoE->GetName(), 2);
+    // c_n_clusters_n_tracks->Write(c_n_clusters_n_tracks->GetName(), 2);
+    // c_EminusPz->Write(c_EminusPz->GetName(), 2);
+    // c_reco_mul->Write(c_reco_mul->GetName(), 2);
 
     // c_EoP->SaveAs(Form("%dx%d_%s_EoP.pdf", 18, 275, ev_type.c_str()));
     // c_isoE->SaveAs(Form("%dx%d_%s_isoE.pdf", 18, 275, ev_type.c_str()));
@@ -262,7 +283,7 @@ void DrawTCComparison(TCanvas* &c, TH1D* &ht, TH1D* &hc, double &draw_max) {
     ht->SetFillStyle(3003);
     ht->Draw("HIST SAME");
 
-    TLegend* leg = new TLegend(0.2, 0.6, 0.4, 0.88);
+    TLegend* leg = new TLegend(0.6, 0.6, 0.8, 0.88);
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
     leg->AddEntry(ht, "Using E_{Track}", "L");
@@ -294,7 +315,7 @@ void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &dra
     h1->SetFillColor(kRed);
     h1->SetFillStyle(3003);
 
-    TLegend* leg = new TLegend(0.6, 0.6, 0.88, 0.88);
+    TLegend* leg = new TLegend(0.7, 0.6, 0.95, 0.88);
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
     leg->AddEntry(h1, "Electrons", "L");

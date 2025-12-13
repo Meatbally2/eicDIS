@@ -5,9 +5,9 @@
 #include "podio/ROOTReader.h"
 
 #include "../GlobalUtil/AnaManager.cc"
+#include "../GlobalUtil/DrawManager.cc"
 #include "../GlobalUtil/getBoost.h"
 #include "../GlobalUtil/Constants.hh"
-#include "../GlobalUtil/ePICStyle.c"
 
 #include "ElectronID.cc"
 
