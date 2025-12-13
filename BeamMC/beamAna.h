@@ -6,7 +6,6 @@
 
 #include "../GlobalUtil/AnaManager.cc"
 #include "../GlobalUtil/Constants.hh"
-#include "../GlobalUtil/ePICStyle.c"
 
 #include "BeamMC.cc"
 

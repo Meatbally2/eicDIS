@@ -36,33 +36,24 @@ void DrawManager::SetQ2min(double Q2_min)
 // Modified from ePIC example
 void DrawManager::LableAndCollect(TCanvas* &c)
 {
-    int n_pad = c->GetListOfPrimitives()->GetSize();
-    for ( int i = 1; i <= n_pad; i++ )
-    {
-        c->cd(i);
-
-        // ===== Add ePIC logo to the figure ======
-        TImage *logo = TImage::Open("../GlobalUtil/EPIC-logo_black_transparent.png");
-        // TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.8, 0.8, 0.93, 0.93); // Create a new pad and then draw the image in it
-        TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.17, 0.83, 0.33, 0.93); // Create a new pad and then draw the image in it
-        logo_pad->SetFillStyle(0);
-        logo_pad->SetFillColor(0);
-        logo_pad->SetFrameFillStyle(0);
-        logo_pad->SetBorderMode(0);
-        logo_pad->SetBorderSize(0);
-        logo_pad->SetFrameBorderMode(0);
-        logo_pad->SetLineWidth(0);
-        logo_pad->SetLineColor(0);
-        logo_pad->SetFrameLineWidth(0);
-        logo_pad->SetFrameLineColor(0);
+    // some loop to figure out number of pads because ROOT doesn't want to give it directly -.-
+    int n_pad = 0;
+    TList *prim = (TList*)c->GetListOfPrimitives();
+    TIter next(prim);
+    TObject *obj;
+    while ((obj = next())) {
+        if (obj->InheritsFrom(TPad::Class()))
+            n_pad++;
+    }
+    int start = (n_pad == 0) ? 0 : 1;
+    int end = (n_pad == 0) ? 0 : n_pad;
  
-        TPad *pad_logo = (TPad*)logo_pad->Clone(Form("logo_pad_%d", i));
-        logo->SetConstRatio(kTRUE);  // Maintain aspect ratio
-        pad_logo->Draw("X");
-        pad_logo->cd();
-        logo->Draw();
-
-        c->cd(i);
+    for ( int i = start; i <= end; i++ )
+    {
+        if (i == 0)
+            c->cd();  // Main canvas
+        else
+            c->cd(i);  // Sub-pad
 
         TLatex Text_com;
         Text_com.SetTextAlign(13);  //align at top
@@ -96,9 +87,30 @@ void DrawManager::LableAndCollect(TCanvas* &c)
         Text_ePIC.Draw();
         Text_date.Draw();
 
-        
+        // ===== Add ePIC logo to the figure ======
+        TImage *logo = TImage::Open("../GlobalUtil/EPIC-logo_black_transparent.png");
+        // TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.8, 0.8, 0.93, 0.93); // Create a new pad and then draw the image in it
+        TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.17, 0.83, 0.33, 0.93); // Create a new pad and then draw the image in it
+        logo_pad->SetFillStyle(0);
+        logo_pad->SetFillColor(0);
+        logo_pad->SetFrameFillStyle(0);
+        logo_pad->SetBorderMode(0);
+        logo_pad->SetBorderSize(0);
+        logo_pad->SetFrameBorderMode(0);
+        logo_pad->SetLineWidth(0);
+        logo_pad->SetLineColor(0);
+        logo_pad->SetFrameLineWidth(0);
+        logo_pad->SetFrameLineColor(0);
+ 
+        TPad *pad_logo = (TPad*)logo_pad->Clone(Form("logo_pad_%d", i));
+        logo->SetConstRatio(kTRUE);  // Maintain aspect ratio
+        pad_logo->Draw("X");
+        pad_logo->cd();
+        logo->Draw();
     }
     
+    c->Modified();
+    c->Update();
     canvas_list.push_back(c);
 
     return;
