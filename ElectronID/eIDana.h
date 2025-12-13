@@ -46,9 +46,11 @@ double rec_W2;
 double rec_y;
 double rec_nu;
 
-PxPyPzEVector vMCe;
-PxPyPzEVector vTRACKe;
-PxPyPzEVector vCLUSTERe;
+PxPyPzEVector vMC_e;
+PxPyPzEVector vTRACK_e;
+PxPyPzEVector vCLUSTER_e;
+std::vector<PxPyPzEVector> vMC_hfs;
+std::vector<PxPyPzEVector> vREC_hfs;
 
 TH1D* h_EoP_e;
 TH1D* h_EoP_pi;

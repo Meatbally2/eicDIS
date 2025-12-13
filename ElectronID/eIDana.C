@@ -79,8 +79,8 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
             TLorentzVector kprime;
             kprime.SetXYZM(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, MASS_ELECTRON);
             CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
-            vMCe.SetPxPyPzE(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, e_mc[0].getEnergy());
-            vMCe = boost(vMCe);
+            vMC_e.SetPxPyPzE(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, e_mc[0].getEnergy());
+            // vMC_e = boost(vMC_e);
         }
 
         // Use MC to find reconstructed electron (TruthID)
@@ -107,10 +107,10 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
         {			
             e_rec = eFinder->SelectHighestPT(e_candidates);
 
-            vTRACKe.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
-            vCLUSTERe.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, eFinder->GetCalorimeterEnergy(e_rec));
-            vTRACKe = boost(vTRACKe);
-            vCLUSTERe = boost(vCLUSTERe);
+            vTRACK_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
+            vCLUSTER_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, eFinder->GetCalorimeterEnergy(e_rec));
+            // vTRACK_e = boost(vTRACK_e);
+            // vCLUSTER_e = boost(vCLUSTER_e);
 
             mc_PDG = eFinder->Check_eID(e_rec);
 
@@ -134,6 +134,21 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
                 h_cand_mul_eHighPt->Fill(e_candidates.size());
             else
                 h_cand_mul_oHighPt->Fill(e_candidates.size());
+
+            // Reconstruct HFS
+            auto mc_hfsCollection = eFinder->GetMCHadronicFinalState();
+            for (const auto p : mc_hfsCollection) {
+                PxPyPzEVector hf(p.getMomentum().x, p.getMomentum().y, p.getMomentum().z, p.getEnergy());
+                // hf = boost(hf);
+                vMC_hfs.push_back(hf);
+            }
+
+            auto hfsCollection = eFinder->FindHadronicFinalState(is_truth_eID, e_rec.getObjectID().index, false);
+            for (const auto p : hfsCollection) {;
+                PxPyPzEVector hf(p.getMomentum().x, p.getMomentum().y, p.getMomentum().z, p.getEnergy());
+                // hf = boost(hf);
+                vREC_hfs.push_back(hf);
+            }
         }
 
         // Fill histograms
@@ -215,18 +230,6 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     outTree->Write(outTree->GetName(), 2);
 
     draw_manager->SaveToTree(outFile);
-
-    // c_EoP->Write(c_EoP->GetName(), 2);
-    // c_isoE->Write(c_isoE->GetName(), 2);
-    // c_n_clusters_n_tracks->Write(c_n_clusters_n_tracks->GetName(), 2);
-    // c_EminusPz->Write(c_EminusPz->GetName(), 2);
-    // c_reco_mul->Write(c_reco_mul->GetName(), 2);
-
-    // c_EoP->SaveAs(Form("%dx%d_%s_EoP.pdf", 18, 275, ev_type.c_str()));
-    // c_isoE->SaveAs(Form("%dx%d_%s_isoE.pdf", 18, 275, ev_type.c_str()));
-    // c_EminusPz->SaveAs(Form("%dx%d_%s_EminusPz.pdf", 18, 275, ev_type.c_str()));
-    // c_reco_mul->SaveAs(Form("%dx%d_%s_reco_mul.pdf", 18, 275, ev_type.c_str()));
-    // c_n_clusters_n_tracks->SaveAs(Form("%dx%d_%s_n_clusters_n_tracks.pdf", 18, 275, ev_type.c_str()));
 
     return;
 }
@@ -347,9 +350,11 @@ void CreateOutputTree(TString outFileName) {
 	outTree->Branch("rec_y",  &rec_y);
 	outTree->Branch("rec_nu", &rec_nu);
 
-    outTree->Branch("vMCe", &vMCe);
-	outTree->Branch("vTRACKe", &vTRACKe);
-	outTree->Branch("vCLUSTERe", &vCLUSTERe);
+    outTree->Branch("vMC_e", &vMC_e);
+	outTree->Branch("vTRACK_e", &vTRACK_e);
+	outTree->Branch("vCLUSTER_e", &vCLUSTER_e);
+    outTree->Branch("vMC_hfs", &vMC_hfs);
+    outTree->Branch("vREC_hfs", &vREC_hfs);
 
     return;
 }
@@ -372,9 +377,12 @@ void ResetVariables() {
 	rec_y = -999;
 	rec_nu = -999;
 
-    vMCe.SetPxPyPzE(0, 0, 0, 0);
-	vTRACKe.SetPxPyPzE(0, 0, 0, 0);
-	vCLUSTERe.SetPxPyPzE(0, 0, 0, 0);
+    vMC_e.SetPxPyPzE(0, 0, 0, 0);
+	vTRACK_e.SetPxPyPzE(0, 0, 0, 0);
+	vCLUSTER_e.SetPxPyPzE(0, 0, 0, 0);
+
+    vMC_hfs.clear();
+    vREC_hfs.clear();   
 
     return;
 }
