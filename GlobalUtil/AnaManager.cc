@@ -54,9 +54,9 @@ std::string AnaManager::GetOutputName()
         ana_name += Form("_f%d", file_index);
 
     if ( is_analyse_protons )
-        outname = is_select_region ? Form("tmp/ep_18x275_%s_%s.root", p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/ep_18x275_%s.root", ana_name.c_str());
+        outname = is_select_region ? Form("tmp/ep_%dx%d_%s_%s.root", Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/ep_%dx%d_%s.root", Ee, Eh, ana_name.c_str());
     else
-        outname = is_select_region ? Form("tmp/eHe3_10x166_%s_%s.root", n_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/eHe3_10x166_%s.root", ana_name.c_str());
+        outname = is_select_region ? Form("tmp/eHe3_%dx%d_%s_%s.root", Ee, Eh, n_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/eHe3_%dx%d_%s.root", Ee, Eh, ana_name.c_str());
 
     return outname;
 }
