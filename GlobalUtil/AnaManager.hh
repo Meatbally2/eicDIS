@@ -8,7 +8,7 @@ public:
 	AnaManager(std::string ana_name_);
     ~AnaManager();
 
-    void Initialize(bool is_select_region_, int region_index_, int starting_file_index_, bool is_analyse_protons_);
+    void Initialize(bool is_select_region_, int region_index_, int starting_file_index_, int beam_type_);
     void InitializeForLocal(std::string type_);
     void SetBeamEnergy(int Ee_, int Eh_);
 
@@ -19,6 +19,8 @@ public:
     vector<std::string> ValidateFiles(std::vector<std::string>& fileNames);
 
     std::string campaign;
+
+    enum{EHE3,EP,PI_BG};
     
 private:
     int Ee;
@@ -27,7 +29,7 @@ private:
     int region_index;
     int file_index;
     int starting_file;
-    bool is_analyse_protons;
+    int beam_type;
     std::string ana_name;
     std::string file_type;
 };

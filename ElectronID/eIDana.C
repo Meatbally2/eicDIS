@@ -2,23 +2,15 @@
 
 #include "eIDana.h"
 
-void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int file0, int analyse_p)
+void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 // void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
     // Standard setup
 
-    std::string eID_type;
-    if  ( is_truth_eID == 1 )
-        eID_type = "truth";
-    else if ( is_truth_eID == 2 )
-        eID_type = "mc";
-    else
-        eID_type = "recon"; 
-
     // AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
-    AnaManager* ana_manager = new AnaManager("eID" + eID_type);
+    AnaManager* ana_manager = new AnaManager("eid");
     ana_manager->Initialize(select_region, sr, file0, analyse_p);
     ana_manager->SetBeamEnergy(Ee, Eh);
     // ana_manager->InitializeForLocal(ev_type);
@@ -26,12 +18,12 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
     // ana_manager->GetInputNames();
     // continue;
 
-    std::string type_title = analyse_p ? "ep" : "e^{3}He";
+    std::string type_title[3] = {"e^{3}He", "ep", "#gammap"};
     std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    DrawManager* draw_manager = new DrawManager(type_title, energy_title, ana_manager->campaign);
+    DrawManager* draw_manager = new DrawManager(type_title[analyse_p], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
 
-    if (select_region)
+    if (select_region) // no sr for pi_bg runs
     {
         if ( analyse_p )
             draw_manager->SetQ2min(pow(10,sr));
@@ -50,7 +42,8 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
 
     // .. ElectronID setup
     ElectronID* eFinder = new ElectronID(Ee, Eh);
-    LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); // need to add a check for types of nucleon
+    // techinically need to add a check for types of nucleon, but good enough for a quick check of x Q2. precise recon will be done in kin recon.
+    LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); 
     eFinder->SetBoost(boost);
 
     DefineHistograms();
@@ -144,7 +137,7 @@ void eIDana(int Ee, int Eh, int select_region, int sr, int is_truth_eID, int fil
                 vMC_hfs.push_back(hf);
             }
 
-            auto hfsCollection = eFinder->FindHadronicFinalState(is_truth_eID, e_rec.getObjectID().index, false);
+            auto hfsCollection = eFinder->FindHadronicFinalState(e_rec.getObjectID().index);
             for (const auto p : hfsCollection) {;
                 PxPyPzEVector hf(p.getMomentum().x, p.getMomentum().y, p.getMomentum().z, p.getEnergy());
                 // hf = boost(hf);

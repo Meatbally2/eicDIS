@@ -15,15 +15,15 @@ AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 AnaManager::~AnaManager() {
 }
 
-void AnaManager::Initialize(bool is_select_region_, int region_index_, int starting_file_index_, bool is_analyse_protons_) 
+void AnaManager::Initialize(bool is_select_region_, int region_index_, int starting_file_index_, int beam_type_) 
 {
     is_select_region = is_select_region_;
     region_index = region_index_;
     file_index = starting_file_index_;
     starting_file = starting_file_index_*step;
-    is_analyse_protons = is_analyse_protons_;
+    beam_type = beam_type_;
 
-    campaign = is_analyse_protons ? "25.10.0" : "25.10.2";
+    campaign = beam_type ? "25.10.0" : "25.10.2";
     
     return;
 }
@@ -38,7 +38,7 @@ void AnaManager::SetBeamEnergy(int Ee_, int Eh_)
 void AnaManager::InitializeForLocal(std::string type_) 
 {
     file_type = type_;
-    is_analyse_protons = true;
+    beam_type = true;
     is_select_region = false;
     region_index = -1;
     starting_file = -1; 
@@ -53,10 +53,8 @@ std::string AnaManager::GetOutputName()
     if ( starting_file >= 0 )
         ana_name += Form("_f%d", file_index);
 
-    if ( is_analyse_protons )
-        outname = is_select_region ? Form("tmp/ep_%dx%d_%s_%s.root", Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/ep_%dx%d_%s.root", Ee, Eh, ana_name.c_str());
-    else
-        outname = is_select_region ? Form("tmp/eHe3_%dx%d_%s_%s.root", Ee, Eh, n_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/eHe3_%dx%d_%s.root", Ee, Eh, ana_name.c_str());
+    std::string prefix[3] = {"eHe3", "ep", "piBG"};
+    outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
     return outname;
 }
@@ -103,14 +101,14 @@ vector<std::string> AnaManager::GetInputNames()
 
     std::vector<std::string> inFiles;
 
-    int n_set = is_analyse_protons ? 4 : 3;
+    int n_set = beam_type ? 4 : 3;
     
     int total_file = 0;
 
     std::string file_name = "../data/" + campaign + "_manifest.txt";
     // std::string file_name = "../data/test.txt";
     
-    std::string prefix = "/volatile/eic/EPIC/RECO/" + campaign + "/epic_craterlake/DIS/";
+    std::string prefix = "/volatile/eic/EPIC/RECO/" + campaign + "/epic_craterlake/";
     // std::string phys_group = "/epic_craterlake/DIS/";
 
     for ( int r = 0; r < n_set; r ++ )
@@ -122,22 +120,15 @@ vector<std::string> AnaManager::GetInputNames()
         // std::cout << " r " << r << std::endl;
         
         // std::string file_name;
-        // if ( is_analyse_protons )
+        // if ( beam_type )
         //     file_name = Form("../data/ep_25_05_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
         // else
         //     file_name = Form("../data/en_25_05_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
 
         std::string target;
-        if ( is_analyse_protons )
+        if ( beam_type == EHE3 )
         {
-            std::string gen_group = "NC/"; 
-            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
-            target = gen_group + beam_group + sample_group;
-        }
-        else
-        {
-            std::string gen_group = "BeAGLE1.03.02-1.2/"; 
+            std::string gen_group = "DIS/BeAGLE1.03.02-1.2/"; 
             std::string beam_group = Form("eHe3/%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group;
             if ( r == 0 )
@@ -148,13 +139,31 @@ vector<std::string> AnaManager::GetInputNames()
                 sample_group = Form("q2_100to10000/");
 
             target = gen_group + beam_group + sample_group;
-            
-            // std::cout << "sample_group: " << sample_group << std::endl;
-            std::cout << "target: " << target << std::endl;            
+            // std::cout << "sample_group: " << sample_group << std::endl;        
+        }
+        else if ( beam_type == EP )
+        {
+            std::string gen_group = "DIS/NC/"; 
+            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
+            std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
+            target = gen_group + beam_group + sample_group;
+        }
+        else if ( beam_type == PI_BG )
+        {
+            std::string gen_group = "SIDIS/pythia6-eic/1.0.0/"; 
+            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
+            std::string sample_group = "q2_0to1/";
+            target = gen_group + beam_group + sample_group;
+        }
+        else
+        {
+            std::cerr << "o.O Error: invalid beam type specified." << std::endl;
+            return {};
         }
 
         // std::cout << "prefix: " << prefix << std::endl;
         // std::cout << "prefix size: " << prefix.size() << " target size: " << target.size() << std::endl; 
+        std::cout << "searching: " << target << std::endl;    
 
    
         std::ifstream data_file(file_name);

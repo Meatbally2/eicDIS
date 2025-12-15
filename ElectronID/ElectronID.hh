@@ -29,7 +29,7 @@ public:
 
 	int Check_eID(edm4eic::ReconstructedParticle e_rec);
 	edm4hep::MCParticle GetMC(edm4eic::ReconstructedParticle e_rec);
-	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(bool use_mc, int object_id, bool is_print);
+	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(int object_id);
 	edm4eic::ReconstructedParticleCollection FindScatteredElectron();	
 	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();	
 	edm4hep::MCParticleCollection GetMCElectron();	

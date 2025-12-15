@@ -5,6 +5,15 @@ These analysis loop the EICrecon files and produce output trees. Easier to run w
 * ElectronID - Identify scattered electron
 * Tagging - spectator tagging
 
+There are some settings to pass when running the macro. In this order, they are: 
+- Beam electron energy in GeV
+- Beam nucleon energy in GeV
+- Beam type. 0 for eHe3, 1 for ep, 2 for photoproduction
+- Boolean for wheather or not selecting energy group
+- Energy group ID if selecting energy group is set
+- Index for file groups to be anaysed. -1 for the first 1 file in the search. < -1 for all files. >= 0 will analyse the index*200 files in the file search result.
+In additoin, ElectronID has one more setting for choosing eID type. 0 for detID, 1 for truthID, 2 for mcID.
+
 These take output from above, no need of eic-shell:
 * KinRecon - Reconstruct event reaction and kinematics
 * Physics - Make calculations for physics goals
