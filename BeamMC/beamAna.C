@@ -10,6 +10,7 @@ void beamAna(int Ee, int Eh, int select_region, int sr, int all_file, int analys
 
     AnaManager* ana_manager = new AnaManager("beam");
     ana_manager->Initialize(select_region, sr, all_file, analyse_p);
+    ana_manager->SetBeamEnergy(Ee, Eh);
 
     // .. input setup
     auto reader = podio::ROOTReader();

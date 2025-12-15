@@ -10,6 +10,7 @@ public:
 
     void Initialize(bool is_select_region_, int region_index_, int starting_file_index_, bool is_analyse_protons_);
     void InitializeForLocal(std::string type_);
+    void SetBeamEnergy(int Ee_, int Eh_);
 
     std::string GetOutputName();
     vector<std::string> GetInputNames();
@@ -20,6 +21,8 @@ public:
     std::string campaign;
     
 private:
+    int Ee;
+    int Eh;
     bool is_select_region;
     int region_index;
     int file_index;

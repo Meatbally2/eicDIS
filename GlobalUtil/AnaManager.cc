@@ -28,6 +28,13 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     return;
 }
 
+void AnaManager::SetBeamEnergy(int Ee_, int Eh_)
+{
+    Ee = Ee_;
+    Eh = Eh_;
+    return;
+}
+
 void AnaManager::InitializeForLocal(std::string type_) 
 {
     file_type = type_;
@@ -47,9 +54,9 @@ std::string AnaManager::GetOutputName()
         ana_name += Form("_f%d", file_index);
 
     if ( is_analyse_protons )
-        outname = is_select_region ? Form("tmp/18x275_%s_%s.root", p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/18x275_%s.root", ana_name.c_str());
+        outname = is_select_region ? Form("tmp/ep_18x275_%s_%s.root", p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/ep_18x275_%s.root", ana_name.c_str());
     else
-        outname = is_select_region ? Form("tmp/10x166_%s_%s.root", n_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/10x166_%s.root", ana_name.c_str());
+        outname = is_select_region ? Form("tmp/eHe3_10x166_%s_%s.root", n_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/eHe3_10x166_%s.root", ana_name.c_str());
 
     return outname;
 }
@@ -124,14 +131,14 @@ vector<std::string> AnaManager::GetInputNames()
         if ( is_analyse_protons )
         {
             std::string gen_group = "NC/"; 
-            std::string beam_group = "18x275/";
+            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
             target = gen_group + beam_group + sample_group;
         }
         else
         {
             std::string gen_group = "BeAGLE1.03.02-1.2/"; 
-            std::string beam_group = "eHe3/10x166/";
+            std::string beam_group = Form("eHe3/%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group;
             if ( r == 0 )
                 sample_group = Form("q2_2to10/");
@@ -143,7 +150,7 @@ vector<std::string> AnaManager::GetInputNames()
             target = gen_group + beam_group + sample_group;
             
             // std::cout << "sample_group: " << sample_group << std::endl;
-            // std::cout << "target: " << target << std::endl;            
+            std::cout << "target: " << target << std::endl;            
         }
 
         // std::cout << "prefix: " << prefix << std::endl;

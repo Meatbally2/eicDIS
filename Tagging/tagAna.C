@@ -8,6 +8,7 @@ void tagAna(int Ee, int Eh, int select_region, int sr, int all_file, int analyse
 
     AnaManager* ana_manager = new AnaManager("tag");
     ana_manager->Initialize(select_region, sr, all_file, analyse_p);
+    ana_manager->SetBeamEnergy(Ee, Eh);
 
     std::string type_title = analyse_p ? "ep" : "e^{3}He";
     std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
