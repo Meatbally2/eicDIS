@@ -90,7 +90,7 @@ void eff_pi_bg()
     for ( int i = 0; i < n_group; i ++ )
     {
         // TFile* file = new TFile(Form("../data/eID/10x166_%s_eIDrecon.root", group[i].c_str()));
-        TFile* file = new TFile(Form("../data/ep_25_10_0/root_files/18x275_minQ2=%i_eIDrecon.root", e_set[i]));
+        TFile* file = new TFile(Form("../data/ep_25_10_0/root_files/ep_18x275_minQ2=%i_eID_combined.root", e_set[i]));
         double gen_lumi = lumi[i];
 
         // data/ep_25_05_0/root_files/18x275_minQ2=1_eIDrecon_combined.root
@@ -179,7 +179,7 @@ void eff_pi_bg()
 
     std::cout << "Finished processing signal files." << std::endl;
 
-    TFile* pi_bg_file = new TFile(Form("../data/eID/18x275_eIDreconlowQ_BG.root"));
+    TFile* pi_bg_file = new TFile(Form("../data/ep_25_10_0/root_files/piBG_18x275_eid_combined.root"));
     if ( pi_bg_file == nullptr || pi_bg_file->IsZombie() ) {
         std::cerr << "Error: Could not open pi bg file!" << std::endl;
         return;
@@ -220,7 +220,7 @@ void eff_pi_bg()
         // std::cout << *rec_xB << " " << *rec_Q2 << " ";
         // std::cout << *status << std::endl;
 
-        if ( *rec_y <= 0.01 || *rec_y >= 0.95 )
+        if ( *rec_y < 0.01 || *rec_y > 0.95 )
             continue;
 
        if ( *status >= FOUND_MC )

@@ -4,19 +4,19 @@
 #include "../GlobalUtil/drawHelper.h"
 
 
-// const std::string group[4] = {"1", "10", "100", "1000"};
-// int e_set[4] = {1, 10, 100, 1000};
-// const double total_lumi = 10; // fb^-1
-// double lumi[4] = {6.73335E-03, 7.21215E-02, 1.48384E+00, 6.29541E+01}; // fb^-1
-// int n_group = 4;
+const std::string group[4] = {"1", "10", "100", "1000"};
+int e_set[4] = {1, 10, 100, 1000};
+const double total_lumi = 10; // fb^-1
+double lumi[4] = {6.73335E-03, 7.21215E-02, 1.48384E+00, 6.29541E+01}; // fb^-1
+int n_group = 4;
 
-const std::string group[3] = {"1to10", "10to100", "100to1000"};
-const double total_lumi = 8.65*3; // fb^-1
-int e_set[3] = {1, 10, 100};
-int n_group = 3;
+// const std::string group[3] = {"1to10", "10to100", "100to1000"};
+// const double total_lumi = 8.65*3; // fb^-1
+// int e_set[3] = {1, 10, 100};
+// int n_group = 3;
 
-double cs[3][2] = {{0.198440424611563, 0.205327493968226}, {4.04371412707044E-02, 4.41976212963417E-02}, {1.36416909784756E-03, 1.69583242740138E-03}};
-double ev[3][2] = {{333675, 666325}, {333694, 666306}, {333365, 666640}};
+// double cs[3][2] = {{0.198440424611563, 0.205327493968226}, {4.04371412707044E-02, 4.41976212963417E-02}, {1.36416909784756E-03, 1.69583242740138E-03}};
+// double ev[3][2] = {{333675, 666325}, {333694, 666306}, {333365, 666640}};
 
 // smaller samples
 // double cs[3][2] = {{0.19855280068406961, 0.20505655394590794}, {4.0447896030497726E-002, 4.4180993297364052E-002}, {1.3640235794259955E-003, 1.6954903002019237E-003}};
@@ -75,8 +75,10 @@ void draw_angle(TCanvas* &c, TH2F* &h, double angle)
 
 void eff()
 {
-    std::string type_title = "e^{3}He";
-    std::string energy_title = Form("%dx%d GeV", 10, 166);
+    // std::string type_title = "e^{3}He";
+    // std::string energy_title = Form("%dx%d GeV", 10, 166);
+    std::string type_title = "ep";
+    std::string energy_title = Form("%dx%d GeV", 18, 275);
     DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
     draw_manager->SetEPIC();
     // draw_manager->SetDISrange(0.01, 0.95, 4, 2);
@@ -93,13 +95,13 @@ void eff()
 
     for ( int i = 0; i < n_group; i ++ )
     {
-        TFile* file = new TFile(Form("../data/en_25_10_2/root_files/10x166_%s_eIDrecon_combined.root", group[i].c_str()));
-        // TFile* file = new TFile(Form("../data/ep_25_05_0/root_files/18x275_minQ2=%i_eIDrecon_combined.root", e_set[i]));
-        // double gen_lumi = lumi[i];
+        // TFile* file = new TFile(Form("../data/en_25_10_2/root_files/10x166_%s_eIDrecon_combined.root", group[i].c_str()));
+        TFile* file = new TFile(Form("../data/ep_25_10_0/root_files/ep_18x275_minQ2=%i_eID_combined.root", e_set[i]));
+        double gen_lumi = lumi[i];
 
         // data/ep_25_05_0/root_files/18x275_minQ2=1_eIDrecon_combined.root
 
-        double gen_lumi = ev[i][0]/(cs[i][0]*(1e-34/1e-43)) + ev[i][1]/(cs[i][1]*(1e-34/1e-43));
+        // double gen_lumi = ev[i][0]/(cs[i][0]*(1e-34/1e-43)) + ev[i][1]/(cs[i][1]*(1e-34/1e-43));
         // double n_lumi = ev[i][0]/(cs[i][0]*(1e-34/1e-43));
         // double p_lumi = ev[i][1]/(cs[i][1]*(1e-34/1e-43));
 
@@ -228,8 +230,8 @@ void eff()
     draw_manager->LableAndCollect(c_xq2_piID_eff);
 
     // gStyle->SetImageScaling(3.);
-    c_xq2_eff_eff->SaveAs("../data/eID/10x166_en_eID_efficiency.png");
-    c_xq2_pur_eff->SaveAs("../data/eID/10x166_en_eID_purity.png");
+    // c_xq2_eff_eff->SaveAs("../data/eID/10x166_en_eID_efficiency.png");
+    // c_xq2_pur_eff->SaveAs("../data/eID/10x166_en_eID_purity.png");
 
     // c_xq2_all->SaveAs("../data/eID/10x166_en_raw.png");
 
