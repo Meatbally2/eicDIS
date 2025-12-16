@@ -27,11 +27,11 @@ void draw_angle(TCanvas* &c, TH2F* &h, double angle)
     double theta_deg = 180-angle; // formula from yellow report assume 0 deg is forward scattering for electron
     double theta = theta_deg * M_PI / 180.0;
 
-    double Ee = 10.0; 
-    double En = 166.0;
+    // double Ee = 10.0; 
+    // double En = 166.0;
 
-    // double Ee = 18.0; 
-    // double En = 275.0;
+    double Ee = 18.0; 
+    double En = 275.0;
     
     TAxis* xa = h->GetXaxis();
     int nx = xa->GetNbins();
