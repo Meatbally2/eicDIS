@@ -1,6 +1,6 @@
 #include "tagAna.h"
 
-void tagAna(int Ee, int Eh, int select_region, int sr, int all_file, int analyse_p)
+void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 {
     std::cout << "** Analysing far-forwards, energy is set to: " << Ee << "x" << Eh << std::endl;
 

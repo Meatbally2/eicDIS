@@ -14,7 +14,7 @@
 
 using namespace std;
 
-void tagAna(int Ee, int Eh, int select_region, int sr, int all_file, int analyse_p);
+void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0);
 void CreateOutputTree(TString outFileName);
 void setup_rp();
 void setup_omd();

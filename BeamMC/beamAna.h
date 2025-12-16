@@ -12,7 +12,7 @@
 #include <Math/LorentzVector.h>
 using ROOT::Math::PxPyPzEVector;
 
-void beamAna(int Ee, int Eh, int select_region, int sr, int all_file, int analyse_p);
+void beamAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0);
 void CreateOutputTree(TString outFileName);
 void ResetVariables();
 

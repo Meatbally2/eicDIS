@@ -19,6 +19,8 @@ These take output from above, no need of eic-shell:
 
 AnaManager.cc handles the file paths for analysis. Modify it to what you need. 
 
+HTCondor Scripts for these analysis: https://github.com/Meatbally2/condor_scripts
+
 Coming soon:
 - !!! fix drawhelp ... right now the logo and txt have to be tuned for individual plots
 - get manifest.txt from server instead of downloading and uploading it.
