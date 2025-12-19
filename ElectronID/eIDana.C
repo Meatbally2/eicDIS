@@ -211,7 +211,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     leg_mul->AddEntry(h_cand_mul_oHighPt, "Others have highest p_{T}", "L");
     leg_mul->Draw();
 
-    draw_manager->LableAndCollect(c_reco_mul);
+    draw_manager->LableAndCollect(c_reco_mul,2);
 
     TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
     h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
