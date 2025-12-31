@@ -6,8 +6,12 @@
 #include "edm4hep/Constants.h"
 #include "edm4eic/TrackerHitCollection.h"
 #include "edm4eic/TrackerHitData.h"
+#include "edm4eic/MCRecoTrackerHitAssociation.h"
+#include "edm4eic/ClusterCollection.h"
+#include "edm4eic/ReconstructedParticleCollection.h"
 
 #include "../GlobalUtil/drawHelper.h"
+#include "../GlobalUtil/Constants.hh"
 
 class FarForward{
 
@@ -30,7 +34,7 @@ public:
     int get_n_tracks();
 
     TH2F* h_det_xy[4];
-    TH1F* h_cluster;
+    TH1F* h_cluster[2];
     TH1F* h_cluster_sum;
 
     TH1F* hx_raw;
@@ -40,6 +44,10 @@ public:
     void fill_hit_histograms();
     void fill_energy_histograms();
     std::vector<TCanvas*> draw_histograms();
+
+    std::vector<float> ZDC_E;
+    std::vector<int> ZDC_PBG;
+    bool is_ZDC_neutron;
 
 private:
 
@@ -52,10 +60,6 @@ private:
     double rotate;
     double xShift[4];
     double zRange[4][2];
-
-    std::vector<float> ZDC_E;
-    std::vector<int> ZDC_PBG;
-    bool is_ZDC_neutron;
 };
 
 #endif

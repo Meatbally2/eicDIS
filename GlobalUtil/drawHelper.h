@@ -1,6 +1,16 @@
+#pragma once
 
 double x_gen_min = 0;
 double q_gen_max = 0;
+bool is_ECCE_bin = false;
+bool eff_text_on = true;
+
+void set_ECCE_bin()
+{
+  is_ECCE_bin = true;
+  eff_text_on = false;
+  return;
+}
 
 void BinLogX(TH1F* &h) // taken from https://root.cern.ch/root/roottalk/roottalk06/1213.html
 {
@@ -58,6 +68,48 @@ void BinLogXY(TH2F* &h)
   }
 }
 
+TH2F* BookECCEbinTH2(std::string name)
+{
+  // std::cout << "Booking ECCE binning for x and Q2" << std::endl;
+
+  double x0 = 0.00001;
+  double xi = x0;
+  std::vector<double> xbins;
+  while ( xi <= 1 )
+  {
+    xbins.push_back(xi);
+    if ( xi <= 0.01)
+      xi = xi * pow(10, 0.2);
+    else
+      xi = xi + 0.01;
+  }
+
+  // std::cout << "x:";
+  // for ( auto x : xbins )
+  //   std::cout << " " << x;
+  // std::cout << std::endl;
+  
+  double q0 = 0.0011;
+  double qi = q0;
+  std::vector<double> qbins;
+  while ( qi <= 1e5 )
+  {
+    qbins.push_back(qi);
+    // if ( qi <= 1100 )
+      qi = qi * pow(10, 1./13.);
+    // else
+    //   qi = qi + 100;
+  }
+  
+  // std::cout << "Q2:";
+  // for ( auto q : qbins )
+  //   std::cout << " " << q;
+  // std::cout << std::endl;
+
+  TH2F* h = new TH2F(name.c_str(), ";x;Q^{2} (GeV/c^{2})^{2}", xbins.size()-1, &xbins[0], qbins.size()-1, &qbins[0]);
+  return h;
+}
+
 TH1F* BookTH1(std::string name, std::string title, double n_bins, double min, double max)
 {
   TH1F* h = new TH1F(name.c_str(), title.c_str(), n_bins, min, max);
@@ -73,7 +125,19 @@ TH1F* BookTH1(std::string name, std::string title, double n_bins, double min, do
 
 TH2F* BookTH2(std::string name, std::string title, double n_xbins, double xmin, double xmax, double n_ybins, double ymin, double ymax, int colorMap)
 {
-  TH2F* h = new TH2F(name.c_str(), title.c_str(), n_xbins, xmin, xmax, n_ybins, ymin, ymax);
+  TH2F* h;
+
+  if ( is_ECCE_bin )
+  {
+    h = BookECCEbinTH2(name);
+  }
+  else
+  {
+    h = new TH2F(name.c_str(), title.c_str(), n_xbins, xmin, xmax, n_ybins, ymin, ymax);
+    BinLogXY(h);
+  }
+    
+  // TH2F* h = new TH2F(name.c_str(), title.c_str(), n_xbins, xmin, xmax, n_ybins, ymin, ymax);
   h->GetXaxis()->CenterTitle();
   h->GetYaxis()->CenterTitle();
   h->GetXaxis()->SetTitleOffset(1.2);
@@ -86,8 +150,6 @@ TH2F* BookTH2(std::string name, std::string title, double n_xbins, double xmin, 
     h->GetListOfFunctions()->Add(exUser);
   else
     h->GetListOfFunctions()->Add(exDefault);
-
-  BinLogXY(h);
 
   return h;
 }
@@ -184,13 +246,23 @@ TCanvas* draw_2d_standard(TH2F* &h, std::string c_name, std::string c_title, dou
     return c;
 }
 
+void set_eff_text_off()
+{
+  eff_text_on = false;
+  return;
+}
+
 TCanvas* draw_2d_efficiency(TH2F* &h, std::string c_name, std::string c_title, double width, double height, bool is_log_z, bool is_std_scale)
 {
     TCanvas* c = BookCanvas(c_name.c_str(), c_title.c_str(), width, height);
     c->SetLogx();
     c->SetLogy();
     h->SetStats(0);
-    h->Draw("COLZ TEXT");
+    
+    if ( eff_text_on )
+      h->Draw("COLZ TEXT");
+    else
+      h->Draw("COLZ");
 
     if ( is_log_z )
         c->SetLogz();

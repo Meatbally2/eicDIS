@@ -68,7 +68,7 @@ void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
 void setup_rp()
 {
-    rpFinder = new FarForward("rp", "ForwardRomanPotRecHits");
+    rpFinder = new FarForward("rp", "ForwardRomanPot");
     rpFinder->define_histograms();
 
     double rotate = 1./cos(-0.04545);
@@ -89,7 +89,7 @@ void setup_rp()
 
 void setup_omd()
 {
-    omdFinder = new FarForward("omd", "ForwardOffMTrackerRecHits");    
+    omdFinder = new FarForward("omd", "ForwardOffMTracker");    
     omdFinder->define_histograms();
 
     double rotate = 1./cos(-0.047);
@@ -116,8 +116,8 @@ void setup_omd()
 
 void setup_zdc()
 {
-    zdcFinder = new FarForward("zdc", "HcalFarForwardZDCClusters"); 
-    // zdcFinder = new FarForward("zdc", "ReconstructedFarForwardZDCNeutrals");    
+    // zdcFinder = new FarForward("zdc", "HcalFarForwardZDCClusters"); 
+    zdcFinder = new FarForward("zdc", "ReconstructedFarForwardZDCNeutrals");    
     zdcFinder->define_histograms();
     return;
 }
@@ -139,6 +139,9 @@ void process_ff(const podio::Frame* event)
 
     if (rpFinder->get_n_tracks() + omdFinder->get_n_tracks() >= 2)
         is_tagged = true;
+
+    if (zdcFinder->is_ZDC_neutron)
+        is_tagged = false;
 
     zdcFinder->SetEvent(event);
     zdc_energy = zdcFinder->GetEnergy();

@@ -1,3 +1,4 @@
+#pragma once
 
 // bin setting
 const int n_x_bin = 25;
@@ -20,3 +21,4 @@ enum { NO_MC, FOUND_MC, FOUND_TRUTH, FOUND_E, FOUND_PI, FOUND_OTHERS };
 #define ID_ELECTRON 11
 #define ID_PROTON   2212
 #define ID_NEUTRON  2112
+#define ID_GAMMA 22

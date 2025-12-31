@@ -15,10 +15,12 @@ FarForward::FarForward(std::string d_name, std::string b_name) {
 
     for ( int i = 0; i < 4; i ++ )
     {
-        h_cluster = NULL;
-        h_cluster_sum = NULL;
         h_det_xy[i] = NULL;
     }
+
+    h_cluster[0] = NULL;
+    h_cluster[1] = NULL;
+    h_cluster_sum = NULL;
 }
 
 FarForward::~FarForward() {
@@ -65,7 +67,7 @@ void FarForward::Process()
 
 void FarForward::GetHits() 
 {
-	auto& detHits = mEvent->get<edm4eic::TrackerHitCollection>(branch_name);
+	auto& detHits = mEvent->get<edm4eic::TrackerHitCollection>(branch_name+"RecHits");
 
     for ( int p = 0; p < 4; p ++ )
     {
@@ -85,8 +87,12 @@ void FarForward::GetHits()
         }
 	}
 
-    // for(const auto& p : det) 
-    //     cout << p->size () << endl;
+    // auto& rawAssoc = mEvent->get<edm4eic::MCRecoTrackerHitAssociationCollection>(branch_name + "RawHitAssociations");
+    // for (const auto& assoc : rawAssoc) 
+    // {
+    //     std::cout << "rec: " << assoc.getRawHit() << std::endl;
+    //     std::cout << "sim: " << assoc.getSimHit() << std::endl;
+    // }
 
 	return;
 }
@@ -97,34 +103,27 @@ double FarForward::GetEnergy()
     ZDC_E.clear();
     ZDC_PBG.clear();
 
-	auto& detCluster = mEvent->get<edm4eic::ClusterCollection>(branch_name);
-
-    // for ( int p = 0; p < 4; p ++ )
-    // {
-    //     det[p] = new edm4eic::TrackerHitCollection();
-    //     det[p]->setSubsetCollection();
-    // }
-
-    // cout << "Summing energy, size " << detCluster.energy().size() << endl;
-        
+	// auto& detCluster = mEvent->get<edm4eic::ClusterCollection>(branch_name);
+    auto& detCluster = mEvent->get<edm4eic::ReconstructedParticleCollection>(branch_name);
+ 
     double e_sum = 0.0;
     ZDC_E.clear();
 	for(const auto& e : detCluster) 
     {
+        // cout << "ZDC particle ID " << e.getPDG() << endl;
+        // cout << "ZDC energy " << e.getEnergy() << endl;
+
+        ZDC_PBG.push_back(e.getPDG());
         ZDC_E.push_back(e.getEnergy());
-        e_sum += e.getEnergy();
-
-        // cout << "ZDC energy " << e << endl;
-
-        // ZDC_PBG.push_back(e.getParticleIDs());
-        // cout << "ZDC particle ID " << e.getParticleIDs() << endl;
-
-        // if ( e.getParticleIDs() == 2112 )
-        //     is_ZDC_neutron = true;
+    
+        if ( e.getPDG() == ID_NEUTRON )
+        {
+            is_ZDC_neutron = true;
+            e_sum += e.getEnergy();
+        }
 	}
 
-    // for(const auto& p : det) 
-    //     cout << p->size () << endl;
+    // std::cout << detCluster.size() << " clusters found in ZDC, total neutron energy: " << e_sum << " GeV" << std::endl;
 
 	return e_sum;
 }
@@ -134,7 +133,8 @@ void FarForward::define_histograms()
 {
     if ( det_name == "zdc" )
     {
-        h_cluster = new TH1F(Form("h_%s_cluster", det_name.c_str()), Form("%s Energy;Cluster Energy[GeV];Counts", det_title.c_str()), 200, 0 , 200);
+        h_cluster[0] = new TH1F(Form("h_%s_cluster_neutron", det_name.c_str()), Form("%s Energy;Cluster Energy[GeV];Counts", det_title.c_str()), 200, 0 , 200);
+        h_cluster[1] = new TH1F(Form("h_%s_cluster_gamma", det_name.c_str()), Form("%s Energy;Cluster Energy[GeV];Counts", det_title.c_str()), 200, 0 , 200);
         h_cluster_sum = new TH1F(Form("h_%s_cluster_sum", det_name.c_str()), Form("%s Energy;Cluster Sum[GeV];Counts", det_title.c_str()), 200, 0 , 200);
     }
     else
@@ -155,13 +155,24 @@ void FarForward::define_histograms()
 
 void FarForward::fill_energy_histograms()
 {
-    double sum = 0;
-    for ( auto e : ZDC_E )
+    for ( int i = 0; i < ZDC_E.size(); i ++ )
     {
-        h_cluster->Fill(e);
-        sum += e;
+        // std::cout << "ZDC cluster energy: " << ZDC_E[i] << " GeV, PDG: " << ZDC_PBG[i] << std::endl;
+        if ( abs(ZDC_PBG[i]) == ID_NEUTRON )
+            h_cluster[0]->Fill(ZDC_E[i]);
+        else if ( ZDC_PBG[i] == ID_GAMMA )
+            h_cluster[1]->Fill(ZDC_E[i]);
     }
-    h_cluster_sum->Fill(sum);
+
+    // double sum = 0;
+    // for ( auto e : ZDC_E )
+    // {
+    //     h_cluster->Fill(e);
+    //     sum += e;
+    // }
+
+    // if ( ZDC_E.size() > 0 )
+    //     h_cluster_sum->Fill(sum);
 
     return;
 }
@@ -190,17 +201,28 @@ std::vector<TCanvas*> FarForward::draw_histograms()
 
     if ( det_name == "zdc" )
     {
-        TCanvas* c_det_e = BookCanvas(Form("c_%s_e", det_name.c_str()), Form("c_%s_e", det_name.c_str()), 600, 800);
+        TCanvas* c_det_e = BookCanvas(Form("c_%s_e", det_name.c_str()), Form("c_%s_e", det_name.c_str()), 800, 500);
 
-        c_det_e->Divide(1,2);
-        c_det_e->cd(1);
+        // c_det_e->Divide(1,2);
+        // c_det_e->cd(1);
         gPad->SetGrid();
         gPad->SetLogy();
-        h_cluster->Draw("HIST");
-        c_det_e->cd(2);
-        gPad->SetGrid();
-        gPad->SetLogy();
-        h_cluster_sum->Draw("HIST");
+        h_cluster[0]->Draw("HIST");
+        h_cluster[0]->SetLineColor(kRed);
+        h_cluster[1]->Draw("HIST SAME");
+        // c_det_e->cd(2);
+        // gPad->SetGrid();
+        // gPad->SetLogy();
+        // h_cluster_sum->Draw("HIST");
+
+        TLegend* leg = new TLegend(0.70, 0.70, 0.88, 0.85);
+        leg->SetTextSize(0.04);
+    	leg->SetBorderSize(0);
+    	leg->SetFillColor(0);
+        leg->SetFillStyle(0);
+        leg->AddEntry(h_cluster[0], "n", "L");
+        leg->AddEntry(h_cluster[1], "#gamma", "L");
+        leg->Draw();
 
         canvases.push_back(c_det_e);
     }

@@ -70,6 +70,7 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
     // 0: top-left (default)
     // 1: top-right 
     // 2: bottom-right
+    // 3: mid right, small canvas
     // Not working very well for canvas with multiple pads yet
 
     std::string lumi_unit = type == "ep" ? "fb^{-1}" : "fb^{-1}/A";
@@ -105,12 +106,20 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Double_t width_scale_factor = canvas_width / ref_width;
         Double_t height_scale_factor = canvas_height / ref_height;
         Double_t scale_factor = TMath::Min(width_scale_factor, height_scale_factor);
+        
+        // std::cout << "Scale factor: " << scale_factor << std::endl;
 
-        // if (scale_factor < 1.0) {
+        if (scale_factor > 1.) {
+            // Small canvas: use a less aggressive scaling (square root or custom formula)
+            scale_factor = scale_factor/1.9;  // Less shrinkage
+            // scale_factor = 0.7 + 0.3 * scale_factor;  // Never go below 70%
+        }
+
+        if (scale_factor < 1.0) {
             // Small canvas: use a less aggressive scaling (square root or custom formula)
             // scale_factor = TMath::Sqrt(scale_factor);  // Less shrinkage
-            // scale_factor = 0.7 + 0.3 * scale_factor;  // Never go below 70%
-        // }
+            scale_factor = 0.7 + 0.3 * scale_factor;  // Never go below 70%
+        }
 
         Double_t left_margin = 0.19;
         Double_t top_margin = 0.93;
@@ -120,6 +129,10 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         if ( draw_position == 2 ) {
             left_margin = 0.6;
             top_margin = 0.42;
+        }
+        if ( draw_position == 3 ) {
+            left_margin = 0.66;
+            top_margin = 0.69;
         }
 
         // ===== Add ePIC logo to the figure ======
@@ -238,7 +251,8 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         }
 
         TLatex Text_date;
-        Text_date.SetTextSize(0.035 * scale_factor);
+        // Text_date.SetTextSize(0.035 * scale_factor);
+        Text_date.SetTextSize(0.04 * scale_factor);
         Text_date.SetTextFont(52);
         Text_date.SetTextAlign(31);  // Right-aligned, bottom of text at y position
         if ( draw_position == 1 ) {
@@ -250,6 +264,8 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Double_t date_x = 1.0 - right_margin - 0.005;  // Right edge minus small padding
 
         Double_t date_y = 0.955;  // Near top
+        // Double_t date_y = 0.96;  // Near top
+        // Double_t date_y = 0.93;  // Near top
         Text_date.DrawLatexNDC(date_x, date_y, Form("Simulation campaign: %s", campaign.c_str()));  // performance plot
 
         Text_com.Draw();
