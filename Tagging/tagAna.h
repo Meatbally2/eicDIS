@@ -36,5 +36,6 @@ bool is_tagged;
 int n_proton_tracks;
 double zdc_energy;
 int zdc_pbg;
+bool fZDCn;
 
 #endif

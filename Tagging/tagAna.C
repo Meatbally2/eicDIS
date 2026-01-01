@@ -135,6 +135,11 @@ void process_ff(const podio::Frame* event)
         ff->fill_hit_histograms();
     }
 
+    zdcFinder->SetEvent(event);
+    zdc_energy = zdcFinder->GetEnergy();
+    zdcFinder->fill_energy_histograms();
+
+    // tagging
     n_proton_tracks = rpFinder->get_n_tracks() + omdFinder->get_n_tracks();
 
     if (rpFinder->get_n_tracks() + omdFinder->get_n_tracks() >= 2)
@@ -142,10 +147,6 @@ void process_ff(const podio::Frame* event)
 
     if (zdcFinder->is_ZDC_neutron)
         is_tagged = false;
-
-    zdcFinder->SetEvent(event);
-    zdc_energy = zdcFinder->GetEnergy();
-    zdcFinder->fill_energy_histograms();
 
     return;
 }
@@ -184,6 +185,7 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("fTagged", &is_tagged);
     outTree->Branch("nTracks", &n_proton_tracks);
     outTree->Branch("E_ZDC", &zdc_energy);
+    outTree->Branch("fZDCn", &zdcFinder->is_ZDC_neutron);
 
     return;
 }
