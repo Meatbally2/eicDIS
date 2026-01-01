@@ -148,8 +148,10 @@ void process_ff(const podio::Frame* event)
 
     if (zdcFinder->is_ZDC_neutron)
     {
-        is_tagged = false;
         fZDCn = true;
+
+        if ( is_tagged )
+            is_tagged = false;
     }
 
     return;
