@@ -127,6 +127,7 @@ void process_ff(const podio::Frame* event)
     is_tagged = false;
     n_proton_tracks = 0;
     zdc_energy = 0.0;
+    fZDCn = false;
 
     for ( auto ff : ffFinder )
     {
@@ -146,7 +147,10 @@ void process_ff(const podio::Frame* event)
         is_tagged = true;
 
     if (zdcFinder->is_ZDC_neutron)
+    {
         is_tagged = false;
+        fZDCn = true;
+    }
 
     return;
 }
@@ -185,7 +189,7 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("fTagged", &is_tagged);
     outTree->Branch("nTracks", &n_proton_tracks);
     outTree->Branch("E_ZDC", &zdc_energy);
-    outTree->Branch("fZDCn", &zdcFinder->is_ZDC_neutron);
+    outTree->Branch("fZDCn", &fZDCn);
 
     return;
 }
