@@ -12,7 +12,7 @@ public:
     DrawManager(std::string type_, std::string campaign_);
     ~DrawManager();
 
-    void SetEPIC();
+    void SetEPIC(std::string plot_version_ = "Internal");
     void LableAndCollect(TCanvas* &c, int draw_position = 0);
     void SaveToTree(TFile* &outFile);
     void SetLumi(double L);
@@ -28,6 +28,7 @@ public:
     std::string energy;
     std::string campaign;
     std::string plot_type;
+    std::string plot_version;
     std::vector<TCanvas*> canvas_list;
 
     bool setLumi = false;

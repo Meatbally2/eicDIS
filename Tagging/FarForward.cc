@@ -203,20 +203,15 @@ std::vector<TCanvas*> FarForward::draw_histograms()
     {
         TCanvas* c_det_e = BookCanvas(Form("c_%s_e", det_name.c_str()), Form("c_%s_e", det_name.c_str()), 800, 500);
 
-        // c_det_e->Divide(1,2);
-        // c_det_e->cd(1);
         gPad->SetGrid();
         gPad->SetLogy();
         h_cluster[0]->Draw("HIST");
         h_cluster[0]->SetLineColor(kRed);
         h_cluster[1]->Draw("HIST SAME");
-        // c_det_e->cd(2);
-        // gPad->SetGrid();
-        // gPad->SetLogy();
-        // h_cluster_sum->Draw("HIST");
+        h_cluster[0]->GetYaxis()->SetRangeUser(1, std::max(h_cluster[0]->GetMaximum(), h_cluster[1]->GetMaximum())*1.35);
 
         TLegend* leg = new TLegend(0.70, 0.70, 0.88, 0.85);
-        leg->SetTextSize(0.04);
+        leg->SetTextSize(0.05);
     	leg->SetBorderSize(0);
     	leg->SetFillColor(0);
         leg->SetFillStyle(0);

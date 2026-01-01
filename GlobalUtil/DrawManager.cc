@@ -13,12 +13,20 @@ DrawManager::DrawManager(std::string type_, std::string campaign_)
 DrawManager::~DrawManager() {
 }
 
-void DrawManager::SetEPIC()
+void DrawManager::SetEPIC(std::string plot_version_ = "Internal")
 {
     set_ePIC_style();
     gStyle->SetOptTitle(0);
+
+    plot_version = plot_version_;
+    // "Internal" -- for internal use only (default) 
+    // "Performance" -- performance plot
+    // "Preliminary" -- preliminary released version 
+    // "Work in Progress" -- work in progress to be shown outside
+    // "ePIC" -- final published version
+
     return;
-}
+} 
 
 void DrawManager::SetLumi(double L)
 {
@@ -195,11 +203,10 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Text_ePIC.SetTextSize(0.065 * scale_factor);  // Text size also scales
         Text_ePIC.SetTextFont(62);
         Text_ePIC.SetTextAlign(13);  // Top-left alignment
-        // Text_ePIC.DrawLatexNDC(internal_x, internal_y, "Internal");
         if ( draw_position == 1 ) {
             Text_ePIC.SetTextSize(0.075 * scale_factor);
         }
-        Text_ePIC.DrawLatexNDC(internal_x, internal_y, "Performance");
+        Text_ePIC.DrawLatexNDC(internal_x, internal_y, Form("%s", plot_version.c_str()));
 
         // Scale all other text elements too
         TLatex Text_com;
