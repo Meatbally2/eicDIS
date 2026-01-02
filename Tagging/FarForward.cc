@@ -208,7 +208,7 @@ std::vector<TCanvas*> FarForward::draw_histograms()
         h_cluster[0]->Draw("HIST");
         h_cluster[0]->SetLineColor(kRed);
         h_cluster[1]->Draw("HIST SAME");
-        h_cluster[0]->GetYaxis()->SetRangeUser(1, std::max(h_cluster[0]->GetMaximum(), h_cluster[1]->GetMaximum())*1.35);
+        h_cluster[0]->GetYaxis()->SetRangeUser(1, std::max(h_cluster[0]->GetMaximum(), h_cluster[1]->GetMaximum())*1.5);
 
         TLegend* leg = new TLegend(0.70, 0.70, 0.88, 0.85);
         leg->SetTextSize(0.05);

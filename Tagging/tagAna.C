@@ -143,10 +143,10 @@ void process_ff(const podio::Frame* event)
     // tagging
     n_proton_tracks = rpFinder->get_n_tracks() + omdFinder->get_n_tracks();
 
-    if (rpFinder->get_n_tracks() + omdFinder->get_n_tracks() >= 2)
+    if (n_proton_tracks >= 2)
         is_tagged = true;
 
-    if (zdcFinder->is_ZDC_neutron)
+    if (zdcFinder->is_ZDC_neutron && zdc_energy > 40.0)
     {
         fZDCn = true;
 
