@@ -25,4 +25,9 @@ int N_PDG;
 PxPyPzEVector vectE;
 PxPyPzEVector vectN;
 
+std::vector<int> SpecPBG;
+std::vector<PxPyPzEVector> SpecVec;
+std::vector<int> OtherPBG;
+std::vector<PxPyPzEVector> OtherVec;
+
 #endif

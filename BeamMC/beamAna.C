@@ -39,6 +39,8 @@ void beamAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0
             cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
 
         inFinder->GetMCinfo(vectE, vectN, N_PDG);
+        inFinder->GetSpecInfo(SpecPBG, SpecVec, OtherPBG, OtherVec);
+
         outTree->Fill();
         ResetVariables();
     }
@@ -61,9 +63,13 @@ void CreateOutputTree(TString outFileName) {
 	outTree = new TTree("T_Beam", "T_Beam");
 
     outTree->Branch("N_PDG", &N_PDG);
-
     outTree->Branch("vectE", &vectE);
 	outTree->Branch("vectN", &vectN);
+
+    outTree->Branch("SpecPBG", &SpecPBG);
+    outTree->Branch("SpecVec", &SpecVec);
+    outTree->Branch("OtherPBG", &OtherPBG);
+    outTree->Branch("OtherVec", &OtherVec);
 
     return;
 }
@@ -74,6 +80,11 @@ void ResetVariables() {
 
 	vectE.SetPxPyPzE(0, 0, 0, 0);
 	vectN.SetPxPyPzE(0, 0, 0, 0);
+
+    SpecPBG.clear();
+    SpecVec.clear();
+    OtherPBG.clear();
+    OtherVec.clear();
 
 	return;
 }

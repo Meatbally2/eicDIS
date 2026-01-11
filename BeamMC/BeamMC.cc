@@ -13,12 +13,29 @@ void BeamMC::SetEvent(const podio::Frame* event) {
 	mEvent = event;
 }
 
+void BeamMC::GetSpecInfo(std::vector<int> &SpecPBG, std::vector<PxPyPzEVector> &SpecVec, std::vector<int> &OtherPBG, std::vector<PxPyPzEVector> &OtherVec)
+{
+    SpecPBG = spec_pbg;
+    SpecVec = spec_vec;
+    OtherPBG = other_pbg;
+    OtherVec = other_vec;
+    
+    return;
+}
+
 void BeamMC::GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg) 
 { 
     edm4hep::MCParticle beam_electron;
     edm4hep::MCParticle beam_nucleon;
 
+    spec_pbg.clear();
+    spec_vec.clear();
+    other_pbg.clear();
+    other_vec.clear();
+
     auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
+
+    // cout << endl << "** event" << endl << endl;
 
 	for(const auto& mcp : mcparts)
     {
@@ -32,6 +49,41 @@ void BeamMC::GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg)
             {
                 beam_nucleon = mcp;
                 n_pbg = mcp.getPDG();
+            }
+
+            // cout << mcp << endl;
+        }
+
+        if ( mcp.getGeneratorStatus() == 1 )
+        {
+            if( mcp.getPDG() == ID_NEUTRON || mcp.getPDG() == ID_PROTON )
+            {
+                // cout << mcp << endl;
+
+                int count_id = 0;
+                int collect_id[2] = {0,0};
+                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
+                {
+                    if ( count_id < 2)
+                        collect_id[count_id] = it->getObjectID().index;
+
+                    count_id ++;
+                }
+
+                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
+                {
+                    PxPyPzEVector vec;
+                    vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
+                    spec_vec.push_back(vec);
+                    spec_pbg.push_back(mcp.getPDG());
+                }
+                else
+                {
+                    PxPyPzEVector vec;
+                    vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
+                    other_vec.push_back(vec);
+                    other_pbg.push_back(mcp.getPDG());
+                }
             }
         }
     }

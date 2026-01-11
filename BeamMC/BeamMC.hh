@@ -17,13 +17,17 @@ public:
     ~BeamMC();
 
     void SetEvent(const podio::Frame* event); 
+    void GetSpecInfo(std::vector<int> &SpecPBG, std::vector<PxPyPzEVector> &SpecVec, std::vector<int> &OtherPBG, std::vector<PxPyPzEVector> &OtherVec);
     void GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg);
 
 private:
 
     const podio::Frame* mEvent;
-    std::vector<TLorentzVector> spectator_protons;
-
+    std::vector<int> spec_pbg;
+    std::vector<PxPyPzEVector> spec_vec;
+    std::vector<int> other_pbg;
+    std::vector<PxPyPzEVector> other_vec;
+    
     double Ee;
     double Eh;
 };
