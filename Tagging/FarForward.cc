@@ -87,12 +87,12 @@ void FarForward::GetHits()
         }
 	}
 
-    // auto& rawAssoc = mEvent->get<edm4eic::MCRecoTrackerHitAssociationCollection>(branch_name + "RawHitAssociations");
-    // for (const auto& assoc : rawAssoc) 
-    // {
-    //     std::cout << "rec: " << assoc.getRawHit() << std::endl;
-    //     std::cout << "sim: " << assoc.getSimHit() << std::endl;
-    // }
+    auto& rawAssoc = mEvent->get<edm4eic::MCRecoTrackerHitAssociationCollection>(branch_name + "RawHitAssociations");
+    for (const auto& assoc : rawAssoc) 
+    {
+        std::cout << "rec: " << assoc.getRawHit() << std::endl;
+        std::cout << "sim: " << assoc.getSimHit() << std::endl;
+    }
 
 	return;
 }

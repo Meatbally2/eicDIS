@@ -25,7 +25,9 @@ void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     
     // .. input setup
     auto reader = podio::ROOTReader();
-    reader.openFiles(ana_manager->GetInputNames());
+    ana_manager->GetInputNames();
+    reader.openFiles(ana_manager->GetLocalInputNames());
+    // reader.openFiles(ana_manager->GetInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 
