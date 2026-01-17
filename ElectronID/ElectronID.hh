@@ -53,6 +53,7 @@ public:
 	vector<double> hfs_theta;
 
 	struct DetValues {
+		int nTrackPoints;
 		double recon_EoP;
 		double recon_isoE;
 	};

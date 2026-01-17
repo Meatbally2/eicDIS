@@ -135,11 +135,21 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 		// std::cout << "par id: " << reconPart.getPDG() << " cluster size: " << reconPart.getClusters().size() << ", track size: " << reconPart.getTracks().size() << std::endl;
 
-		// Require negative particle
-		if(reconPart.getCharge() >= 0) continue;
+		// for (const auto& track : reconPart.getTracks())
+		// {
+		// 	int n_measurements = track.measurements_size();
+		// 	int n_track_hits = track.getTrajectory().getNMeasurements();
+		// 	// std::cout << "  track with " << n_measurements << " measurements, " << n_track_hits << " hits." << std::endl;
+		// }
 
 		// Require at least one track and one cluster
 		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
+
+		int n_track_points = reconPart.getTracks()[0].measurements_size();
+		if ( n_track_points < 4 ) continue;
+
+		// Require negative particle
+		if(reconPart.getCharge() >= 0) continue;
 
 		// Calculate rcpart_ member variables for this event
 		CalculateParticleValues(reconPart, rcparts);
@@ -150,12 +160,11 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 		double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
 
 		if ( Check_eID(reconPart) == 0 )
-			e_det.push_back({recon_EoP, recon_isoE});
+			e_det.push_back({n_track_points, recon_EoP, recon_isoE});
 		else if ( Check_eID(reconPart) == -211 )
-			pi_det.push_back({recon_EoP, recon_isoE});
+			pi_det.push_back({n_track_points, recon_EoP, recon_isoE});
 		else
-			else_det.push_back({recon_EoP, recon_isoE});
-
+			else_det.push_back({n_track_points, recon_EoP, recon_isoE});
 
 		// Apply scattered electron ID cuts
 		if(recon_EoP < mEoP_min || recon_EoP > mEoP_max) continue;
@@ -336,6 +345,13 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 
 	for (const auto& reconPart : rcparts) {
+
+		// Require at least one track and one cluster
+		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
+
+		int n_track_points = reconPart.getTracks()[0].measurements_size();
+		if ( n_track_points < 4 ) continue;
+		
 		PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
 		vC = boost(vC);
 		CalEminusPzSum += (vC.E() - vC.Pz());

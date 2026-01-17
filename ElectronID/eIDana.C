@@ -18,7 +18,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     // ana_manager->GetInputNames();
     // continue;
 
-    std::string type_title[3] = {"e^{3}He", "ep", "#gammap"};
+    std::string type_title[4] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG"};
     std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
     DrawManager* draw_manager = new DrawManager(type_title[analyse_p], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
@@ -92,13 +92,14 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
         double TrackEminusPzSum = 0;
         double CalEminusPzSum = 0;
         eFinder->GetEminusPzSum(TrackEminusPzSum, CalEminusPzSum);
-        h_TrackEminusPz->Fill(TrackEminusPzSum);
-        h_CalEminusPz->Fill(CalEminusPzSum);
         EminusPz = TrackEminusPzSum;
 
         // If there are multiple candidates, select one with highest pT
         if(e_candidates.size() > 0) 
         {			
+            h_TrackEminusPz->Fill(TrackEminusPzSum);
+            h_CalEminusPz->Fill(CalEminusPzSum);
+
             e_rec = eFinder->SelectHighestPT(e_candidates);
 
             vTRACK_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
@@ -148,16 +149,19 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
         // Fill histograms
         for ( const auto& det_val : eFinder->e_det )
         {
+            h_nTPts_e->Fill(det_val.nTrackPoints);
             h_EoP_e->Fill(det_val.recon_EoP);
             h_isoE_e->Fill(det_val.recon_isoE);
         }
         for ( const auto& det_val : eFinder->pi_det )
         {
+            h_nTPts_pi->Fill(det_val.nTrackPoints);
             h_EoP_pi->Fill(det_val.recon_EoP);
             h_isoE_pi->Fill(det_val.recon_isoE);
         }
         for ( const auto& det_val : eFinder->else_det )
         {
+            h_nTPts_else->Fill(det_val.nTrackPoints);
             h_EoP_else->Fill(det_val.recon_EoP);
             h_isoE_else->Fill(det_val.recon_isoE);
         }
@@ -168,6 +172,11 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
     // Canvas
     double draw_max = 0.;
+
+    TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
+
+    DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_pi, h_nTPts_else, draw_max);
+    draw_manager->LableAndCollect(c_nTPts);
 
     TCanvas* c_EoP = new TCanvas("c_EoP", "c_EoP", 1000, 600);
     c_EoP->SetLogy();
@@ -229,6 +238,10 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 }
 
 void DefineHistograms() {
+
+    h_nTPts_e = new TH1D("h_nTPts_e", "Number of Track Points for e; N_{Track Points}; Counts", 13, -0.5, 13.5);
+    h_nTPts_pi = new TH1D("h_nTPts_pi", "Number of Track Points for #pi; N_{Track Points}; Counts", 13, -0.5, 13.5);
+    h_nTPts_else = new TH1D("h_nTPts_else", "Number of Track Points for others; N_{Track Points}; Counts", 13, -0.5, 13.5);
 
     h_EoP_e = new TH1D("h_EoP_e", "EoP e; E/p; Counts", 100, 0., 2.);
     h_EoP_pi = new TH1D("h_EoP_pi", "EoP pi; E/p; Counts", 100, 0., 2.);

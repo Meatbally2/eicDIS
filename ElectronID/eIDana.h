@@ -52,6 +52,9 @@ PxPyPzEVector vCLUSTER_e;
 std::vector<PxPyPzEVector> vMC_hfs;
 std::vector<PxPyPzEVector> vREC_hfs;
 
+TH1D* h_nTPts_e;
+TH1D* h_nTPts_pi;
+TH1D* h_nTPts_else;
 TH1D* h_EoP_e;
 TH1D* h_EoP_pi;
 TH1D* h_EoP_else;
