@@ -32,16 +32,19 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     }
 
     // .. input setup
-    auto reader = podio::ROOTReader();
-    reader.openFiles(ana_manager->GetInputNames());
-    // reader.openFiles(ana_manager->GetLocalInputNames());
-    // reader.openFiles(ana_manager->GetLowQInputNames());
+    podio::ROOTReader* reader = new podio::ROOTReader();
+    reader->openFiles(ana_manager->GetInputNames());
+    // reader->openFiles(ana_manager->GetLocalInputNames());
+    // reader->openFiles(ana_manager->GetLowQInputNames());
+
+    std::cout << "** Input files loaded. Setting up analysis... " << std::endl;
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 
 
     // .. ElectronID setup
     ElectronID* eFinder = new ElectronID(Ee, Eh);
+    eFinder->SetMinTrackPoints(3);
     // techinically need to add a check for types of nucleon, but good enough for a quick check of x Q2. precise recon will be done in kin recon.
     LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); 
     eFinder->SetBoost(boost);
@@ -50,19 +53,36 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
     // Analysis loop
 
-    for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
+    std::cout << "** Starting analysis loop... " << std::endl;
+
+    std::cout << "** Checking reader state..." << std::endl;
+    size_t nEvents = reader->getEntries("events");
+    if (nEvents == 0) {
+        std::cerr << "** ERROR: No events found in input files!" << std::endl;
+        return;
+    }
+    else {
+        std::cout << "** Found " << nEvents << " events to process." << std::endl;
+    }
+
+    for( size_t ev = 0; ev < reader->getEntries("events"); ev++ )
     {
-        auto raw = reader.readNextEntry("events");
+        // std::cout << "** Processing event " << ev << " ... " << std::endl;
+        // auto raw = reader->readNextEntry("events");
+        auto raw = reader->readEntry("events", ev);  // Use readEntry with index instead
+            
         if(!raw) 
         {
             std::cerr << "readNextEntry returned null at event " << ev << "\n";
             break;
         }
+        // else
+        //     std::cout << "** Event " << ev << " read. " << std::endl;
         podio::Frame event(std::move(raw));
         eFinder->SetEvent(&event);
 
         if(ev%100==0) 
-        cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
+        cout << "Analysing event " << ev << "/" << reader->getEntries("events") << std::endl;
 
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();

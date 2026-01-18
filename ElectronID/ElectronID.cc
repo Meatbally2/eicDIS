@@ -23,7 +23,9 @@ ElectronID::ElectronID() {
 	mIsoR = 0.4;
 	mIsoE = 0.9;
 
+	minTrackPoints = 3;
 
+	boost = LorentzRotation(); // Initialize to identity
 }
 
 ElectronID::ElectronID(double Ee, double Eh) {
@@ -40,14 +42,17 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mIsoR = 0.4;
 	mIsoE = 0.9;
 
+	minTrackPoints = 3;
+
+	boost = LorentzRotation(); // Initialize to identity
 }
 
 ElectronID::~ElectronID() {
 }
 
-
 void ElectronID::SetEvent(const podio::Frame* event) {
 
+	// std::cout << "** Setting event in ElectronID... " << std::endl;
 	mEvent = event;
 	eScatIndex = -1;
 	hfs_dpt.clear();
@@ -57,6 +62,8 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	e_det.clear();
 	pi_det.clear();
 	else_det.clear();
+	// std::cout << "** Event set in ElectronID. " << std::endl;
+	return;
 }
 
 edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
@@ -146,7 +153,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
 
 		int n_track_points = reconPart.getTracks()[0].measurements_size();
-		if ( n_track_points < 4 ) continue;
+		if ( n_track_points < minTrackPoints ) continue;
 
 		// Require negative particle
 		if(reconPart.getCharge() >= 0) continue;
@@ -350,8 +357,8 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
 
 		int n_track_points = reconPart.getTracks()[0].measurements_size();
-		if ( n_track_points < 4 ) continue;
-		
+		if ( n_track_points < minTrackPoints ) continue;
+
 		PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
 		vC = boost(vC);
 		CalEminusPzSum += (vC.E() - vC.Pz());

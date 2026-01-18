@@ -6,6 +6,7 @@
 #include "edm4eic/HadronicFinalStateCollection.h"
 #include "edm4eic/ReconstructedParticleCollection.h"
 #include "edm4hep/MCParticleCollection.h"
+#include "edm4eic/HadronicFinalState.h"
 
 #include <Math/LorentzRotation.h>
 using ROOT::Math::LorentzRotation;
@@ -23,6 +24,7 @@ public:
 	inline void SetEoPMin(double eopmin) {mEoP_min = eopmin;}	
 	inline void SetDeltaHMin(double deltahmin) {mDeltaH_min = deltahmin;}	
 	inline void SetIsolation(double isor, double isoe) {mIsoR = isor; mIsoE = isoe;}	
+	inline void SetMinTrackPoints(int minPoints) { minTrackPoints = minPoints; }
 
 	void SetEvent(const podio::Frame* event); 
 	void SetBoost(LorentzRotation fboost) { boost = fboost; }
@@ -75,6 +77,7 @@ private:
 	double mDeltaH_max;
 	double mIsoR;
 	double mIsoE;
+	int minTrackPoints = 3;
 	
 	void CalculateParticleValues(const edm4eic::ReconstructedParticle& rcp,
 		const edm4eic::ReconstructedParticleCollection& rcparts);
