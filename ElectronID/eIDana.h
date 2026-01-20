@@ -65,6 +65,7 @@ TH1D* h_isoE_else;
 TH1D* h_TrackEminusPz;
 TH1D* h_CalEminusPz;
 
+TH1D* h_n_scat_elec;
 TH2D* h_n_clusters_n_tracks;
 
 TH1D* h_cand_mul;

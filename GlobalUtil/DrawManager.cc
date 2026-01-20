@@ -28,6 +28,11 @@ void DrawManager::SetEPIC(std::string plot_version_ = "Internal")
     return;
 } 
 
+void DrawManager::SetCampaign(std::string campaign_)
+{
+    campaign = campaign_;
+}
+
 void DrawManager::SetLumi(double L)
 {
     lumi = L;
@@ -231,8 +236,10 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
 
         if ( setDIS )
         {
+            // current_y -= line_spacing;
+            // Text_com.DrawLatexNDC(text_x, current_y, Form("L = %.1f %s", lumi, lumi_unit.c_str()));
             current_y -= line_spacing;
-            Text_com.DrawLatexNDC(text_x, current_y, Form("%.0f #leq y < %.0f", Ymin, Ymax));
+            Text_com.DrawLatexNDC(text_x, current_y, Form("%.2f #leq y < %.2f", Ymin, Ymax));
             current_y -= line_spacing;
             Text_com.DrawLatexNDC(text_x, current_y, Form("Q^{2} #geq %.0f GeV^{2}", Q2min));
             current_y -= line_spacing;

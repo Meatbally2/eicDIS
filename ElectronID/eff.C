@@ -1,88 +1,40 @@
-
+#include "../GlobalUtil/luminosityTable.h"
 #include "../GlobalUtil/DrawManager.cc"
 #include "../GlobalUtil/Constants.hh"
 #include "../GlobalUtil/drawHelper.h"
 
+#include "draw_angle.C"
 
-const std::string group[4] = {"1", "10", "100", "1000"};
-int e_set[4] = {1, 10, 100, 1000};
-const double total_lumi = 10; // fb^-1
-double lumi[4] = {6.73335E-03, 7.21215E-02, 1.48384E+00, 6.29541E+01}; // fb^-1
-int n_group = 4;
+const std::string group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
-// const std::string group[3] = {"1to10", "10to100", "100to1000"};
-// const double total_lumi = 8.65*3; // fb^-1
-// int e_set[3] = {1, 10, 100};
-// int n_group = 3;
-
-// double cs[3][2] = {{0.198440424611563, 0.205327493968226}, {4.04371412707044E-02, 4.41976212963417E-02}, {1.36416909784756E-03, 1.69583242740138E-03}};
-// double ev[3][2] = {{333675, 666325}, {333694, 666306}, {333365, 666640}};
-
-// smaller samples
-// double cs[3][2] = {{0.19855280068406961, 0.20505655394590794}, {4.0447896030497726E-002, 4.4180993297364052E-002}, {1.3640235794259955E-003, 1.6954903002019237E-003}};
-// double ev[3][2] = {{33202, 66798}, {66885, 133115}, {66556, 133444}};
-
-void draw_angle(TCanvas* &c, TH2F* &h, double angle)
+void eff(int beam_type, int Ee, int Eh)
 {
-    double theta_deg = 180-angle; // formula from yellow report assume 0 deg is forward scattering for electron
-    double theta = theta_deg * M_PI / 180.0;
+    // ePIC plotting style setup
+    std::string type_title[3] = {"e^{3}He", "ep", "#gammap"};
+    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    std::string campaign = beam_type ? "25.10.0" : "25.10.2";
+    DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
+    draw_manager->SetEPIC();
 
-    // double Ee = 10.0; 
-    // double En = 166.0;
+    draw_manager->SetDISrange(0.01, 0.95, 4, 2);
 
-    double Ee = 18.0; 
-    double En = 275.0;
+    double text_lumi = 10; // fb^-1
+    if ( beam_type == 0 && Ee == 10 && Eh == 166 )
+        text_lumi = 8.65; // fb^-1
+    draw_manager->SetLumi(text_lumi);
+     
+    // get generated lumi
     
-    TAxis* xa = h->GetXaxis();
-    int nx = xa->GetNbins();
-    double last_Q2 = 0;
-
-    TGraph* g_theta = new TGraph();
-    for (int i = 1; i <= nx; ++i) {
-        double low = xa->GetBinLowEdge(i);
-        double high = xa->GetBinUpEdge(i);
-        double center = xa->GetBinCenter(i);
-
-        double xB[3] = {low, center, high};
-        for ( int j = 0; j < 3; ++j) 
-        {
-            double Eprime = 2*Ee*En*xB[j] / (En*(1+cos(theta))*xB[j] + Ee*(1-cos(theta)));
-            double Q2 = 2*Ee*Eprime*(1 - cos(theta));
-            g_theta->AddPoint(xB[j], Q2);
-            // std::cout << "xB: " << xB[j] << ", Q2: " << Q2 << std::endl;
-
-            last_Q2 = Q2;
-        }
+    double total_lumi = beam_type == 0 ? 10*3 : 10; // fb^-1
+    std::vector<double> gen_lumi = get_lumi(beam_type, Ee, Eh);
+    if ( gen_lumi.empty() )
+    {
+        std::cout << "** Lumi table not found! " << std::endl;
+        return;
     }
 
-    g_theta->SetLineColor(kRed);
-    g_theta->SetLineWidth(2);
-    g_theta->SetLineStyle(7);
-
-    c->cd();
-    g_theta->Draw("L SAME");
-
-    TLatex *lt = new TLatex(1.05, last_Q2, Form("#theta_{e} = %.0f#circ", angle));
-    // lt->SetNDC(kTRUE);
-    lt->SetTextFont(42);
-    lt->SetTextSize(0.03);
-    lt->SetTextColor(kRed);
-    lt->Draw();
-
-
-    return;
-}
-
-void eff()
-{
-    // std::string type_title = "e^{3}He";
-    // std::string energy_title = Form("%dx%d GeV", 10, 166);
-    std::string type_title = "ep";
-    std::string energy_title = Form("%dx%d GeV", 18, 275);
-    DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
-    draw_manager->SetEPIC();
-    // draw_manager->SetDISrange(0.01, 0.95, 4, 2);
-    draw_manager->SetLumi(8.65);
+    int n_group = beam_type == 0 ? 3 : 4;
+    std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
 
     TH2F* h_xq2_all = BookTH2(Form("h_xq2_all"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
     TH2F* h_xq2_acp = BookTH2(Form("h_xq2_acp"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
@@ -95,15 +47,8 @@ void eff()
 
     for ( int i = 0; i < n_group; i ++ )
     {
-        // TFile* file = new TFile(Form("../data/en_25_10_2/root_files/10x166_%s_eIDrecon_combined.root", group[i].c_str()));
-        TFile* file = new TFile(Form("../data/ep_25_10_0/root_files/ep_18x275_minQ2=%i_eID_combined.root", e_set[i]));
-        double gen_lumi = lumi[i];
-
-        // data/ep_25_05_0/root_files/18x275_minQ2=1_eIDrecon_combined.root
-
-        // double gen_lumi = ev[i][0]/(cs[i][0]*(1e-34/1e-43)) + ev[i][1]/(cs[i][1]*(1e-34/1e-43));
-        // double n_lumi = ev[i][0]/(cs[i][0]*(1e-34/1e-43));
-        // double p_lumi = ev[i][1]/(cs[i][1]*(1e-34/1e-43));
+        std::string date = beam_type == 0 ? "en_25_10_2" : "ep_25_10_0";
+        TFile* file  = new TFile(Form("../data/%s/root_files/%s_%s_eid_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
 
         TH2F* h_tmp_all = BookTH2(Form("h_tmp_all_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
         TH2F* h_tmp_acp = BookTH2(Form("h_tmp_acp_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
@@ -147,11 +92,14 @@ void eff()
             if (*mc_Q2 < 2)
                 continue;
 
-            // if ( e_set[i] == 1000 && * mc_Q2 < e_set[i] ) 
-            //     continue;
+            if ( beam_type == EP ) 
+            {
+                if ( i == 3 && *mc_Q2 < pow(10,i) ) 
+                    continue;
             
-            // if ( e_set[i] < 1000 &&  (*mc_Q2 > e_set[i]*10 || *mc_Q2 < e_set[i]) ) 
-            //     continue;
+                if ( i < 3 && (*mc_Q2 > pow(10,i+1) || *mc_Q2 < pow(10,i)) ) 
+                    continue;
+            }
 
             if ( *status >= FOUND_MC )
                 h_tmp_all->Fill(*mc_xB, *mc_Q2);
@@ -172,12 +120,12 @@ void eff()
                 h_tmp_piID->Fill(*mc_xB, *mc_Q2);
         }
 
-        h_tmp_all->Scale(total_lumi/gen_lumi);
-        h_tmp_acp->Scale(total_lumi/gen_lumi);
-        h_tmp_eff->Scale(total_lumi/gen_lumi);
-        h_tmp_pur->Scale(total_lumi/gen_lumi);
-        h_tmp_eID->Scale(total_lumi/gen_lumi);
-        h_tmp_piID->Scale(total_lumi/gen_lumi);
+        h_tmp_all->Scale(total_lumi/gen_lumi[i]);
+        h_tmp_acp->Scale(total_lumi/gen_lumi[i]);
+        h_tmp_eff->Scale(total_lumi/gen_lumi[i]);
+        h_tmp_pur->Scale(total_lumi/gen_lumi[i]);
+        h_tmp_eID->Scale(total_lumi/gen_lumi[i]);
+        h_tmp_piID->Scale(total_lumi/gen_lumi[i]);
 
         h_xq2_all->Add(h_tmp_all);
         h_xq2_acp->Add(h_tmp_acp);
@@ -202,9 +150,9 @@ void eff()
     TH2F* h_xq2_eff_copy = (TH2F*)h_xq2_eff->Clone();
     process_eff_hist(h_xq2_eff_copy, h_xq2_all);
     TCanvas* c_xq2_eff_eff = draw_2d_efficiency(h_xq2_eff_copy, "c_xq2_eff_eff", "xq2 eff eff", 1400, 600, false, true);
-    draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 160.0);
-    draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 130.0);
-    draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 40.0);
+    draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 160.0, Ee*1.0, Eh*1.0);
+    draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 130.0, Ee*1.0, Eh*1.0);
+    draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 40.0, Ee*1.0, Eh*1.0);
 
     TH2F* h_xq2_pur_copy = (TH2F*)h_xq2_pur->Clone();
     process_eff_hist(h_xq2_pur_copy, h_xq2_eff);
@@ -230,8 +178,9 @@ void eff()
     draw_manager->LableAndCollect(c_xq2_piID_eff);
 
     // gStyle->SetImageScaling(3.);
-    // c_xq2_eff_eff->SaveAs("../data/eID/10x166_en_eID_efficiency.png");
-    // c_xq2_pur_eff->SaveAs("../data/eID/10x166_en_eID_purity.png");
+    c_xq2_acp_eff->SaveAs(Form("../data/eID/%s_eID_acceptance.png", setting.c_str()));
+    c_xq2_eff_eff->SaveAs(Form("../data/eID/%s_eID_efficiency.png", setting.c_str()));
+    c_xq2_pur_eff->SaveAs(Form("../data/eID/%s_eID_purity.png", setting.c_str()));
 
     // c_xq2_all->SaveAs("../data/eID/10x166_en_raw.png");
 

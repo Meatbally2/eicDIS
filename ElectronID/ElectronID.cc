@@ -215,12 +215,28 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 		meMC.push_back(mcparts[eScatIndex]);
 
 	////
+
+	// for(const auto& mcp : mcparts) {
+	// 	if(mcp.getPDG() == 11 && mcp.getGeneratorStatus() == 1) {
+	// 		meMC.push_back(mcp); // For now, just take first electron
+	// 		break;
+	// 	}
+	// }
+
 	for(const auto& mcp : mcparts) {
-		if(mcp.getPDG() == 11 && mcp.getGeneratorStatus() == 1) {
-			meMC.push_back(mcp); // For now, just take first electron
-			break;
+		if ( mcp.getPDG() == 11 ) {
+			for (auto parents : mcp.getParents()) {
+				if ( parents.getPDG() == 11 ) {
+					for (auto grandparents : parents.getParents()) {
+						if ( grandparents.getPDG() == 11 && grandparents.getGeneratorStatus() == 4 ) {
+							meMC.push_back(mcp);
+						}
+					}
+				}
+			}
 		}
 	}
+
 	////
 
 	// std::vector<edm4hep::MCParticle> mc_electrons;
@@ -279,17 +295,46 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 
 edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 
+	// cout << "New process " << endl;
+
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
 	edm4eic::ReconstructedParticleCollection meRecon;
 	meRecon->setSubsetCollection();
 
 	auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 
-	for(const auto& assoc : RecoMC) {
-		if(assoc.getSim() == meMC[0]) {
-			meRecon.push_back(assoc.getRec());
-			break;
+	for(const auto& assoc : RecoMC) 
+	{
+		auto e_candidat = assoc.getSim();
+
+		if ( e_candidat.getPDG() == 11 )
+		{
+			// cout << "found e: " << assoc.getSim() << endl;
+			
+			for (auto parents : e_candidat.getParents()) 
+			{
+				if ( parents.getPDG() == 11 )
+				{
+					for (auto grandparents : parents.getParents()) 
+					{
+						// cout << "grandparent pdg: " << grandparents << endl;
+						if ( grandparents.getPDG() == 11 && grandparents.getGeneratorStatus() == 4 )
+						{
+							// cout << "found grandparent e: " << grandparents << endl;
+							if(e_candidat == meMC[0]) {
+								meRecon.push_back(assoc.getRec());
+								// break;
+							}
+						}
+					}
+				}
+			}
 		}
+
+		// if(assoc.getSim() == meMC[0]) {
+		// 	meRecon.push_back(assoc.getRec());
+		// 	break;
+		// }
 	}
 
 	return meRecon;

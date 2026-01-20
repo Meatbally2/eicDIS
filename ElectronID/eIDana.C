@@ -33,6 +33,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
     // .. input setup
     podio::ROOTReader* reader = new podio::ROOTReader();
+    // podio::RNTupleReader* reader = new podio::RNTupleReader();
     reader->openFiles(ana_manager->GetInputNames());
     // reader->openFiles(ana_manager->GetLocalInputNames());
     // reader->openFiles(ana_manager->GetLowQInputNames());
@@ -86,6 +87,10 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
+        if (e_mc.size() != 1)
+            continue;
+
+        h_n_scat_elec->Fill(e_mc.size());
         if(e_mc.size() > 0) 
         {
             eID_status = FOUND_MC;
@@ -193,8 +198,12 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     // Canvas
     double draw_max = 0.;
 
-    TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
+    TCanvas* c_nScatElec = new TCanvas("c_nScatElec", "c_nScatElec", 1000, 600);
+    h_n_scat_elec->SetLineColor(kBlue);
+    h_n_scat_elec->Draw("HIST");
+    draw_manager->LableAndCollect(c_nScatElec,2);
 
+    TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
     DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_pi, h_nTPts_else, draw_max);
     draw_manager->LableAndCollect(c_nTPts);
 
@@ -274,6 +283,7 @@ void DefineHistograms() {
     h_TrackEminusPz = new TH1D("h_TrackEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
     h_CalEminusPz = new TH1D("h_CalEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
 
+    h_n_scat_elec = new TH1D("h_n_scat_elec", "Number of scattered electrons; N_{e}; Counts", 10, -0.5, 9.5);
     h_n_clusters_n_tracks = new TH2D("h_n_clusters_n_tracks", "Number of clusters vs number of tracks; N_{tracks}; N_{clusters}", 5, -0.5, 4.5, 5, -0.5, 4.5);
 
     h_cand_mul = new TH1D("h_cand_mul", "Scattered electron candidates multiplicity; N_{candidates}; Counts", 10, -0.5, 9.5);

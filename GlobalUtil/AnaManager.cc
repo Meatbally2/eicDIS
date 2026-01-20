@@ -24,7 +24,8 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     beam_type = beam_type_;
 
     if ( beam_type == BEAM_BG )
-        campaign = "25.12.0";
+        campaign = "25.10.4";
+        // campaign = "25.12.0";
     else
         campaign = beam_type ? "25.10.0" : "25.10.2";
     
@@ -166,8 +167,8 @@ vector<std::string> AnaManager::GetInputNames()
         }
         else if ( beam_type == BEAM_BG )
         {
-            // std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
-            std::string gen_group = "Bkg_Exactly1SignalPer2usFrame/GoldCoating/5um/DIS/NC/"; 
+            std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
+            // std::string gen_group = "Bkg_Exactly1SignalPer2usFrame/GoldCoating/5um/DIS/NC/"; 
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = "minQ2=1/";
             target = gen_group + beam_group + sample_group;

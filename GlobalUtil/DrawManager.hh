@@ -15,6 +15,7 @@ public:
     void SetEPIC(std::string plot_version_ = "Internal");
     void LableAndCollect(TCanvas* &c, int draw_position = 0);
     void SaveToTree(TFile* &outFile);
+    void SetCampaign(std::string campaign_);
     void SetLumi(double L);
     void SetDISrange(double Y_min, double Y_max, double W2_min, double Q2_min);
     void SetQ2range(double Q2_min, double Q2_max);
