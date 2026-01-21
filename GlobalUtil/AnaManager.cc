@@ -213,7 +213,8 @@ vector<std::string> AnaManager::GetInputNames()
                 if ( line_c >= 1 )
                     break;
 
-            if ( starting_file >= 0 && beam_type != BEAM_BG )
+            // if ( starting_file >= 0 && beam_type != BEAM_BG )
+            if ( starting_file >= 0 )
             {
                 if ( line_c < starting_file )
                 {

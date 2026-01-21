@@ -33,7 +33,6 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
     // .. input setup
     podio::ROOTReader* reader = new podio::ROOTReader();
-    // podio::RNTupleReader* reader = new podio::RNTupleReader();
     reader->openFiles(ana_manager->GetInputNames());
     // reader->openFiles(ana_manager->GetLocalInputNames());
     // reader->openFiles(ana_manager->GetLowQInputNames());
