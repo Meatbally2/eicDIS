@@ -86,8 +86,8 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
-        if (e_mc.size() != 1)
-            continue;
+        // if (e_mc.size() != 1)
+        //     continue;
 
         h_n_scat_elec->Fill(e_mc.size());
         if(e_mc.size() > 0) 

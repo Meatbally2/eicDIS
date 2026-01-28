@@ -1,12 +1,20 @@
 #ifndef ELECTRONID_HH
 #define ELECTRONID_HH
 
+R__LOAD_LIBRARY(libpodio.so)
+R__LOAD_LIBRARY(libpodioRootIO.so)
+R__LOAD_LIBRARY(/opt/local/lib/libedm4hep.so)
+R__LOAD_LIBRARY(/opt/local/lib/libedm4hepDict.so)
+R__LOAD_LIBRARY(/opt/local/lib/libedm4hepUtils.so)
+R__LOAD_LIBRARY(/opt/local/lib/libedm4hepRDF.so)
+R__LOAD_LIBRARY(/opt/local/lib/libedm4eic.so)
+R__LOAD_LIBRARY(/opt/local/lib/libedm4eicDict.so)
+
+// #include "../GlobalUtil/preLoadLib.hh"
 #include "podio/Frame.h"
 
-#include "edm4eic/HadronicFinalStateCollection.h"
 #include "edm4eic/ReconstructedParticleCollection.h"
 #include "edm4hep/MCParticleCollection.h"
-#include "edm4eic/HadronicFinalState.h"
 
 #include <Math/LorentzRotation.h>
 using ROOT::Math::LorentzRotation;

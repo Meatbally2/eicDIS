@@ -68,7 +68,8 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 
 edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 
-	auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	// const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	const edm4eic::MCRecoParticleAssociationCollection& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
 			return assoc.getSim();
@@ -80,7 +81,7 @@ edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
-	auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
 		{
@@ -96,9 +97,9 @@ int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 
 void ElectronID::CheckClusters() {
 
-	auto& EcalEndcapNClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapNClusters");
-	auto& EcalBarrelScFiClusters = mEvent->get<edm4eic::ClusterCollection>("EcalBarrelScFiClusters");
-	auto& EcalEndcapPClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapPClusters");
+	const auto& EcalEndcapNClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapNClusters");
+	const auto& EcalBarrelScFiClusters = mEvent->get<edm4eic::ClusterCollection>("EcalBarrelScFiClusters");
+	const auto& EcalEndcapPClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapPClusters");
 
 	std::cout << " Number of clusters in EcalEndcapN: " << EcalEndcapNClusters.size() << std::endl;
 	std::cout << " Number of clusters in EcalBarrelScFi: " << EcalBarrelScFiClusters.size() << std::endl;
@@ -111,10 +112,10 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(int 
 
 	// edm4eic::HadronicFinalStateCollection meRecon;
 	edm4eic::ReconstructedParticleCollection meRecon;
-	meRecon->setSubsetCollection();
+	meRecon.setSubsetCollection();
 
 	// auto& rcparts = mEvent->get<edm4eic::HadronicFinalStateCollection>("HadronicFinalState");
-	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 
 	for(const auto& mcp : rcparts) {
 		if ( mcp.getObjectID().index != object_id )
@@ -130,12 +131,12 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	// CheckClusters();
 
 	// Get all the edm4eic objects needed for electron ID
-	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 	
 	// Create collection for storing scattered electron candidates
 	// (subset collection of ReconstructedParticleCollection)
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates;
-	scatteredElectronCandidates->setSubsetCollection();
+	scatteredElectronCandidates.setSubsetCollection();
 
 	// Loop over all ReconstructedParticles for this event
 	for (const auto& reconPart : rcparts) {
@@ -189,9 +190,9 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 
 	edm4hep::MCParticleCollection mhMC;
-	mhMC->setSubsetCollection();
+	mhMC.setSubsetCollection();
 
-	auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
+	const auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
 
 	std::vector<edm4hep::MCParticle> mc_hadronic;
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
@@ -208,9 +209,9 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 
 	edm4hep::MCParticleCollection meMC;
-	meMC->setSubsetCollection();
+	meMC.setSubsetCollection();
 	
-	auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
+	const auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
 	if ( eScatIndex != -1 )
 		meMC.push_back(mcparts[eScatIndex]);
 
@@ -297,11 +298,11 @@ edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 
 	// cout << "New process " << endl;
 
-	edm4hep::MCParticleCollection meMC = GetMCElectron();
+	const edm4hep::MCParticleCollection meMC = GetMCElectron();
 	edm4eic::ReconstructedParticleCollection meRecon;
-	meRecon->setSubsetCollection();
+	meRecon.setSubsetCollection();
 
-	auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 
 	for(const auto& assoc : RecoMC) 
 	{
@@ -394,7 +395,7 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 
 void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum) {
 
-	auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
 
 	for (const auto& reconPart : rcparts) {
 
@@ -423,7 +424,7 @@ edm4eic::ReconstructedParticle ElectronID::SelectHighestPT(const edm4eic::Recons
 	edm4eic::ReconstructedParticle erec;
 	double max_pT = 0.;
 	
-	for(auto ecand : ecandidates) {
+	for(const auto& ecand : ecandidates) {
 		double e_pT = edm4hep::utils::magnitudeTransverse(ecand.getMomentum());
 		if(e_pT > max_pT) {
 			erec = ecand;
