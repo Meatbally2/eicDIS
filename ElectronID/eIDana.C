@@ -70,7 +70,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
         eFinder->SetEvent(&event);
 
         if(ev%100==0) 
-        cout << "Analysing event " << ev << "/" << reader->getEntries("events") << std::endl;
+        cout << "Analysing event " << ev << "/" << reader->getEntries("events") << endl;
 
         // Generator information (mcID)
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();

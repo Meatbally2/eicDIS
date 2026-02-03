@@ -85,6 +85,9 @@ edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
+	if ( meMC.size() == 0 )
+		return 86; // No MC electron found
+
 	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
@@ -200,11 +203,16 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 
 	std::vector<edm4hep::MCParticle> mc_hadronic;
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
-	
+
 	bool found_scattered_e = false; 
 	for(const auto& mcp : mcparts) {
-		if (mcp.getGeneratorStatus() == 1 && mcp.getObjectID().index != meMC[0].getObjectID().index ) 
-			mhMC.push_back(mcp);	
+		if (mcp.getGeneratorStatus() == 1)
+		{
+			if ( meMC.size() == 0 )
+				mhMC.push_back(mcp);
+			else if (mcp.getObjectID().index != meMC[0].getObjectID().index ) 
+				mhMC.push_back(mcp);	
+		}
 	}
 
 	return mhMC;
@@ -221,26 +229,31 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 
 	////
 
-	// for(const auto& mcp : mcparts) {
-	// 	if(mcp.getPDG() == 11 && mcp.getGeneratorStatus() == 1) {
-	// 		meMC.push_back(mcp); // For now, just take first electron
-	// 		break;
-	// 	}
-	// }
+	// cout << "\n** Searching for MC electrons..." << endl;
 
 	for(const auto& mcp : mcparts) {
-		if ( mcp.getPDG() == 11 ) {
+		if ( mcp.getPDG() == 11 && mcp.getGeneratorStatus() == 1 ) {
+			// cout << "** Found MC electron: \n" << mcp << endl;
 			for (auto parents : mcp.getParents()) {
+				// cout << "** Parents: \n" << parents << endl;
 				if ( parents.getPDG() == 11 ) {
-					for (auto grandparents : parents.getParents()) {
-						if ( grandparents.getPDG() == 11 && grandparents.getGeneratorStatus() == 4 ) {
-							meMC.push_back(mcp);
+					if ( parents.getGeneratorStatus() == 4 ) { // seems to be the case for eHe3 BeAGLE sim
+						meMC.push_back(mcp);
+					}
+					else {
+						for (auto grandparents : parents.getParents()) { // seems to be the case for other samples
+							// cout << "** Grandparents: \n" << grandparents << endl;
+							if ( grandparents.getPDG() == 11 && grandparents.getGeneratorStatus() == 4 ) {
+								meMC.push_back(mcp);
+							}
 						}
 					}
 				}
 			}
 		}
 	}
+
+	// cout << "\n** Total MC electrons found: " << meMC.size() << endl;
 
 	return meMC;
 }
@@ -253,40 +266,19 @@ edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 	edm4eic::ReconstructedParticleCollection meRecon;
 	meRecon.setSubsetCollection();
 
+	if ( meMC.size() == 0 )
+		return meRecon; // No MC electron found
+
 	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 
 	for(const auto& assoc : RecoMC) 
 	{
 		auto e_candidat = assoc.getSim();
 
-		if ( e_candidat.getPDG() == 11 )
-		{
-			// cout << "found e: " << assoc.getSim() << endl;
-			
-			for (auto parents : e_candidat.getParents()) 
-			{
-				if ( parents.getPDG() == 11 )
-				{
-					for (auto grandparents : parents.getParents()) 
-					{
-						// cout << "grandparent pdg: " << grandparents << endl;
-						if ( grandparents.getPDG() == 11 && grandparents.getGeneratorStatus() == 4 )
-						{
-							// cout << "found grandparent e: " << grandparents << endl;
-							if(e_candidat == meMC[0]) {
-								meRecon.push_back(assoc.getRec());
-								// break;
-							}
-						}
-					}
-				}
-			}
+		if(assoc.getSim() == meMC[0]) {
+			meRecon.push_back(assoc.getRec());
+			break;
 		}
-
-		// if(assoc.getSim() == meMC[0]) {
-		// 	meRecon.push_back(assoc.getRec());
-		// 	break;
-		// }
 	}
 
 	return meRecon;
