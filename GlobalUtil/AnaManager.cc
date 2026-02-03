@@ -5,7 +5,7 @@ const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
 const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
 // const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
-const std::string address =  "root://dtn-rucio.jlab.org:1094/";
+const std::string address =  "root://dtn-eic.jlab.org:1094/";
 
 const int step = 200; // number of files to process in one batch
 
@@ -24,8 +24,10 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     beam_type = beam_type_;
 
     if ( beam_type == BEAM_BG )
+        // campaign = "25.10.4";
+        campaign = "25.12.0";
+    else if ( beam_type == EP_PYTHIA6 )
         campaign = "25.10.4";
-        // campaign = "25.12.0";
     else
         campaign = beam_type ? "25.10.0" : "25.10.2";
     
@@ -57,7 +59,7 @@ std::string AnaManager::GetOutputName()
     if ( starting_file >= 0 )
         ana_name += Form("_f%d", file_index);
 
-    std::string prefix[4] = {"eHe3", "ep", "piBG", "beamBG"};
+    std::string prefix[5] = {"eHe3", "ep", "piBG", "beamBG", "ep"};
     outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
     return outname;
@@ -108,11 +110,12 @@ vector<std::string> AnaManager::GetInputNames()
     std::vector<std::string> inFiles;
 
     int n_set = beam_type ? 4 : 3;
-    if ( beam_type > 1 )
+    if ( beam_type == BEAM_BG )
         n_set = 1;
     
     int total_file = 0;
 
+    // std::string file_name = "data/" + campaign + "_manifest.txt";
     std::string file_name = "../data/" + campaign + "_manifest.txt";
     // std::string file_name = "../data/test.txt";
     
@@ -167,10 +170,17 @@ vector<std::string> AnaManager::GetInputNames()
         }
         else if ( beam_type == BEAM_BG )
         {
-            std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
-            // std::string gen_group = "Bkg_Exactly1SignalPer2usFrame/GoldCoating/5um/DIS/NC/"; 
+            // std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
+            std::string gen_group = "Bkg_Exactly1SignalPer2usFrame/GoldCoating/5um/DIS/NC/"; 
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = "minQ2=1/";
+            target = gen_group + beam_group + sample_group;
+        }
+        else if ( beam_type == EP_PYTHIA6 )
+        {
+            std::string gen_group = "DIS/pythia6.428-1.0/NC/noRad/ep/"; 
+            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
+            std::string sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+1));
             target = gen_group + beam_group + sample_group;
         }
         else
@@ -185,6 +195,10 @@ vector<std::string> AnaManager::GetInputNames()
 
    
         std::ifstream data_file(file_name);
+        if (!data_file.is_open()) {
+            std::cerr << "!!! Error: Unable to open manifest file: " << file_name << std::endl;
+            return {};
+        }
 
         int line_c = 0;
         int line0 = 0;
@@ -202,7 +216,7 @@ vector<std::string> AnaManager::GetInputNames()
             // std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
             // std::cout << "compare: " << compare << std::endl;
 
-            if ( beam_type == BEAM_BG )
+            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 )
                 compare = line.compare(scope.size(), target.size(), target);
             
             if ( compare != 0 )
@@ -226,7 +240,7 @@ vector<std::string> AnaManager::GetInputNames()
             }
                 
             // inFiles.push_back(address+fname);
-            if ( beam_type == BEAM_BG )
+            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 )
                 inFiles.push_back(address+prefix+line.erase(0, scope.size()));
             else
                 inFiles.push_back(address+line);

@@ -104,8 +104,8 @@ void eff_pi_bg(int beam_type, int Ee, int Eh)
                     continue;
             }
 
-            if ( *EminusPz < 25 )
-                continue;
+            // if ( *EminusPz < 25 )
+            //     continue;
                
             if ( *status >= FOUND_MC )
                 h_tmp_all->Fill(*mc_xB, *mc_Q2);
@@ -203,8 +203,8 @@ void eff_pi_bg(int beam_type, int Ee, int Eh)
         if (*rec_Q2 < 2)
             continue;
         
-        if ( *EminusPz < 25 )
-            continue;
+        // if ( *EminusPz < 25 )
+        //     continue;
 
         if ( *status >= FOUND_MC )
             h_xq2_all_bg->Fill(*mc_xB, *mc_Q2);
@@ -326,10 +326,10 @@ void eff_pi_bg(int beam_type, int Ee, int Eh)
     // c_xq2_piID_bg->SaveAs(Form("../data/eID/%s_eID_xq2_piID_bg.png", setting.c_str()));
 
     draw_manager->LableAndCollect(c_EminusPz);
-    // c_EminusPz->SaveAs(Form("../data/eID/%s_eID_EminusPz_wPi.png", setting.c_str()));
+    c_EminusPz->SaveAs(Form("../data/eID/%s_eID_EminusPz_wPi.png", setting.c_str()));
 
     draw_manager->LableAndCollect(c_xq2_contaimin);
-    c_xq2_contaimin->SaveAs(Form("../data/eID/%s_eID_PiContam.png", setting.c_str()));
+    // c_xq2_contaimin->SaveAs(Form("../data/eID/%s_eID_PiContam.png", setting.c_str()));
 
     return;
 }

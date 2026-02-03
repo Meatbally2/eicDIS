@@ -68,8 +68,12 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 
 edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 
-	// const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
-	const edm4eic::MCRecoParticleAssociationCollection& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	// std::cout << "Available collections:" << std::endl;
+	// for (const auto& name : mEvent->getAvailableCollections()) {
+	// 	std::cout << "  " << name << std::endl;
+	// }
+
+	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
 			return assoc.getSim();
@@ -238,59 +242,6 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 		}
 	}
 
-	////
-
-	// std::vector<edm4hep::MCParticle> mc_electrons;
-/*	
-	// cout << "new" << endl;
-	for(const auto& mcp : mcparts) 
-	{
-		if ( mcp.getGeneratorStatus() == 4 && mcp.getPDG() == 11 )
-        {
-			for (auto md = mcp.daughters_begin(), mend = mcp.daughters_end(); md != mend; ++md) 
-			{
-				cout << "new daugter " << endl;
-				int mdIndex = md->getObjectID().index;
-				auto daughter = mcparts[mdIndex];
-				cout << daughter << endl;
-
-				// edm4hep::MCParticle daughter = mcp.getDaughters(0); // copy of mcp
-				for (auto it = daughter.daughters_begin(), end = daughter.daughters_end(); it != end; ++it) 
-				{
-					int Index = it->getObjectID().index;
-					auto dau = mcparts[Index];
-					cout << "dau " << endl;
-					cout << dau << endl;
-					if ( dau.getGeneratorStatus() == 1 && dau.getPDG() == 11)
-					{
-						meMC.push_back(dau);
-						eScatIndex = Index;
-						
-						// cout << dau << endl;
-						// for (auto dit = dau.parents_begin(), dend = dau.parents_end(); dit != dend; ++dit) 
-						// {
-						// 	int dauIndex = dit->getObjectID().index;
-						// 	auto dpar = mcparts[dauIndex];
-						// 	cout << dpar << "dau parent" << endl << dpar.getParents(0) << endl;
-						// }
-						break;
-					}
-				}
-			}
-			break;
-		}
-	}
-*/
-	// cout << "full e list" << endl;
-	// for(const auto& mcp : mcparts) 
-	// {
-	// 	if ( mcp.getGeneratorStatus() == 1 && mcp.getPDG() == 11)
-	// 	{
-	// 		cout << mcp << endl;
-	// 	}
-	// }
-	
-
 	return meMC;
 }
 
@@ -366,8 +317,6 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 	double lead_phi = edm4hep::utils::angleAzimuthal(lead_pos);
 
 	for (const auto& other_rcp : rcparts) {
-		if (&other_rcp == &rcp) continue;  // Skip the same particle
-
 		for (const auto& other_cluster : other_rcp.getClusters()) {
 
 			const auto& other_pos = other_cluster.getPosition();

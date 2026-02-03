@@ -15,10 +15,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     ana_manager->SetBeamEnergy(Ee, Eh);
     // ana_manager->InitializeForLocal(ev_type);
 
-    // ana_manager->GetInputNames();
-    // continue;
-
-    std::string type_title[4] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG"};
+    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
     std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
     DrawManager* draw_manager = new DrawManager(type_title[analyse_p], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
@@ -54,16 +51,6 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     // Analysis loop
 
     std::cout << "** Starting analysis loop... " << std::endl;
-
-    std::cout << "** Checking reader state..." << std::endl;
-    size_t nEvents = reader->getEntries("events");
-    if (nEvents == 0) {
-        std::cerr << "** ERROR: No events found in input files!" << std::endl;
-        return;
-    }
-    else {
-        std::cout << "** Found " << nEvents << " events to process." << std::endl;
-    }
 
     for( size_t ev = 0; ev < reader->getEntries("events"); ev++ )
     {

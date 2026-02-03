@@ -2,3 +2,5 @@
 .vscode
 data/
 *.pdf
+*.png
+*.DS_Store

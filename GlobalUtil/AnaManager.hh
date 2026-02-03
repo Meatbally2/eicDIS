@@ -20,7 +20,7 @@ public:
 
     std::string campaign;
 
-    enum{EHE3,EP,PI_BG,BEAM_BG};
+    enum{EHE3,EP,PI_BG,BEAM_BG,EP_PYTHIA6};
     
 private:
     int Ee;

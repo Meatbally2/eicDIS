@@ -14,6 +14,7 @@ R__LOAD_LIBRARY(/opt/local/lib/libedm4eicDict.so)
 #include "podio/Frame.h"
 
 #include "edm4eic/ReconstructedParticleCollection.h"
+#include "edm4eic/MCRecoParticleAssociationCollection.h"
 #include "edm4hep/MCParticleCollection.h"
 
 #include <Math/LorentzRotation.h>
