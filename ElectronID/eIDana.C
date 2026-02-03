@@ -1,5 +1,6 @@
 // Find inclusive scattered electrons
 
+#include "../GlobalUtil/preLoadLib.hh" // load lib first otherwise the newest eicshell will not work with the code
 #include "eIDana.h"
 
 void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)

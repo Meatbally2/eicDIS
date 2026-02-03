@@ -1,5 +1,6 @@
 // Find inclusive scattered electrons
 
+#include "../GlobalUtil/preLoadLib.hh"
 #include "beamAna.h"
 
 void beamAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
