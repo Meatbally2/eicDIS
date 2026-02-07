@@ -24,7 +24,7 @@ TLorentzVector GetHadronBeam(double fEh);
 
 void DefineHistograms();
 void DrawVerticalLine(TCanvas* &c, double x_pos, double y_max);
-void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double& draw_max);
+void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, TH1D* &h4, double& draw_max);
 void DrawTCComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, double& draw_max);
 
 TFile* outFile;
@@ -53,12 +53,15 @@ std::vector<PxPyPzEVector> vMC_hfs;
 std::vector<PxPyPzEVector> vREC_hfs;
 
 TH1D* h_nTPts_e;
+TH1D* h_nTPts_jet_e;
 TH1D* h_nTPts_pi;
 TH1D* h_nTPts_else;
 TH1D* h_EoP_e;
+TH1D* h_EoP_jet_e;
 TH1D* h_EoP_pi;
 TH1D* h_EoP_else;
 TH1D* h_isoE_e;
+TH1D* h_isoE_jet_e;
 TH1D* h_isoE_pi;
 TH1D* h_isoE_else;
 

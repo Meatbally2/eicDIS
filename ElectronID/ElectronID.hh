@@ -59,6 +59,7 @@ public:
 		double recon_isoE;
 	};
 	vector<DetValues> e_det;
+	vector<DetValues> jet_e_det;
 	vector<DetValues> pi_det;
 	vector<DetValues> else_det;
 

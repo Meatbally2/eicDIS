@@ -10,9 +10,11 @@ const std::string group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 void eff(int beam_type, int Ee, int Eh)
 {
     // ePIC plotting style setup
-    std::string type_title[3] = {"e^{3}He", "ep", "#gammap"};
+    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
     std::string campaign = beam_type ? "25.10.0" : "25.10.2";
+    if ( beam_type == 4 )
+        campaign = "25.10.4";
     DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
     draw_manager->SetEPIC();
 
@@ -48,7 +50,10 @@ void eff(int beam_type, int Ee, int Eh)
     for ( int i = 0; i < n_group; i ++ )
     {
         std::string date = beam_type == 0 ? "en_25_10_2" : "ep_25_10_0";
+        if ( beam_type == 4 )
+            date = "ep_25_10_4";
         TFile* file  = new TFile(Form("../data/%s/root_files/%s_%s_eid_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
+        // TFile* file  = new TFile(Form("../data/%s/%s_%s_eid_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
 
         TH2F* h_tmp_all = BookTH2(Form("h_tmp_all_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
         TH2F* h_tmp_acp = BookTH2(Form("h_tmp_acp_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
@@ -82,6 +87,8 @@ void eff(int beam_type, int Ee, int Eh)
             // if(ev%100==0) 
             // cout << "Analysing file " << i << " event " << ev << "/" << nEntries << "\t\r" << std::flush;
 
+            if ( *status < FOUND_MC )
+                continue; 
 
             if (*mc_y < 0.01 || *mc_y > 0.95) 
                 continue;

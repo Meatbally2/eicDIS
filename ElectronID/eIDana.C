@@ -16,7 +16,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     ana_manager->SetBeamEnergy(Ee, Eh);
     // ana_manager->InitializeForLocal(ev_type);
 
-    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
+    std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep DVMP"};
     std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
     DrawManager* draw_manager = new DrawManager(type_title[analyse_p], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
@@ -165,6 +165,12 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
             h_EoP_e->Fill(det_val.recon_EoP);
             h_isoE_e->Fill(det_val.recon_isoE);
         }
+        for ( const auto& det_val : eFinder->jet_e_det )
+        {
+            h_nTPts_jet_e->Fill(det_val.nTrackPoints);
+            h_EoP_jet_e->Fill(det_val.recon_EoP);
+            h_isoE_jet_e->Fill(det_val.recon_isoE);
+        }
         for ( const auto& det_val : eFinder->pi_det )
         {
             h_nTPts_pi->Fill(det_val.nTrackPoints);
@@ -191,13 +197,13 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     draw_manager->LableAndCollect(c_nScatElec,2);
 
     TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
-    DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_pi, h_nTPts_else, draw_max);
+    DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_jet_e, h_nTPts_pi, h_nTPts_else, draw_max);
     draw_manager->LableAndCollect(c_nTPts);
 
     TCanvas* c_EoP = new TCanvas("c_EoP", "c_EoP", 1000, 600);
     c_EoP->SetLogy();
 
-    DrawParComparison(c_EoP, h_EoP_e, h_EoP_pi, h_EoP_else, draw_max);
+    DrawParComparison(c_EoP, h_EoP_e, h_EoP_jet_e, h_EoP_pi, h_EoP_else, draw_max);
     DrawVerticalLine(c_EoP, eFinder->get_mEoP_min(), draw_max);
     DrawVerticalLine(c_EoP, eFinder->get_mEoP_max(), draw_max);
     draw_manager->LableAndCollect(c_EoP);
@@ -205,7 +211,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     TCanvas* c_isoE = new TCanvas("c_isoE", "c_isoE", 1000, 600);
     c_isoE->SetLogy();
 
-    DrawParComparison(c_isoE, h_isoE_e, h_isoE_pi, h_isoE_else, draw_max);
+    DrawParComparison(c_isoE, h_isoE_e, h_isoE_jet_e, h_isoE_pi, h_isoE_else, draw_max);
     DrawVerticalLine(c_isoE, eFinder->get_mIsoE(), draw_max);
     draw_manager->LableAndCollect(c_isoE);
 
@@ -256,14 +262,17 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 void DefineHistograms() {
 
     h_nTPts_e = new TH1D("h_nTPts_e", "Number of Track Points for e; N_{Track Points}; Counts", 13, -0.5, 13.5);
+    h_nTPts_jet_e = new TH1D("h_nTPts_jet_e", "Number of Track Points for other e's; N_{Track Points}; Counts", 13, -0.5, 13.5);
     h_nTPts_pi = new TH1D("h_nTPts_pi", "Number of Track Points for #pi; N_{Track Points}; Counts", 13, -0.5, 13.5);
     h_nTPts_else = new TH1D("h_nTPts_else", "Number of Track Points for others; N_{Track Points}; Counts", 13, -0.5, 13.5);
 
     h_EoP_e = new TH1D("h_EoP_e", "EoP e; E/p; Counts", 100, 0., 2.);
+    h_EoP_jet_e = new TH1D("h_EoP_jet_e", "EoP other e's; E/p; Counts", 100, 0., 2.);
     h_EoP_pi = new TH1D("h_EoP_pi", "EoP pi; E/p; Counts", 100, 0., 2.);
     h_EoP_else = new TH1D("h_EoP_else", "EoP; E/p; Counts", 100, 0., 2.);
 
     h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+    h_isoE_jet_e = new TH1D("h_isoE_jet_e", "Isolation Energy other e's; Iso. E; Counts", 100, 0., 2.);
     h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
     h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
 
@@ -320,19 +329,24 @@ void DrawTCComparison(TCanvas* &c, TH1D* &ht, TH1D* &hc, double &draw_max) {
     return;
 }
 
-void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &draw_max) {
+void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, TH1D* &h4, double &draw_max) {
 
     c->cd();
 
-    h3->Draw("HIST");
-    h3->SetLineColor(kGray+2);
-    // h3->SetFillColor(kGray);
-    // h3->SetFillStyle(3003);
-    draw_max = 1.2*std::max({h1->GetMaximum(), h2->GetMaximum(), h3->GetMaximum()});
-    h3->SetMaximum(draw_max);
+    h4->Draw("HIST");
+    h4->SetLineColor(kGray+2);
+    // h4->SetFillColor(kGray);
+    // h4->SetFillStyle(3003);
+    draw_max = 1.2*std::max({h1->GetMaximum(), h2->GetMaximum(), h3->GetMaximum(), h4->GetMaximum()});
+    h4->SetMaximum(draw_max);
+
+    h3->Draw("HIST SAME");
+    h3->SetLineColor(kBlue);
+    // h3->SetFillColor(kGreen+3);
+    // h3->SetFillStyle(3003);  
 
     h2->Draw("HIST SAME");
-    h2->SetLineColor(kBlue);
+    h2->SetLineColor(kViolet);
     // h2->SetFillColor(kBlue);
     // h2->SetFillStyle(3003);
 
@@ -346,8 +360,9 @@ void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, double &dra
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
     leg->AddEntry(h1, "Electrons", "L");
-    leg->AddEntry(h2, "Pions", "L");
-    leg->AddEntry(h3, "Others", "L");
+    leg->AddEntry(h2, "Other e's", "L");
+    leg->AddEntry(h3, "Pions", "L");
+    leg->AddEntry(h4, "Others", "L");
     leg->Draw();
 
     return;

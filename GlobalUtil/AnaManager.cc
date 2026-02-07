@@ -28,6 +28,8 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
         campaign = "25.12.0";
     else if ( beam_type == EP_PYTHIA6 )
         campaign = "25.10.4";
+    else if ( beam_type == EP_DVMP )
+        campaign = "25.10.3";
     else
         campaign = beam_type ? "25.10.0" : "25.10.2";
     
@@ -59,7 +61,7 @@ std::string AnaManager::GetOutputName()
     if ( starting_file >= 0 )
         ana_name += Form("_f%d", file_index);
 
-    std::string prefix[5] = {"eHe3", "ep", "piBG", "beamBG", "ep"};
+    std::string prefix[6] = {"eHe3", "ep", "piBG", "beamBG", "ep", "epDVMP"};
     outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
     return outname;
@@ -110,7 +112,7 @@ vector<std::string> AnaManager::GetInputNames()
     std::vector<std::string> inFiles;
 
     int n_set = beam_type ? 4 : 3;
-    if ( beam_type == BEAM_BG )
+    if ( beam_type == BEAM_BG || beam_type == EP_DVMP )
         n_set = 1;
     
     int total_file = 0;
@@ -183,6 +185,13 @@ vector<std::string> AnaManager::GetInputNames()
             std::string sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+1));
             target = gen_group + beam_group + sample_group;
         }
+        else if ( beam_type == EP_DVMP )
+        {
+            std::string gen_group = "EXCLUSIVE/DVMP/EpIC1.1.6-1.1/unpolarised/"; 
+            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
+            std::string sample_group = Form("q2_1_1000/");
+            target = gen_group + beam_group + sample_group;
+        }
         else
         {
             std::cerr << "o.O Error: invalid beam type specified." << std::endl;
@@ -216,7 +225,7 @@ vector<std::string> AnaManager::GetInputNames()
             // std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
             // std::cout << "compare: " << compare << std::endl;
 
-            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 )
+            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
                 compare = line.compare(scope.size(), target.size(), target);
             
             if ( compare != 0 )
@@ -224,7 +233,7 @@ vector<std::string> AnaManager::GetInputNames()
 
             // std::cout << "file index: " << file_index << " line_c: " << line_c << std::endl;
             if ( file_index == -1 )
-                if ( line_c >= 1 )
+                if ( line_c >= 10 )
                     break;
 
             // if ( starting_file >= 0 && beam_type != BEAM_BG )
@@ -240,7 +249,7 @@ vector<std::string> AnaManager::GetInputNames()
             }
                 
             // inFiles.push_back(address+fname);
-            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 )
+            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
                 inFiles.push_back(address+prefix+line.erase(0, scope.size()));
             else
                 inFiles.push_back(address+line);

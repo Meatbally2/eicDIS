@@ -60,6 +60,7 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	hfs_de.clear();
 	hfs_theta.clear();
 	e_det.clear();
+	jet_e_det.clear();
 	pi_det.clear();
 	else_det.clear();
 	// std::cout << "** Event set in ElectronID. " << std::endl;
@@ -174,9 +175,12 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 		double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
 		double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
 
-		if ( Check_eID(reconPart) == 0 )
+		int found_id = Check_eID(reconPart);
+		if ( found_id == 0 )
 			e_det.push_back({n_track_points, recon_EoP, recon_isoE});
-		else if ( Check_eID(reconPart) == -211 )
+		else if ( found_id == 11 )
+			jet_e_det.push_back({n_track_points, recon_EoP, recon_isoE});
+		else if ( found_id == -211 )
 			pi_det.push_back({n_track_points, recon_EoP, recon_isoE});
 		else
 			else_det.push_back({n_track_points, recon_EoP, recon_isoE});
@@ -231,29 +235,51 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 
 	// cout << "\n** Searching for MC electrons..." << endl;
 
-	for(const auto& mcp : mcparts) {
-		if ( mcp.getPDG() == 11 && mcp.getGeneratorStatus() == 1 ) {
-			// cout << "** Found MC electron: \n" << mcp << endl;
-			for (auto parents : mcp.getParents()) {
-				// cout << "** Parents: \n" << parents << endl;
-				if ( parents.getPDG() == 11 ) {
-					if ( parents.getGeneratorStatus() == 4 ) { // seems to be the case for eHe3 BeAGLE sim
-						meMC.push_back(mcp);
-					}
-					else {
-						for (auto grandparents : parents.getParents()) { // seems to be the case for other samples
-							// cout << "** Grandparents: \n" << grandparents << endl;
-							if ( grandparents.getPDG() == 11 && grandparents.getGeneratorStatus() == 4 ) {
-								meMC.push_back(mcp);
-							}
-						}
-					}
+	for (const auto& mcp : mcparts) 
+	{
+		if (mcp.getPDG() != 11 || mcp.getGeneratorStatus() != 4) 
+			continue;
+
+		std::vector<edm4hep::MCParticle> stack;
+		stack.insert(stack.end(), mcp.getDaughters().begin(), mcp.getDaughters().end());
+
+		int shortest_gen = 999;
+		int generations = 0;
+		edm4hep::MCParticle meMC_candidates;
+
+		while (!stack.empty() ) {
+			generations++;
+			auto cur = stack.back();
+			stack.pop_back();
+
+			if (cur.getPDG() == 11 && cur.getGeneratorStatus() == 1) {
+				
+				if ( generations < shortest_gen )
+				{
+					shortest_gen = generations;
+					meMC_candidates = cur;
 				}
+				break;
+			}
+
+			const auto& kids = cur.getDaughters();
+			if (!kids.empty()) {
+				stack.insert(stack.end(), kids.begin(), kids.end());
 			}
 		}
+
+		if ( meMC_candidates.isAvailable() )
+			meMC.push_back(meMC_candidates);
 	}
 
-	// cout << "\n** Total MC electrons found: " << meMC.size() << endl;
+	if ( meMC.size() == 0 )
+	{
+		std::cout << "** No MC electron found! " << std::endl;
+		for (const auto& mcp : mcparts)
+			cout << mcp << endl;
+	}
+
+	// cout << "** Total MC electrons found: " << meMC.size() << endl;
 
 	return meMC;
 }
