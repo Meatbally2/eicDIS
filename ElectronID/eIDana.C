@@ -3,8 +3,8 @@
 #include "../GlobalUtil/preLoadLib.hh" // load lib first otherwise the newest eicshell will not work with the code
 #include "eIDana.h"
 
-void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
-// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p)
+void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
+// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int beam_type)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
@@ -12,18 +12,18 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
 
     // AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
     AnaManager* ana_manager = new AnaManager("eid");
-    ana_manager->Initialize(select_region, sr, file0, analyse_p);
+    ana_manager->Initialize(select_region, sr, file0, beam_type);
     ana_manager->SetBeamEnergy(Ee, Eh);
     // ana_manager->InitializeForLocal(ev_type);
 
     std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep DVMP"};
-    std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    DrawManager* draw_manager = new DrawManager(type_title[analyse_p], energy_title, ana_manager->campaign);
+    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
 
     if (select_region) // no sr for pi_bg runs
     {
-        if ( analyse_p )
+        if ( beam_type )
             draw_manager->SetQ2min(pow(10,sr));
         else
             draw_manager->SetQ2range(pow(10,sr), pow(10,sr+1));
@@ -44,7 +44,7 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     ElectronID* eFinder = new ElectronID(Ee, Eh);
     eFinder->SetMinTrackPoints(3);
     // techinically need to add a check for types of nucleon, but good enough for a quick check of x Q2. precise recon will be done in kin recon.
-    LorentzRotation boost = analyse_p ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); 
+    LorentzRotation boost = beam_type ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); 
     eFinder->SetBoost(boost);
 
     DefineHistograms();
@@ -73,10 +73,11 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
         cout << "Analysing event " << ev << "/" << reader->getEntries("events") << endl;
 
         // Generator information (mcID)
+        // eFinder->GetMCElectron();
         edm4hep::MCParticleCollection e_mc = eFinder->GetMCElectron();
         // if (e_mc.size() != 1)
         //     continue;
-
+        
         h_n_scat_elec->Fill(e_mc.size());
         if(e_mc.size() > 0) 
         {
@@ -95,6 +96,10 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
         {
             eID_status = FOUND_TRUTH;
             h_n_clusters_n_tracks->Fill( e_truth[0].getTracks().size(), e_truth[0].getClusters().size());
+
+            h_n_cluster_in_cone->Fill(eFinder->rcpart_n_clusters);
+            if ( e_truth[0].getClusters().size() > 0 )
+                h_n_cluster_in_cone_found->Fill(eFinder->rcpart_n_clusters);
         }
             
         // Find scattered electrons (reconID)
@@ -247,8 +252,15 @@ void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
     h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
     h_n_clusters_n_tracks->Draw("COLZ TEXT");
+    draw_manager->LableAndCollect(c_n_clusters_n_tracks,2);
 
-    draw_manager->LableAndCollect(c_n_clusters_n_tracks);
+    TCanvas* c_n_cluster_in_cone = new TCanvas("c_n_cluster_in_cone", "c_n_cluster_in_cone", 1000, 600);
+    h_n_cluster_in_cone->Draw("HIST");
+    h_n_cluster_in_cone->SetLineColor(kGray+2);
+    h_n_cluster_in_cone_found->Draw("HIST SAME");
+    h_n_cluster_in_cone_found->SetLineColor(kRed);
+    draw_manager->LableAndCollect(c_n_cluster_in_cone,2);
+
     // Save
 
     outFile->cd();
@@ -285,6 +297,9 @@ void DefineHistograms() {
     h_cand_mul = new TH1D("h_cand_mul", "Scattered electron candidates multiplicity; N_{candidates}; Counts", 10, -0.5, 9.5);
     h_cand_mul_eHighPt = new TH1D("h_cand_mul_eHighPt", "Scattered electron candidates multiplicity (high p_{T,e}); N_{candidates}; Counts", 10, -0.5, 9.5);
     h_cand_mul_oHighPt = new TH1D("h_cand_mul_oHighPt", "Scattered electron candidates multiplicity (high p_{T,others}); N_{candidates}; Counts", 10, -0.5, 9.5);
+
+    h_n_cluster_in_cone = new TH1D("h_n_cluster_in_cone", "Number of clusters in isolation cone; N_{clusters in cone}; Counts", 20, -0.5, 19.5);
+    h_n_cluster_in_cone_found = new TH1D("h_n_cluster_in_cone_found", "Number of clusters in isolation cone for found electrons; N_{clusters in cone}; Counts", 20, -0.5, 19.5);
 
     return;
 }

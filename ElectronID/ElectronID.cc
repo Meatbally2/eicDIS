@@ -74,6 +74,8 @@ edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 	// 	std::cout << "  " << name << std::endl;
 	// }
 
+	// std::cout << "Getting MC particle associated with reconstructed particle..." << std::endl;
+
 	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
@@ -129,7 +131,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(int 
 		if ( mcp.getObjectID().index != object_id )
 			meRecon.push_back(mcp);
 	}
-	
+
 	return meRecon;
 }
 
@@ -148,15 +150,6 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 	// Loop over all ReconstructedParticles for this event
 	for (const auto& reconPart : rcparts) {
-
-		// std::cout << "par id: " << reconPart.getPDG() << " cluster size: " << reconPart.getClusters().size() << ", track size: " << reconPart.getTracks().size() << std::endl;
-
-		// for (const auto& track : reconPart.getTracks())
-		// {
-		// 	int n_measurements = track.measurements_size();
-		// 	int n_track_hits = track.getTrajectory().getNMeasurements();
-		// 	// std::cout << "  track with " << n_measurements << " measurements, " << n_track_hits << " hits." << std::endl;
-		// }
 
 		// Require at least one track and one cluster
 		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
@@ -194,6 +187,27 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 	}	
 
+	// std::cout << "Total scattered electron candidates found: " << scatteredElectronCandidates.size() << std::endl;
+
+	// if ( scatteredElectronCandidates.size() == 0 )
+	// {
+	// 	std::cout << "** No scattered electron candidates found! " << std::endl;
+	
+	// 	const edm4hep::MCParticleCollection meMC = GetMCElectron();
+	// 	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+
+	// 	for(const auto& assoc : RecoMC) 
+	// 	{
+	// 		auto Sim = assoc.getSim();
+	// 		auto Rec = assoc.getRec();
+
+	// 		// if ( Sim == meMC[0] )
+
+	// 		if ( Rec.getClusters().size() != 0 && Rec.getTracks().size() == 0 ) 
+	// 			cout << Sim << endl;
+	// 	}
+	// }
+	
 	return scatteredElectronCandidates;
 
 }
@@ -233,8 +247,6 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 
 	////
 
-	// cout << "\n** Searching for MC electrons..." << endl;
-
 	for (const auto& mcp : mcparts) 
 	{
 		if (mcp.getPDG() != 11 || mcp.getGeneratorStatus() != 4) 
@@ -246,6 +258,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 		int shortest_gen = 999;
 		int generations = 0;
 		edm4hep::MCParticle meMC_candidates;
+		bool found_candidate = false;
 
 		while (!stack.empty() ) {
 			generations++;
@@ -258,6 +271,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 				{
 					shortest_gen = generations;
 					meMC_candidates = cur;
+					found_candidate = true;
 				}
 				break;
 			}
@@ -268,18 +282,9 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 			}
 		}
 
-		if ( meMC_candidates.isAvailable() )
+		if ( found_candidate )
 			meMC.push_back(meMC_candidates);
 	}
-
-	if ( meMC.size() == 0 )
-	{
-		std::cout << "** No MC electron found! " << std::endl;
-		for (const auto& mcp : mcparts)
-			cout << mcp << endl;
-	}
-
-	// cout << "** Total MC electrons found: " << meMC.size() << endl;
 
 	return meMC;
 }
@@ -303,9 +308,15 @@ edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 
 		if(assoc.getSim() == meMC[0]) {
 			meRecon.push_back(assoc.getRec());
-			break;
+			// break;
 		}
 	}
+
+	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	edm4hep::Vector3f lead_pos(meMC[0].getEndpoint().x, meMC[0].getEndpoint().y, meMC[0].getEndpoint().z);
+	CheckSurroundingClusters(lead_pos, rcparts);
+
+	// std::cout << meRecon.size() << " reconstructed particles associated with the MC electron." << std::endl;
 
 	return meRecon;
 }
@@ -316,7 +327,6 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 	rcpart_sum_cluster_E = 0.;
 	rcpart_lead_cluster_E = 0.;
 	rcpart_isolation_E = 0.;
-	rcpart_deltaH = 0.;
 
 	const edm4eic::Cluster* lead_cluster = nullptr;
 
@@ -330,7 +340,17 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 
 	if(!lead_cluster) return;
 
-	const auto& lead_pos = lead_cluster->getPosition();
+	CheckSurroundingClusters(lead_cluster->getPosition(), rcparts);
+
+	return;
+}
+
+void ElectronID::CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
+		const edm4eic::ReconstructedParticleCollection& rcparts) {
+
+	rcpart_isolation_E = 0.;
+	rcpart_n_clusters = 0;
+
 	double lead_eta = edm4hep::utils::eta(lead_pos);
 	double lead_phi = edm4hep::utils::angleAzimuthal(lead_pos);
 
@@ -353,6 +373,7 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 			// Check if the cluster is within the isolation cone
 			if (dR < mIsoR) {
 				rcpart_isolation_E += other_cluster.getEnergy();
+				rcpart_n_clusters ++;
 			}
 		}
 	}

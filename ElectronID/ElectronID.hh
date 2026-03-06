@@ -63,6 +63,8 @@ public:
 	vector<DetValues> pi_det;
 	vector<DetValues> else_det;
 
+	double rcpart_n_clusters;
+
 private:
 
 	const podio::Frame* mEvent;
@@ -81,11 +83,12 @@ private:
 	
 	void CalculateParticleValues(const edm4eic::ReconstructedParticle& rcp,
 		const edm4eic::ReconstructedParticleCollection& rcparts);
+	void CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
+		const edm4eic::ReconstructedParticleCollection& rcparts);
 
 	double rcpart_sum_cluster_E;
 	double rcpart_lead_cluster_E;
 	double rcpart_isolation_E;
-	double rcpart_deltaH;
 
 	int eScatIndex;
 };

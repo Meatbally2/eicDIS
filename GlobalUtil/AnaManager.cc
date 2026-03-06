@@ -30,8 +30,10 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
         campaign = "25.10.4";
     else if ( beam_type == EP_DVMP )
         campaign = "25.10.3";
+    else if ( beam_type == EHE3 )
+        campaign = "25.10.2";
     else
-        campaign = beam_type ? "25.10.0" : "25.10.2";
+        campaign = "25.10.0";
     
     return;
 }
@@ -61,7 +63,7 @@ std::string AnaManager::GetOutputName()
     if ( starting_file >= 0 )
         ana_name += Form("_f%d", file_index);
 
-    std::string prefix[6] = {"eHe3", "ep", "piBG", "beamBG", "ep", "epDVMP"};
+    std::string prefix[7] = {"eHe3", "ep", "piBG", "beamBG", "ep", "epDVMP", "ep"};
     outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
     return outname;
@@ -156,9 +158,9 @@ vector<std::string> AnaManager::GetInputNames()
             target = gen_group + beam_group + sample_group;
             // std::cout << "sample_group: " << sample_group << std::endl;        
         }
-        else if ( beam_type == EP )
+        else if ( beam_type == EP || beam_type == EP_CC )
         {
-            std::string gen_group = "DIS/NC/"; 
+            std::string gen_group = beam_type == EP ? "DIS/NC/" : "DIS/CC/"; 
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
             target = gen_group + beam_group + sample_group;
@@ -233,7 +235,7 @@ vector<std::string> AnaManager::GetInputNames()
 
             // std::cout << "file index: " << file_index << " line_c: " << line_c << std::endl;
             if ( file_index == -1 )
-                if ( line_c >= 10 )
+                if ( line_c >= 1 )
                     break;
 
             // if ( starting_file >= 0 && beam_type != BEAM_BG )
@@ -249,7 +251,7 @@ vector<std::string> AnaManager::GetInputNames()
             }
                 
             // inFiles.push_back(address+fname);
-            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
+            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP)
                 inFiles.push_back(address+prefix+line.erase(0, scope.size()));
             else
                 inFiles.push_back(address+line);

@@ -75,4 +75,8 @@ TH1D* h_cand_mul;
 TH1D* h_cand_mul_eHighPt;
 TH1D* h_cand_mul_oHighPt;
 
+TH1D* h_n_cluster_in_cone;
+TH1D* h_n_cluster_in_cone_found;
+
+
 #endif
