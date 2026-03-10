@@ -170,7 +170,7 @@ vector<std::string> AnaManager::GetInputNames()
         else if ( beam_type == BEAM_BG )
         {
             // std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
-            std::string gen_group = "Bkg_Exactly1SignalPer2usFrame/GoldCoating/5um/DIS/NC/"; 
+            std::string gen_group = "Bkg_Exact1S_2us/GoldCt/5um/DIS/NC/"; 
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = "minQ2=1/";
             target = gen_group + beam_group + sample_group;
