@@ -23,11 +23,14 @@ void eff(int beam_type, int Ee, int Eh)
     double text_lumi = 10; // fb^-1
     if ( beam_type == 0 && Ee == 10 && Eh == 166 )
         text_lumi = 8.65; // fb^-1
+    if ( beam_type == 4 && Ee == 10 && Eh == 130 )
+        text_lumi = 5.33; // fb^-1
+    if ( beam_type == 4 && Ee == 10 && Eh == 250 )
+        text_lumi = 9.18; // fb^-1
     draw_manager->SetLumi(text_lumi);
      
     // get generated lumi
-    
-    double total_lumi = beam_type == 0 ? 10*3 : 10; // fb^-1
+    double total_lumi = beam_type == 0 ? text_lumi*3 : text_lumi; // fb^-1
     std::vector<double> gen_lumi = get_lumi(beam_type, Ee, Eh);
     if ( gen_lumi.empty() )
     {

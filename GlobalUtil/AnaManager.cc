@@ -33,7 +33,7 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     else if ( beam_type == EHE3 )
         campaign = "25.10.2";
     else
-        campaign = "25.10.0";
+        campaign = "26.02.0";
     
     return;
 }
@@ -123,7 +123,7 @@ vector<std::string> AnaManager::GetInputNames()
     std::string file_name = "../data/" + campaign + "_manifest.txt";
     // std::string file_name = "../data/test.txt";
     
-    std::string prefix = "/volatile/eic/EPIC/RECO/" + campaign + "/epic_craterlake/";
+    std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
     // std::string phys_group = "/epic_craterlake/DIS/";
 
     std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
@@ -224,11 +224,14 @@ vector<std::string> AnaManager::GetInputNames()
             // fname.erase(0, 5);
 
             int compare = line.compare(prefix.size(), target.size(), target);
-            // std::cout << "checking: " << line.substr(prefix.size(), target.size()) << std::endl;
+            // std::cout << "checking: " << line.substr(address.size()+prefix.size(), target.size()) << std::endl;
             // std::cout << "compare: " << compare << std::endl;
 
             if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
                 compare = line.compare(scope.size(), target.size(), target);
+
+            if ( campaign == "26.02.0" )
+                int compare = line.compare(address.size()+prefix.size(), target.size(), target);
             
             if ( compare != 0 )
                 continue;
@@ -254,7 +257,8 @@ vector<std::string> AnaManager::GetInputNames()
             if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP)
                 inFiles.push_back(address+prefix+line.erase(0, scope.size()));
             else
-                inFiles.push_back(address+line);
+                // inFiles.push_back(address+line);
+                inFiles.push_back(line);
 
             // std::cout << "File " << total_file << ": " << fname << std::endl;
             //  std::cout << "File " << total_file << ": " << address+line << std::endl;

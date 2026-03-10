@@ -1,6 +1,6 @@
 #pragma once
 
-enum{EHE3,EP,PI_BG};
+enum{EHE3,EP,PI_BG,BEAM_BG,EP_PYTHIA6,EP_DVMP};
 
 std::vector<double> get_lumi(int beam_type, int Ee, int Eh)
 {
@@ -76,6 +76,58 @@ std::vector<double> get_lumi(int beam_type, int Ee, int Eh)
             double gen_lumi[3] = {1.24919E-02, 2.45752E-01, 1.74313E+01}; // fb^-1
             for ( int i = 0; i < 3; i ++ )
                 lumi.push_back(gen_lumi[i]);
+        }
+    }
+
+    if ( beam_type == EP_PYTHIA6 )
+    {
+         if ( Ee == 10 && Eh == 130 )
+        {
+            // double cs[4] = {0.63928175476836346, 4.7191206939697819E-002, 1.5146539778048273E-003, 45.369017792412620};
+            double cs[4] = {0.63928175476836346, 4.7191206939697819E-002, 1.5146539778048273E-003, 8.1678590974353973E-006}; 
+
+            for ( int i = 0; i < 4; i ++ )
+            {
+                // double gen_lumi = 500000./(cs[i]*(1e-34/1e-43));
+                // if ( i == 3)
+                //     gen_lumi = 50000./(cs[i]*(1e-34/1e-36));
+                //     // gen_lumi = 50./(cs[i]*(1e-34/1e-43));
+                // lumi.push_back(gen_lumi);
+
+                cs[i] = cs[i]*1e-6/1e-15; // convert from microbarn to fb
+                double gen_lumi = 500000./cs[i];
+                if ( i == 3)
+                    // gen_lumi = 50./(cs[i]);
+                    gen_lumi = 50000./cs[i];
+                    // gen_lumi = 50000./(cs[i]*1e-6);
+                lumi.push_back(gen_lumi);
+
+                std::cout << "Process " << i << ", cross section: " << cs[i] << " fb, gen lumi: " << gen_lumi << " fb^-1" << std::endl;
+            }
+        }
+
+        if ( Ee == 10 && Eh == 250 )
+        {
+            // double cs[4] = {0.70873205053123534, 5.9758065033598498E-002, 2.2867629538197093E-003, 22.527455461166682};
+            double cs[4] = {0.70873205053123534, 5.9758065033598498E-002, 2.2867629538197093E-003, 2.7215279714732617E-005};
+
+            for ( int i = 0; i < 4; i ++ )
+            {
+                // double gen_lumi = 500000./(cs[i]*(1e-34/1e-43));
+                // if ( i == 3)
+                //     gen_lumi = 50000./(cs[i]*(1e-34/1e-37));
+                    // gen_lumi = 50./(cs[i]*(1e-34/1e-43));
+
+                cs[i] = cs[i]*1e-6/1e-15; // convert from microbarn to fb
+                double gen_lumi = 500000./cs[i];
+                if ( i == 3)
+                    // gen_lumi = 50./cs[i];
+                     gen_lumi = 50000./cs[i];
+                    // gen_lumi = 50000./(cs[i]*1e-6);
+                lumi.push_back(gen_lumi);
+                
+                std::cout << "Process " << i << ", cross section: " << cs[i] << " fb, gen lumi: " << gen_lumi << " fb^-1" << std::endl;
+            }
         }
     }
 
