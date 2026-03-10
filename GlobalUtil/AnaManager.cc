@@ -30,8 +30,8 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
         campaign = "25.10.4";
     else if ( beam_type == EP_DVMP )
         campaign = "25.10.3";
-    else if ( beam_type == EHE3 )
-        campaign = "25.10.2";
+    // else if ( beam_type == EHE3 )
+    //     campaign = "25.10.2";
     else
         campaign = "26.02.0";
     
@@ -145,7 +145,7 @@ vector<std::string> AnaManager::GetInputNames()
         std::string target;
         if ( beam_type == EHE3 )
         {
-            std::string gen_group = "DIS/BeAGLE1.03.02-1.2/"; 
+            std::string gen_group = Eh == 166 ? "DIS/BeAGLE1.03.02-2.1/" : "DIS/BeAGLE1.03.02-1.2/"; 
             std::string beam_group = Form("eHe3/%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group;
             if ( r == 0 )
@@ -231,7 +231,7 @@ vector<std::string> AnaManager::GetInputNames()
                 compare = line.compare(scope.size(), target.size(), target);
 
             if ( campaign == "26.02.0" )
-                int compare = line.compare(address.size()+prefix.size(), target.size(), target);
+                compare = line.compare(address.size()+prefix.size(), target.size(), target);
             
             if ( compare != 0 )
                 continue;
