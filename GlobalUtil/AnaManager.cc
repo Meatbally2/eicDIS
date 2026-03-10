@@ -23,15 +23,10 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     starting_file = starting_file_index_*step;
     beam_type = beam_type_;
 
-    if ( beam_type == BEAM_BG )
-        // campaign = "25.10.4";
-        campaign = "25.12.0";
-    else if ( beam_type == EP_PYTHIA6 )
+    if ( beam_type == EP_PYTHIA6 )
         campaign = "25.10.4";
     else if ( beam_type == EP_DVMP )
         campaign = "25.10.3";
-    // else if ( beam_type == EHE3 )
-    //     campaign = "25.10.2";
     else
         campaign = "26.02.0";
     
@@ -227,7 +222,7 @@ vector<std::string> AnaManager::GetInputNames()
             // std::cout << "checking: " << line.substr(address.size()+prefix.size(), target.size()) << std::endl;
             // std::cout << "compare: " << compare << std::endl;
 
-            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
+            if ( beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
                 compare = line.compare(scope.size(), target.size(), target);
 
             if ( campaign == "26.02.0" )
@@ -254,7 +249,7 @@ vector<std::string> AnaManager::GetInputNames()
             }
                 
             // inFiles.push_back(address+fname);
-            if ( beam_type == BEAM_BG || beam_type == EP_PYTHIA6 || beam_type == EP_DVMP)
+            if ( beam_type == EP_PYTHIA6 || beam_type == EP_DVMP)
                 inFiles.push_back(address+prefix+line.erase(0, scope.size()));
             else
                 // inFiles.push_back(address+line);
