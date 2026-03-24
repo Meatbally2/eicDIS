@@ -154,11 +154,10 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 		// Require at least one track and one cluster
 		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
 
-		int n_track_points = reconPart.getTracks()[0].measurements_size();
-		if ( n_track_points < minTrackPoints ) continue;
-
 		// Require negative particle
 		if(reconPart.getCharge() >= 0) continue;
+
+		int n_track_points = reconPart.getTracks()[0].measurements_size();
 
 		// Calculate rcpart_ member variables for this event
 		CalculateParticleValues(reconPart, rcparts);
@@ -177,6 +176,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			pi_det.push_back({n_track_points, recon_EoP, recon_isoE});
 		else
 			else_det.push_back({n_track_points, recon_EoP, recon_isoE});
+
+		if ( n_track_points < minTrackPoints ) continue;
 
 		// Apply scattered electron ID cuts
 		if(recon_EoP < mEoP_min || recon_EoP > mEoP_max) continue;

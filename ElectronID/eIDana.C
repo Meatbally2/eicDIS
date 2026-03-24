@@ -9,8 +9,6 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
     // Standard setup
-
-    // AnaManager* ana_manager = new AnaManager("eID" + eID_type + "lowQ_BG");
     AnaManager* ana_manager = new AnaManager("eid");
     ana_manager->Initialize(select_region, sr, file0, beam_type);
     ana_manager->SetBeamEnergy(Ee, Eh);
@@ -42,7 +40,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
 
     // .. ElectronID setup
     ElectronID* eFinder = new ElectronID(Ee, Eh);
-    eFinder->SetMinTrackPoints(3);
+    eFinder->SetMinTrackPoints(4);
     // techinically need to add a check for types of nucleon, but good enough for a quick check of x Q2. precise recon will be done in kin recon.
     LorentzRotation boost = beam_type ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); 
     eFinder->SetBoost(boost);
@@ -203,6 +201,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
 
     TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
     DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_jet_e, h_nTPts_pi, h_nTPts_else, draw_max);
+    DrawVerticalLine(c_nTPts, eFinder->GetMinTrackPoints()-0.5, draw_max);
     draw_manager->LableAndCollect(c_nTPts);
 
     TCanvas* c_EoP = new TCanvas("c_EoP", "c_EoP", 1000, 600);
@@ -273,10 +272,10 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
 
 void DefineHistograms() {
 
-    h_nTPts_e = new TH1D("h_nTPts_e", "Number of Track Points for e; N_{Track Points}; Counts", 13, -0.5, 13.5);
-    h_nTPts_jet_e = new TH1D("h_nTPts_jet_e", "Number of Track Points for other e's; N_{Track Points}; Counts", 13, -0.5, 13.5);
-    h_nTPts_pi = new TH1D("h_nTPts_pi", "Number of Track Points for #pi; N_{Track Points}; Counts", 13, -0.5, 13.5);
-    h_nTPts_else = new TH1D("h_nTPts_else", "Number of Track Points for others; N_{Track Points}; Counts", 13, -0.5, 13.5);
+    h_nTPts_e = new TH1D("h_nTPts_e", "Number of Track Points for e; N_{Track Points}; Counts", 14, -0.5, 13.5);
+    h_nTPts_jet_e = new TH1D("h_nTPts_jet_e", "Number of Track Points for other e's; N_{Track Points}; Counts", 14, -0.5, 13.5);
+    h_nTPts_pi = new TH1D("h_nTPts_pi", "Number of Track Points for #pi; N_{Track Points}; Counts", 14, -0.5, 13.5);
+    h_nTPts_else = new TH1D("h_nTPts_else", "Number of Track Points for others; N_{Track Points}; Counts", 14, -0.5, 13.5);
 
     h_EoP_e = new TH1D("h_EoP_e", "EoP e; E/p; Counts", 100, 0., 2.);
     h_EoP_jet_e = new TH1D("h_EoP_jet_e", "EoP other e's; E/p; Counts", 100, 0., 2.);

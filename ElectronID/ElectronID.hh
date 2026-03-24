@@ -46,6 +46,7 @@ public:
 	double get_mDeltaH_max() const { return mDeltaH_max; }
 	double get_mIsoR() const { return mIsoR; }
 	double get_mIsoE() const { return mIsoE; }
+	int GetMinTrackPoints() const { return minTrackPoints; }
 
 	// for HFS QA
 	vector<double> hfs_dpt;
