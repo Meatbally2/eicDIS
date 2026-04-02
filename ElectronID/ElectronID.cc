@@ -20,7 +20,7 @@ ElectronID::ElectronID() {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.4;
+	mIsoR = 0.8;
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -39,7 +39,7 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.4;
+	mIsoR = 0.8;
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -63,6 +63,7 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	jet_e_det.clear();
 	pi_det.clear();
 	else_det.clear();
+	det_val.clear();
 	// std::cout << "** Event set in ElectronID. " << std::endl;
 	return;
 }
@@ -167,47 +168,34 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 		double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
 		double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
 
-		int found_id = Check_eID(reconPart);
-		if ( found_id == 0 )
-			e_det.push_back({n_track_points, recon_EoP, recon_isoE});
-		else if ( found_id == 11 )
-			jet_e_det.push_back({n_track_points, recon_EoP, recon_isoE});
-		else if ( found_id == -211 )
-			pi_det.push_back({n_track_points, recon_EoP, recon_isoE});
-		else
-			else_det.push_back({n_track_points, recon_EoP, recon_isoE});
+		// int found_id = Check_eID(reconPart);
+		det_val.push_back({Check_eID(reconPart), n_track_points, recon_EoP, recon_isoE});
 
 		if ( n_track_points < minTrackPoints ) continue;
 
-		// Apply scattered electron ID cuts
-		if(recon_EoP < mEoP_min || recon_EoP > mEoP_max) continue;
+		// Apply scattered electron ID cuts //
+
 		if(recon_isoE < mIsoE) continue;
 
-		// If particle passes cuts, add to output collection
-		scatteredElectronCandidates.push_back(reconPart);
+		if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+		{
+			scatteredElectronCandidates.push_back(reconPart);
+			continue;
+		}
 
+		double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
+		if ( trackTheta < 60 || trackTheta > 120 )
+		{
+			scatteredElectronCandidates.push_back(reconPart);
+			continue;
+		}
+
+		double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
+			if (clusterTheta < 60 || clusterTheta > 120 )
+				scatteredElectronCandidates.push_back(reconPart);
+
+		// cout << "track theta: " << trackTheta << ", cluster theta: " << clusterTheta << endl;
 	}	
-
-	// std::cout << "Total scattered electron candidates found: " << scatteredElectronCandidates.size() << std::endl;
-
-	// if ( scatteredElectronCandidates.size() == 0 )
-	// {
-	// 	std::cout << "** No scattered electron candidates found! " << std::endl;
-	
-	// 	const edm4hep::MCParticleCollection meMC = GetMCElectron();
-	// 	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
-
-	// 	for(const auto& assoc : RecoMC) 
-	// 	{
-	// 		auto Sim = assoc.getSim();
-	// 		auto Rec = assoc.getRec();
-
-	// 		// if ( Sim == meMC[0] )
-
-	// 		if ( Rec.getClusters().size() != 0 && Rec.getTracks().size() == 0 ) 
-	// 			cout << Sim << endl;
-	// 	}
-	// }
 	
 	return scatteredElectronCandidates;
 
@@ -435,4 +423,46 @@ double ElectronID::GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rc
 
 }
 
+double ElectronID::GetClusterTheta(const edm4eic::ReconstructedParticle& rcp) {
 
+	const edm4eic::Cluster* lead_cluster = nullptr;
+	double lead_E = 0.;
+
+	for (const auto& cluster : rcp.getClusters()) {
+		if(cluster.getEnergy() > lead_E) {
+			lead_cluster = &cluster;
+			lead_E = cluster.getEnergy();
+		}
+	}
+
+	if(!lead_cluster) return -999.;
+
+	return lead_cluster->getIntrinsicTheta();
+}
+
+PxPyPzEVector ElectronID::GetMomentumVectorFromCluster(const edm4eic::ReconstructedParticle& rcp, double mass) {
+
+	const edm4eic::Cluster* lead_cluster = nullptr;
+	double sum_cluster_E = 0.;
+	double lead_E = 0.;
+
+	for (const auto& cluster : rcp.getClusters()) {
+		sum_cluster_E += cluster.getEnergy();
+		if(cluster.getEnergy() > lead_E) {
+			lead_cluster = &cluster;
+			lead_E = cluster.getEnergy();
+		}
+	}
+
+	if(!lead_cluster)
+		cout << "Warning: No clusters found for this reconstructed particle!" << endl;
+
+	if(!lead_cluster) return PxPyPzEVector(0, 0, 0, 0);
+
+	double p = std::sqrt(std::pow(sum_cluster_E, 2) - std::pow(mass, 2));
+	double px = p * (lead_cluster->getPosition().x / edm4hep::utils::magnitude(lead_cluster->getPosition()));
+	double py = p * (lead_cluster->getPosition().y / edm4hep::utils::magnitude(lead_cluster->getPosition()));
+	double pz = p * (lead_cluster->getPosition().z / edm4hep::utils::magnitude(lead_cluster->getPosition()));
+	
+	return PxPyPzEVector(px, py, pz, sum_cluster_E);
+}

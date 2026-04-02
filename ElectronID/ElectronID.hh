@@ -37,6 +37,8 @@ public:
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
+	PxPyPzEVector GetMomentumVectorFromCluster(const edm4eic::ReconstructedParticle& rcp, double mass);
+	double GetClusterTheta(const edm4eic::ReconstructedParticle& rcp);
 	void GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum);
 	void CheckClusters();
 
@@ -55,10 +57,12 @@ public:
 	vector<double> hfs_theta;
 
 	struct DetValues {
+		int parType; // 0 for dis electron, rest follow pdg code
 		int nTrackPoints;
 		double recon_EoP;
 		double recon_isoE;
 	};
+	vector<DetValues> det_val;
 	vector<DetValues> e_det;
 	vector<DetValues> jet_e_det;
 	vector<DetValues> pi_det;

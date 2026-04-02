@@ -3,7 +3,7 @@
 #include "../GlobalUtil/preLoadLib.hh" // load lib first otherwise the newest eicshell will not work with the code
 #include "eIDana.h"
 
-void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
+void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1)
 // void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int beam_type)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
@@ -51,6 +51,9 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
 
     std::cout << "** Starting analysis loop... " << std::endl;
 
+    int countMCe = 0;
+    int countReconE = 0;
+
     for( size_t ev = 0; ev < reader->getEntries("events"); ev++ )
     {
         // std::cout << "** Processing event " << ev << " ... " << std::endl;
@@ -86,6 +89,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
             CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
             vMC_e.SetPxPyPzE(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, e_mc[0].getEnergy());
             // vMC_e = boost(vMC_e);
+            countMCe += e_mc.size();
         }
 
         // Use MC to find reconstructed electron (TruthID)
@@ -118,7 +122,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
             e_rec = eFinder->SelectHighestPT(e_candidates);
 
             vTRACK_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
-            vCLUSTER_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, eFinder->GetCalorimeterEnergy(e_rec));
+            vCLUSTER_e = eFinder->GetMomentumVectorFromCluster(e_rec, MASS_ELECTRON);
+            // vCLUSTER_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, eFinder->GetCalorimeterEnergy(e_rec));
             // vTRACK_e = boost(vTRACK_e);
             // vCLUSTER_e = boost(vCLUSTER_e);
 
@@ -130,6 +135,9 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
                 eID_status = FOUND_PI;
             else
                 eID_status = FOUND_OTHERS;
+
+            if (eID_status == FOUND_E)
+                countReconE++;
 
             auto recoMC = eFinder->GetMC(e_rec);
             if ( recoMC.isAvailable() )
@@ -162,34 +170,43 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region, int sr, int file0)
         }
 
         // Fill histograms
-        for ( const auto& det_val : eFinder->e_det )
-        {
-            h_nTPts_e->Fill(det_val.nTrackPoints);
-            h_EoP_e->Fill(det_val.recon_EoP);
-            h_isoE_e->Fill(det_val.recon_isoE);
-        }
-        for ( const auto& det_val : eFinder->jet_e_det )
-        {
-            h_nTPts_jet_e->Fill(det_val.nTrackPoints);
-            h_EoP_jet_e->Fill(det_val.recon_EoP);
-            h_isoE_jet_e->Fill(det_val.recon_isoE);
-        }
-        for ( const auto& det_val : eFinder->pi_det )
-        {
-            h_nTPts_pi->Fill(det_val.nTrackPoints);
-            h_EoP_pi->Fill(det_val.recon_EoP);
-            h_isoE_pi->Fill(det_val.recon_isoE);
-        }
-        for ( const auto& det_val : eFinder->else_det )
-        {
-            h_nTPts_else->Fill(det_val.nTrackPoints);
-            h_EoP_else->Fill(det_val.recon_EoP);
-            h_isoE_else->Fill(det_val.recon_isoE);
-        }
-
+        // if ( (vMC_e.Theta()*(180./M_PI) < 165 && vMC_e.Theta()*(180./M_PI) > 155) || (vMC_e.Theta()*(180./M_PI) > 25 && vMC_e.Theta()*(180./M_PI) < 30) )
+        // {
+            for ( const auto& d : eFinder->det_val )
+            {
+                if ( d.parType == 0 )
+                {
+                    h_nTPts_e->Fill(d.nTrackPoints);
+                    h_EoP_e->Fill(d.recon_EoP);
+                    h_isoE_e->Fill(d.recon_isoE);
+                }
+                else if ( d.parType == -211 )
+                {
+                    h_nTPts_pi->Fill(d.nTrackPoints);
+                    h_EoP_pi->Fill(d.recon_EoP);
+                    h_isoE_pi->Fill(d.recon_isoE);
+                }
+                else if ( abs(d.parType) == 11 )
+                {
+                    h_nTPts_jet_e->Fill(d.nTrackPoints);
+                    h_EoP_jet_e->Fill(d.recon_EoP);
+                    h_isoE_jet_e->Fill(d.recon_isoE);
+                }
+                else
+                {
+                    h_nTPts_else->Fill(d.nTrackPoints);
+                    h_EoP_else->Fill(d.recon_EoP);
+                    h_isoE_else->Fill(d.recon_isoE);
+                }
+            }
+        // }
+        
         outTree->Fill();
         ResetVariables();
     }
+
+    cout << "** Analysis finished. " << std::endl;
+    cout << "DIS eID rate: " << (double)countReconE/countMCe * 100 << "%" << std::endl;
 
     // Canvas
     double draw_max = 0.;

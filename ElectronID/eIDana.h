@@ -14,7 +14,7 @@
 // #include <Math/LorentzRotation.h>
 // using ROOT::Math::LorentzRotation;
 
-void eIDana(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0);
+void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1);
 // void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p);
 void CreateOutputTree(TString outFileName);
 void ResetVariables();
