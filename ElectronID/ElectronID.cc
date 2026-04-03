@@ -20,7 +20,7 @@ ElectronID::ElectronID() {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.8;
+	mIsoR = 0.7;
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -39,7 +39,7 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.8;
+	mIsoR = 0.7;
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -139,7 +139,6 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(int 
 edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 	// std::cout << "\nFinding scattered electron candidates..." << std::endl;
-	// CheckClusters();
 
 	// Get all the edm4eic objects needed for electron ID
 	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
@@ -149,56 +148,66 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates;
 	scatteredElectronCandidates.setSubsetCollection();
 
+	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_noEoP;
+	scatteredElectronCandidates_noEoP.setSubsetCollection();
+
 	// Loop over all ReconstructedParticles for this event
 	for (const auto& reconPart : rcparts) {
 
 		// Require at least one track and one cluster
-		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
-
-		// Require negative particle
-		if(reconPart.getCharge() >= 0) continue;
-
-		int n_track_points = reconPart.getTracks()[0].measurements_size();
-
-		// Calculate rcpart_ member variables for this event
-		CalculateParticleValues(reconPart, rcparts);
-
-		// Calculate E/p and isolation fraction for this event
-		// Note that the rcpart_ variables are set in CalculateParticleValues
-		double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
-		double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
-
-		// int found_id = Check_eID(reconPart);
-		det_val.push_back({Check_eID(reconPart), n_track_points, recon_EoP, recon_isoE});
-
-		if ( n_track_points < minTrackPoints ) continue;
-
-		// Apply scattered electron ID cuts //
-
-		if(recon_isoE < mIsoE) continue;
-
-		if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+		if(reconPart.getClusters().size() > 0 && reconPart.getTracks().size() > 0) 
 		{
-			scatteredElectronCandidates.push_back(reconPart);
-			continue;
-		}
+			// Require negative particle
+			if(reconPart.getCharge() >= 0) 
+				continue;
 
-		double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
-		if ( trackTheta < 60 || trackTheta > 120 )
-		{
-			scatteredElectronCandidates.push_back(reconPart);
-			continue;
-		}
+			int n_track_points = reconPart.getTracks()[0].measurements_size();
 
-		double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
-			if (clusterTheta < 60 || clusterTheta > 120 )
+			// Calculate rcpart_ member variables for this event
+			CalculateParticleValues(reconPart, rcparts);
+
+			// Calculate isolation fraction for this event
+			double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
+
+			// Calculate E/p for this event
+			double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
+
+			det_val.push_back({Check_eID(reconPart), n_track_points, recon_EoP, recon_isoE});
+
+			if ( n_track_points < minTrackPoints ) 
+				continue;
+
+			if(recon_isoE < mIsoE) 
+				continue;
+
+			if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+			{
 				scatteredElectronCandidates.push_back(reconPart);
+				continue;
+			}
 
-		// cout << "track theta: " << trackTheta << ", cluster theta: " << clusterTheta << endl;
+			// resolution of tracks and clusters is not perfect, so loosen cuts for particles that fail EoP requirement but pass other cuts
+			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
+			if ( trackTheta < 60 || trackTheta > 120 )
+			{
+				scatteredElectronCandidates_noEoP.push_back(reconPart);
+				continue;
+			}
+
+			double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
+			if (clusterTheta < 60 || clusterTheta > 120 )
+			{
+				scatteredElectronCandidates_noEoP.push_back(reconPart);
+				continue;
+			}
+		}
 	}	
-	
-	return scatteredElectronCandidates;
 
+	// If EoP is found use that, otherwise loosen cuts 
+	if (scatteredElectronCandidates.size() > 0)
+		return scatteredElectronCandidates;
+	else
+		return scatteredElectronCandidates_noEoP;
 }
 
 edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
