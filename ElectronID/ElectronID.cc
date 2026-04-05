@@ -20,7 +20,7 @@ ElectronID::ElectronID() {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.7;
+	mIsoR = 0.8;
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -39,7 +39,8 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.7;
+	// mIsoR = 2; // tested for theta > 150
+	mIsoR = 1.0; 
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -70,14 +71,9 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 
 edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 
-	// std::cout << "Available collections:" << std::endl;
-	// for (const auto& name : mEvent->getAvailableCollections()) {
-	// 	std::cout << "  " << name << std::endl;
-	// }
-
 	// std::cout << "Getting MC particle associated with reconstructed particle..." << std::endl;
 
-	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	const auto& RecoMC = static_cast<const edm4eic::MCRecoParticleAssociationCollection&>(*(mEvent->get("ReconstructedParticleAssociations")));
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
 			return assoc.getSim();
@@ -92,7 +88,7 @@ int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 	if ( meMC.size() == 0 )
 		return 86; // No MC electron found
 
-	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	const auto& RecoMC = static_cast<const edm4eic::MCRecoParticleAssociationCollection&>(*(mEvent->get("ReconstructedParticleAssociations")));
 	for(const auto& assoc : RecoMC) {
 		if(assoc.getRec() == e_rec)
 		{
@@ -108,9 +104,9 @@ int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 
 void ElectronID::CheckClusters() {
 
-	const auto& EcalEndcapNClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapNClusters");
-	const auto& EcalBarrelScFiClusters = mEvent->get<edm4eic::ClusterCollection>("EcalBarrelScFiClusters");
-	const auto& EcalEndcapPClusters = mEvent->get<edm4eic::ClusterCollection>("EcalEndcapPClusters");
+	const auto& EcalEndcapNClusters = static_cast<const edm4hep::ClusterCollection&>(*(mEvent->get("EcalEndcapNClusters")));
+	const auto& EcalBarrelScFiClusters = static_cast<const edm4hep::ClusterCollection&>(*(mEvent->get("EcalBarrelScFiClusters")));
+	const auto& EcalEndcapPClusters = static_cast<const edm4hep::ClusterCollection&>(*(mEvent->get("EcalEndcapPClusters")));
 
 	std::cout << " Number of clusters in EcalEndcapN: " << EcalEndcapNClusters.size() << std::endl;
 	std::cout << " Number of clusters in EcalBarrelScFi: " << EcalBarrelScFiClusters.size() << std::endl;
@@ -126,7 +122,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindHadronicFinalState(int 
 	meRecon.setSubsetCollection();
 
 	// auto& rcparts = mEvent->get<edm4eic::HadronicFinalStateCollection>("HadronicFinalState");
-	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = static_cast<const edm4eic::ReconstructedParticleCollection&>(*(mEvent->get("ReconstructedParticles")));
 
 	for(const auto& mcp : rcparts) {
 		if ( mcp.getObjectID().index != object_id )
@@ -141,7 +137,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	// std::cout << "\nFinding scattered electron candidates..." << std::endl;
 
 	// Get all the edm4eic objects needed for electron ID
-	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = static_cast<const edm4eic::ReconstructedParticleCollection&>(*(mEvent->get("ReconstructedParticles")));
 	
 	// Create collection for storing scattered electron candidates
 	// (subset collection of ReconstructedParticleCollection)
@@ -164,6 +160,13 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			int n_track_points = reconPart.getTracks()[0].measurements_size();
 
 			// Calculate rcpart_ member variables for this event
+			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
+			if ( trackTheta > 150 )
+				mIsoR = 2;
+			else if ( trackTheta > 60 )
+				mIsoR = 1.2;
+			else
+				mIsoR = 0.7;
 			CalculateParticleValues(reconPart, rcparts);
 
 			// Calculate isolation fraction for this event
@@ -186,20 +189,22 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 				continue;
 			}
 
-			// resolution of tracks and clusters is not perfect, so loosen cuts for particles that fail EoP requirement but pass other cuts
-			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
-			if ( trackTheta < 60 || trackTheta > 120 )
-			{
-				scatteredElectronCandidates_noEoP.push_back(reconPart);
-				continue;
-			}
+			scatteredElectronCandidates_noEoP.push_back(reconPart);
 
-			double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
-			if (clusterTheta < 60 || clusterTheta > 120 )
-			{
-				scatteredElectronCandidates_noEoP.push_back(reconPart);
-				continue;
-			}
+			// resolution of tracks and clusters is not perfect, so loosen cuts for particles that fail EoP requirement but pass other cuts
+			// double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
+			// if ( trackTheta < 60 || trackTheta > 120 )
+			// {
+			//  	scatteredElectronCandidates_noEoP.push_back(reconPart);
+			//  	continue;
+			// }
+
+			// double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
+			// if (clusterTheta < 60 || clusterTheta > 120 )
+			// {
+			//  	scatteredElectronCandidates_noEoP.push_back(reconPart);
+			//  	continue;
+			// }
 		}
 	}	
 
@@ -215,7 +220,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 	edm4hep::MCParticleCollection mhMC;
 	mhMC.setSubsetCollection();
 
-	const auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
+	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 
 	std::vector<edm4hep::MCParticle> mc_hadronic;
 	edm4hep::MCParticleCollection meMC = GetMCElectron();
@@ -239,7 +244,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 	edm4hep::MCParticleCollection meMC;
 	meMC.setSubsetCollection();
 	
-	const auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
+	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 	if ( eScatIndex != -1 )
 		meMC.push_back(mcparts[eScatIndex]);
 
@@ -298,7 +303,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 	if ( meMC.size() == 0 )
 		return meRecon; // No MC electron found
 
-	const auto& RecoMC = mEvent->get<edm4eic::MCRecoParticleAssociationCollection>("ReconstructedParticleAssociations");
+	const auto& RecoMC = static_cast<const edm4eic::MCRecoParticleAssociationCollection&>(*(mEvent->get("ReconstructedParticleAssociations")));
 
 	for(const auto& assoc : RecoMC) 
 	{
@@ -310,7 +315,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 		}
 	}
 
-	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = static_cast<const edm4eic::ReconstructedParticleCollection&>(*(mEvent->get("ReconstructedParticles")));
 	edm4hep::Vector3f lead_pos(meMC[0].getEndpoint().x, meMC[0].getEndpoint().y, meMC[0].getEndpoint().z);
 	CheckSurroundingClusters(lead_pos, rcparts);
 
@@ -381,7 +386,7 @@ void ElectronID::CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
 
 void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum) {
 
-	const auto& rcparts = mEvent->get<edm4eic::ReconstructedParticleCollection>("ReconstructedParticles");
+	const auto& rcparts = static_cast<const edm4eic::ReconstructedParticleCollection&>(*(mEvent->get("ReconstructedParticles")));
 
 	for (const auto& reconPart : rcparts) {
 
@@ -391,7 +396,9 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 		int n_track_points = reconPart.getTracks()[0].measurements_size();
 		if ( n_track_points < minTrackPoints ) continue;
 
-		PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		// PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		// PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
 		vC = boost(vC);
 		CalEminusPzSum += (vC.E() - vC.Pz());
 
