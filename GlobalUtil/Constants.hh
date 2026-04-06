@@ -9,6 +9,9 @@ const int n_q_bin = 25;
 // eID status codes
 enum { NO_MC, FOUND_MC, FOUND_TRUTH, FOUND_E, FOUND_PI, FOUND_OTHERS };
 
+// ReconPart status codes
+enum { NO_REC, FOUND_BOTH, FOUND_TRACK_ONLY, FOUND_CLUSTER_ONLY };
+
 #define CROSSING_ANGLE -0.025 // rad
 
 // masses in GeV

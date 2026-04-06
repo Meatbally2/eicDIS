@@ -89,6 +89,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
             vMC_e.SetPxPyPzE(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, e_mc[0].getEnergy());
             // vMC_e = boost(vMC_e);
+            // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
             countMCe += e_mc.size();
         }
 
@@ -102,6 +103,13 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             h_n_cluster_in_cone->Fill(eFinder->rcpart_n_clusters);
             if ( e_truth[0].getClusters().size() > 0 )
                 h_n_cluster_in_cone_found->Fill(eFinder->rcpart_n_clusters);
+
+            if ( e_truth[0].getTracks().size() > 0 && e_truth[0].getClusters().size() > 0 )
+                eRecon_status = FOUND_BOTH;
+            else if ( e_truth[0].getTracks().size() > 0 )
+                eRecon_status = FOUND_TRACK_ONLY;
+            else if ( e_truth[0].getClusters().size() > 0 )
+                eRecon_status = FOUND_CLUSTER_ONLY;
         }
             
         // Find scattered electrons (reconID)
@@ -120,6 +128,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             h_CalEminusPz->Fill(CalEminusPzSum);
 
             e_rec = eFinder->SelectHighestPT(e_candidates);
+            EoP = eFinder->GetCalorimeterEnergy(e_rec) / edm4hep::utils::magnitude(e_rec.getMomentum());
 
             vTRACK_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
             vCLUSTER_e = eFinder->GetMomentumVectorFromCluster(e_rec, MASS_ELECTRON);
@@ -136,6 +145,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             else
                 eID_status = FOUND_OTHERS;
 
+            // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
             if (eID_status == FOUND_E)
                 countReconE++;
 
@@ -170,7 +180,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
         }
 
         // Fill histograms
-        // if ( (vMC_e.Theta()*(180./M_PI) < 165 && vMC_e.Theta()*(180./M_PI) > 155) || (vMC_e.Theta()*(180./M_PI) > 25 && vMC_e.Theta()*(180./M_PI) < 30) )
+        // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
+        // if (e_mc[0].getEnergy() > 5 )
         // {
             for ( const auto& d : eFinder->det_val )
             {
@@ -211,10 +222,10 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     // Canvas
     double draw_max = 0.;
 
-    TCanvas* c_nScatElec = new TCanvas("c_nScatElec", "c_nScatElec", 1000, 600);
-    h_n_scat_elec->SetLineColor(kBlue);
-    h_n_scat_elec->Draw("HIST");
-    draw_manager->LableAndCollect(c_nScatElec,2);
+    // TCanvas* c_nScatElec = new TCanvas("c_nScatElec", "c_nScatElec", 1000, 600);
+    // h_n_scat_elec->SetLineColor(kBlue);
+    // h_n_scat_elec->Draw("HIST");
+    // draw_manager->LableAndCollect(c_nScatElec,2);
 
     TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
     DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_jet_e, h_nTPts_pi, h_nTPts_else, draw_max);
@@ -270,12 +281,12 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     h_n_clusters_n_tracks->Draw("COLZ TEXT");
     draw_manager->LableAndCollect(c_n_clusters_n_tracks,2);
 
-    TCanvas* c_n_cluster_in_cone = new TCanvas("c_n_cluster_in_cone", "c_n_cluster_in_cone", 1000, 600);
-    h_n_cluster_in_cone->Draw("HIST");
-    h_n_cluster_in_cone->SetLineColor(kGray+2);
-    h_n_cluster_in_cone_found->Draw("HIST SAME");
-    h_n_cluster_in_cone_found->SetLineColor(kRed);
-    draw_manager->LableAndCollect(c_n_cluster_in_cone,2);
+    // TCanvas* c_n_cluster_in_cone = new TCanvas("c_n_cluster_in_cone", "c_n_cluster_in_cone", 1000, 600);
+    // h_n_cluster_in_cone->Draw("HIST");
+    // h_n_cluster_in_cone->SetLineColor(kGray+2);
+    // h_n_cluster_in_cone_found->Draw("HIST SAME");
+    // h_n_cluster_in_cone_found->SetLineColor(kRed);
+    // draw_manager->LableAndCollect(c_n_cluster_in_cone,2);
 
     // Save
 
@@ -405,8 +416,10 @@ void CreateOutputTree(TString outFileName) {
 	outTree = new TTree("T_eID", "T_eID");
 
     outTree->Branch("eID_status", &eID_status);
+    outTree->Branch("eRecon_status", &eRecon_status);
     outTree->Branch("mc_PDG", &mc_PDG);
     outTree->Branch("EminusPz", &EminusPz);
+    outTree->Branch("EoP", &EoP);
 
 	outTree->Branch("mc_xB", &mc_xB);
 	outTree->Branch("mc_Q2", &mc_Q2);
@@ -432,8 +445,10 @@ void CreateOutputTree(TString outFileName) {
 void ResetVariables() {
 
 	eID_status = NO_MC;
+    eRecon_status = NO_REC;
     mc_PDG = -999;
     EminusPz = -999;
+    EoP = -999;
 
 	mc_xB = -999;
 	mc_Q2 = -999;

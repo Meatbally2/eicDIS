@@ -10,6 +10,7 @@
 #include <Math/LorentzRotation.h>
 using ROOT::Math::LorentzRotation;
 
+#include <algorithm>
 
 class ElectronID{
 
@@ -37,6 +38,7 @@ public:
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
+	double GetClusterCone(const edm4eic::ReconstructedParticle& rcp, double frac=1);
 	PxPyPzEVector GetMomentumVectorFromCluster(const edm4eic::ReconstructedParticle& rcp, double mass);
 	double GetClusterTheta(const edm4eic::ReconstructedParticle& rcp);
 	void GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum);

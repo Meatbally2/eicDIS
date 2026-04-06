@@ -31,8 +31,10 @@ TFile* outFile;
 TTree* outTree;
 
 int eID_status;
+int eRecon_status;
 int mc_PDG;
 double EminusPz;
+double EoP;
 
 double mc_xB;
 double mc_Q2;

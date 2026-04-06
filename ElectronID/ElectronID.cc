@@ -20,7 +20,7 @@ ElectronID::ElectronID() {
 	mDeltaH_min = 0.*mEe;
 	mDeltaH_min = 5.*mEe;
 		
-	mIsoR = 0.8;
+	mIsoR = 0.7;
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -40,7 +40,7 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mDeltaH_min = 5.*mEe;
 		
 	// mIsoR = 2; // tested for theta > 150
-	mIsoR = 1.0; 
+	mIsoR = 0.7; 
 	mIsoE = 0.9;
 
 	minTrackPoints = 3;
@@ -157,16 +157,19 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			if(reconPart.getCharge() >= 0) 
 				continue;
 
+			// if ( reconPart.getStartVertex().isAvailable() )
+			// {
+			// 	std::cout << "vertex position: " << reconPart.getStartVertex().getPosition() << std::endl;
+			// 	std::cout << "Start vertex type: " << reconPart.getStartVertex().getType() << std::endl;
+
+			// 	if ( reconPart.getStartVertex().getType() != 0 )
+			// 		continue;
+			// }
+			
 			int n_track_points = reconPart.getTracks()[0].measurements_size();
 
 			// Calculate rcpart_ member variables for this event
 			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
-			if ( trackTheta > 150 )
-				mIsoR = 2;
-			else if ( trackTheta > 60 )
-				mIsoR = 1.2;
-			else
-				mIsoR = 0.7;
 			CalculateParticleValues(reconPart, rcparts);
 
 			// Calculate isolation fraction for this event
@@ -394,14 +397,16 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
 
 		int n_track_points = reconPart.getTracks()[0].measurements_size();
-		if ( n_track_points < minTrackPoints ) continue;
-
+		
 		// PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
 		// PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
 		PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
+		if ( reconPart.getTracks().size() > 0 && n_track_points >= minTrackPoints )
+			 vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
 		vC = boost(vC);
 		CalEminusPzSum += (vC.E() - vC.Pz());
 
+		if ( n_track_points < minTrackPoints ) continue;
 		PxPyPzEVector vT(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
 		vT = boost(vT);
 		TrackEminusPzSum += (vT.E() - vT.Pz());
@@ -426,7 +431,45 @@ edm4eic::ReconstructedParticle ElectronID::SelectHighestPT(const edm4eic::Recons
 	}
 
 	return erec;
+}
 
+double ElectronID::GetClusterCone(const edm4eic::ReconstructedParticle& rcp, double frac=1)
+{
+	const edm4eic::Cluster* lead_cluster = nullptr;
+	double sum_cluster_E = 0.;
+    double lead_cluster_E = 0.;
+	
+	for (const auto& cluster : rcp.getClusters()) {
+		sum_cluster_E += cluster.getEnergy();
+		if(cluster.getEnergy() > lead_cluster_E) {
+			lead_cluster = &cluster;
+			lead_cluster_E = cluster.getEnergy();
+		}
+	}
+
+	if (!lead_cluster)
+        return -1.;
+
+	std::vector<std::pair<double, double>> dr_de;
+
+	for (const auto& cluster : rcp.getClusters())
+	{
+		if (lead_cluster == &cluster)
+			continue;
+
+		double d_eta = edm4hep::utils::eta(cluster.getPosition()) - edm4hep::utils::eta(lead_cluster->getPosition());
+		double d_phi = edm4hep::utils::angleAzimuthal(cluster.getPosition()) - edm4hep::utils::angleAzimuthal(lead_cluster->getPosition());
+
+		if (d_phi > M_PI) d_phi -= 2 * M_PI;
+		if (d_phi < -M_PI) d_phi += 2 * M_PI;
+
+		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
+		dr_de.emplace_back(dR, cluster.getEnergy());
+	}
+
+	std::sort(dr_de.begin(), dr_de.end(), [](const auto& left, const auto& right) {return left.first < right.first;});
+
+	return dr_de.back().first; // Return the dR of the farthest cluster 
 }
 
 double ElectronID::GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp) {
