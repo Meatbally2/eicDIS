@@ -147,6 +147,12 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_noEoP;
 	scatteredElectronCandidates_noEoP.setSubsetCollection();
 
+	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_trackOnly;
+	scatteredElectronCandidates_trackOnly.setSubsetCollection();
+
+	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_clusterOnly;
+	scatteredElectronCandidates_clusterOnly.setSubsetCollection();
+
 	// Loop over all ReconstructedParticles for this event
 	for (const auto& reconPart : rcparts) {
 
@@ -169,7 +175,6 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			int n_track_points = reconPart.getTracks()[0].measurements_size();
 
 			// Calculate rcpart_ member variables for this event
-			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
 			CalculateParticleValues(reconPart, rcparts);
 
 			// Calculate isolation fraction for this event
@@ -186,7 +191,15 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			if(recon_isoE < mIsoE) 
 				continue;
 
+			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
+			double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
+
 			if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+			{
+				scatteredElectronCandidates.push_back(reconPart);
+				continue;
+			}
+			else if ( (clusterTheta > 120 && clusterTheta < 150) || (clusterTheta > 50 && clusterTheta < 60) )
 			{
 				scatteredElectronCandidates.push_back(reconPart);
 				continue;
@@ -208,6 +221,28 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			//  	scatteredElectronCandidates_noEoP.push_back(reconPart);
 			//  	continue;
 			// }
+		}
+
+		if (reconPart.getTracks().size() > 0 && reconPart.getClusters().size() == 0)
+		{
+			if(reconPart.getCharge() >= 0) 
+				continue;
+
+			int n_track_points = reconPart.getTracks()[0].measurements_size();
+			if ( n_track_points < minTrackPoints ) 
+				continue;
+
+			scatteredElectronCandidates_trackOnly.push_back(reconPart);
+		}
+
+		if (reconPart.getClusters().size() > 0 && reconPart.getTracks().size() == 0)
+		{
+			CalculateParticleValues(reconPart, rcparts);
+			double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
+			if(recon_isoE < mIsoE) 
+				continue;
+
+			scatteredElectronCandidates_clusterOnly.push_back(reconPart);
 		}
 	}	
 
@@ -423,7 +458,7 @@ edm4eic::ReconstructedParticle ElectronID::SelectHighestPT(const edm4eic::Recons
 	double max_pT = 0.;
 	
 	for(const auto& ecand : ecandidates) {
-		double e_pT = edm4hep::utils::magnitudeTransverse(ecand.getMomentum());
+		double e_pT = ecand.getTracks().size() > 0 ? edm4hep::utils::magnitudeTransverse(ecand.getMomentum()) : edm4hep::utils::magnitudeTransverse(GetMomentumVectorFromCluster(ecand, 0.000511));
 		if(e_pT > max_pT) {
 			erec = ecand;
 			max_pT = e_pT;
