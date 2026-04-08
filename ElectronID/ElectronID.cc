@@ -199,13 +199,13 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 				scatteredElectronCandidates.push_back(reconPart);
 				continue;
 			}
-			// else if ( (clusterTheta > 120 && clusterTheta < 150) || (clusterTheta > 50 && clusterTheta < 60) )
-			// {
-			// 	scatteredElectronCandidates.push_back(reconPart);
-			// 	continue;
-			// }
+			else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
+			{
+				scatteredElectronCandidates.push_back(reconPart);
+				continue;
+			}
 
-			scatteredElectronCandidates_noEoP.push_back(reconPart);
+			// scatteredElectronCandidates_noEoP.push_back(reconPart);
 
 			// resolution of tracks and clusters is not perfect, so loosen cuts for particles that fail EoP requirement but pass other cuts
 			// double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
@@ -221,28 +221,6 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			//  	scatteredElectronCandidates_noEoP.push_back(reconPart);
 			//  	continue;
 			// }
-		}
-
-		if (reconPart.getTracks().size() > 0 && reconPart.getClusters().size() == 0)
-		{
-			if(reconPart.getCharge() >= 0) 
-				continue;
-
-			int n_track_points = reconPart.getTracks()[0].measurements_size();
-			if ( n_track_points < minTrackPoints ) 
-				continue;
-
-			scatteredElectronCandidates_trackOnly.push_back(reconPart);
-		}
-
-		if (reconPart.getClusters().size() > 0 && reconPart.getTracks().size() == 0)
-		{
-			CalculateParticleValues(reconPart, rcparts);
-			double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
-			if(recon_isoE < mIsoE) 
-				continue;
-
-			scatteredElectronCandidates_clusterOnly.push_back(reconPart);
 		}
 	}	
 
@@ -451,18 +429,18 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 			// 	CalEminusPzSum += (vC.E() - vC.Pz());
 			// }
 		}
-		else if (reconPart.getClusters().size() > 0 )
-		{
-			// // PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-			// PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
-			// // vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-			// vC = boost(vC);
-			// CalEminusPzSum += (vC.E() - vC.Pz());
+		// else if (reconPart.getClusters().size() > 0 )
+		// {
+		// 	// // PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		// 	// PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
+		// 	// // vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+		// 	// vC = boost(vC);
+		// 	// CalEminusPzSum += (vC.E() - vC.Pz());
 
-			PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, 0);
-			vC = boost(vC);
-			TrackEminusPzSum += (vC.E() - vC.E()*std::cos(vC.Theta()));
-		}
+		// 	PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, 0);
+		// 	vC = boost(vC);
+		// 	TrackEminusPzSum += (vC.E() - vC.E()*std::cos(vC.Theta()));
+		// }
 
 		if (reconPart.getClusters().size() > 0 )
 		{
