@@ -434,21 +434,41 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 		if(reconPart.getTracks().size() > 0 )
 		{
 			int n_track_points = reconPart.getTracks()[0].measurements_size();
-			// if ( n_track_points < minTrackPoints ) continue;
+			if ( n_track_points < minTrackPoints ) continue;
 
 			PxPyPzEVector vT(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
 			vT = boost(vT);
-			TrackEminusPzSum += (vT.E() - vT.Pz());
+			// TrackEminusPzSum += (vT.E() - vT.Pz());
+			TrackEminusPzSum += (vT.E() - vT.E()*std::cos(vT.Theta()));
 
-			if ( reconPart.getClusters().size() > 0 )
-			{
-				PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-				// PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
-				// if ( reconPart.getTracks().size() > 0 && n_track_points >= minTrackPoints )
-					//  vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-				vC = boost(vC);
-				CalEminusPzSum += (vC.E() - vC.Pz());
-			}
+			// if ( reconPart.getClusters().size() > 0 )
+			// {
+			// 	PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+			// 	// PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
+			// 	// if ( reconPart.getTracks().size() > 0 && n_track_points >= minTrackPoints )
+			// 		//  vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+			// 	vC = boost(vC);
+			// 	CalEminusPzSum += (vC.E() - vC.Pz());
+			// }
+		}
+		else if (reconPart.getClusters().size() > 0 )
+		{
+			// // PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+			// PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
+			// // vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+			// vC = boost(vC);
+			// CalEminusPzSum += (vC.E() - vC.Pz());
+
+			PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, 0);
+			vC = boost(vC);
+			TrackEminusPzSum += (vC.E() - vC.E()*std::cos(vC.Theta()));
+		}
+
+		if (reconPart.getClusters().size() > 0 )
+		{
+			PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, 0);
+			vC = boost(vC);
+			CalEminusPzSum += (vC.E() - vC.E()*std::cos(vC.Theta()));
 		}
 	}
 
