@@ -458,7 +458,7 @@ edm4eic::ReconstructedParticle ElectronID::SelectHighestPT(const edm4eic::Recons
 	double max_pT = 0.;
 	
 	for(const auto& ecand : ecandidates) {
-		double e_pT = ecand.getTracks().size() > 0 ? edm4hep::utils::magnitudeTransverse(ecand.getMomentum()) : edm4hep::utils::magnitudeTransverse(GetMomentumVectorFromCluster(ecand, 0.000511));
+		double e_pT = ecand.getTracks().size() > 0 ? edm4hep::utils::magnitudeTransverse(ecand.getMomentum()) : GetMomentumVectorFromCluster(ecand, 0.000511).Pt();
 		if(e_pT > max_pT) {
 			erec = ecand;
 			max_pT = e_pT;
