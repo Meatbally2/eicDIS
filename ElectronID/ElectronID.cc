@@ -201,7 +201,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			}
 			else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
 			{
-				scatteredElectronCandidates.push_back(reconPart);
+				scatteredElectronCandidates_noEoP.push_back(reconPart);
 				continue;
 			}
 
