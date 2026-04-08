@@ -199,11 +199,11 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 				scatteredElectronCandidates.push_back(reconPart);
 				continue;
 			}
-			else if ( (clusterTheta > 120 && clusterTheta < 150) || (clusterTheta > 50 && clusterTheta < 60) )
-			{
-				scatteredElectronCandidates.push_back(reconPart);
-				continue;
-			}
+			// else if ( (clusterTheta > 120 && clusterTheta < 150) || (clusterTheta > 50 && clusterTheta < 60) )
+			// {
+			// 	scatteredElectronCandidates.push_back(reconPart);
+			// 	continue;
+			// }
 
 			scatteredElectronCandidates_noEoP.push_back(reconPart);
 
@@ -429,22 +429,27 @@ void ElectronID::GetEminusPzSum(double &TrackEminusPzSum, double &CalEminusPzSum
 	for (const auto& reconPart : rcparts) {
 
 		// Require at least one track and one cluster
-		if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
+		// if(reconPart.getClusters().size() == 0 || reconPart.getTracks().size() == 0) continue;
 
-		int n_track_points = reconPart.getTracks()[0].measurements_size();
-		
-		// PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-		// PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-		PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
-		if ( reconPart.getTracks().size() > 0 && n_track_points >= minTrackPoints )
-			 vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
-		vC = boost(vC);
-		CalEminusPzSum += (vC.E() - vC.Pz());
+		if(reconPart.getTracks().size() > 0 )
+		{
+			int n_track_points = reconPart.getTracks()[0].measurements_size();
+			// if ( n_track_points < minTrackPoints ) continue;
 
-		if ( n_track_points < minTrackPoints ) continue;
-		PxPyPzEVector vT(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
-		vT = boost(vT);
-		TrackEminusPzSum += (vT.E() - vT.Pz());
+			PxPyPzEVector vT(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, reconPart.getEnergy());
+			vT = boost(vT);
+			TrackEminusPzSum += (vT.E() - vT.Pz());
+
+			if ( reconPart.getClusters().size() > 0 )
+			{
+				PxPyPzEVector vC(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+				// PxPyPzEVector vC = GetMomentumVectorFromCluster(reconPart, reconPart.getMass());
+				// if ( reconPart.getTracks().size() > 0 && n_track_points >= minTrackPoints )
+					//  vC.SetPxPyPzE(reconPart.getMomentum().x, reconPart.getMomentum().y, reconPart.getMomentum().z, GetCalorimeterEnergy(reconPart));
+				vC = boost(vC);
+				CalEminusPzSum += (vC.E() - vC.Pz());
+			}
+		}
 	}
 
 	// std::cout << " recon E - Pz sum: " << reconEminusPzSum << std::endl;
