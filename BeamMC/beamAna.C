@@ -3,14 +3,14 @@
 #include "../GlobalUtil/preLoadLib.hh"
 #include "beamAna.h"
 
-void beamAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
+void beamAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1)
 {
     std::cout << "** Analysing incoming beam, energy is set to: " << Ee << "x" << Eh << std::endl;
 
     // Standard setup
 
     AnaManager* ana_manager = new AnaManager("beam");
-    ana_manager->Initialize(select_region, sr, file0, analyse_p);
+    ana_manager->Initialize(select_region, sr, file0, beam_type);
     ana_manager->SetBeamEnergy(Ee, Eh);
 
     // .. input setup
@@ -40,8 +40,8 @@ void beamAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0
             cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
 
         inFinder->GetMCinfo(vectE, vectN, N_PDG);
-        inFinder->GetSpecInfo(SpecPBG, SpecVec, OtherPBG, OtherVec);
-
+        inFinder->GetSpecInfo(SpecPBG, SpecIndex, SpecVec, OtherPBG, OtherIndex, OtherVec);
+        
         outTree->Fill();
         ResetVariables();
     }
@@ -68,8 +68,11 @@ void CreateOutputTree(TString outFileName) {
 	outTree->Branch("vectN", &vectN);
 
     outTree->Branch("SpecPBG", &SpecPBG);
+    outTree->Branch("SpecIndex", &SpecIndex);
     outTree->Branch("SpecVec", &SpecVec);
+
     outTree->Branch("OtherPBG", &OtherPBG);
+    outTree->Branch("OtherIndex", &OtherIndex);
     outTree->Branch("OtherVec", &OtherVec);
 
     return;
@@ -84,8 +87,11 @@ void ResetVariables() {
 
     SpecPBG.clear();
     SpecVec.clear();
+    SpecIndex.clear();
+
     OtherPBG.clear();
     OtherVec.clear();
+    OtherIndex.clear();
 
 	return;
 }

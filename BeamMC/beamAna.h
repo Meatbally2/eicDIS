@@ -26,8 +26,11 @@ PxPyPzEVector vectE;
 PxPyPzEVector vectN;
 
 std::vector<int> SpecPBG;
+std::vector<int> SpecIndex;
 std::vector<PxPyPzEVector> SpecVec;
+
 std::vector<int> OtherPBG;
+std::vector<int> OtherIndex;
 std::vector<PxPyPzEVector> OtherVec;
 
 #endif

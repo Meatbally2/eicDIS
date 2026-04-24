@@ -13,11 +13,13 @@ void BeamMC::SetEvent(const podio::Frame* event) {
 	mEvent = event;
 }
 
-void BeamMC::GetSpecInfo(std::vector<int> &SpecPBG, std::vector<PxPyPzEVector> &SpecVec, std::vector<int> &OtherPBG, std::vector<PxPyPzEVector> &OtherVec)
+void BeamMC::GetSpecInfo(std::vector<int> &SpecPBG, std::vector<int> &SpecIndex, std::vector<PxPyPzEVector> &SpecVec, std::vector<int> &OtherPBG, std::vector<int> &OtherIndex, std::vector<PxPyPzEVector> &OtherVec)
 {
     SpecPBG = spec_pbg;
+    SpecIndex = spec_index;
     SpecVec = spec_vec;
     OtherPBG = other_pbg;
+    OtherIndex = other_index;
     OtherVec = other_vec;
     
     return;
@@ -29,11 +31,13 @@ void BeamMC::GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg)
     edm4hep::MCParticle beam_nucleon;
 
     spec_pbg.clear();
+    spec_index.clear();
     spec_vec.clear();
     other_pbg.clear();
+    other_index.clear();
     other_vec.clear();
 
-    auto& mcparts = mEvent->get<edm4hep::MCParticleCollection>("MCParticles");
+    const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 
     // cout << endl << "** event" << endl << endl;
 
@@ -58,8 +62,6 @@ void BeamMC::GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg)
         {
             if( mcp.getPDG() == ID_NEUTRON || mcp.getPDG() == ID_PROTON )
             {
-                // cout << mcp << endl;
-
                 int count_id = 0;
                 int collect_id[2] = {0,0};
                 for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
@@ -76,6 +78,7 @@ void BeamMC::GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg)
                     vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
                     spec_vec.push_back(vec);
                     spec_pbg.push_back(mcp.getPDG());
+                    spec_index.push_back(mcp.getObjectID().index);
                 }
                 else
                 {
@@ -83,6 +86,7 @@ void BeamMC::GetMCinfo(PxPyPzEVector &mc_e,  PxPyPzEVector &mc_p, int &n_pbg)
                     vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
                     other_vec.push_back(vec);
                     other_pbg.push_back(mcp.getPDG());
+                    other_index.push_back(mcp.getObjectID().index);
                 }
             }
         }
