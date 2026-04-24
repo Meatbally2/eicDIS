@@ -55,19 +55,9 @@ void FarForward::set_zRange(int p, double min, double max) {
     zRange[p][1] = max;
 }
 
-void FarForward::Process()
+void FarForward::GetHits(int mc_index[2]) 
 {
-    if ( det_name == "zdc" ) // should be in a different class, but for now..
-        GetEnergy();
-    else
-        GetHits();
-
-    return;
-}
-
-void FarForward::GetHits() 
-{
-	auto& detHits = mEvent->get<edm4eic::TrackerHitCollection>(branch_name+"RecHits");
+	const auto& detHits = static_cast<const edm4eic::TrackerHitCollection&>(*(mEvent->get(branch_name+"RecHits")));
 
     for ( int p = 0; p < 4; p ++ )
     {
@@ -87,14 +77,57 @@ void FarForward::GetHits()
         }
 	}
 
-    auto& rawAssoc = mEvent->get<edm4eic::MCRecoTrackerHitAssociationCollection>(branch_name + "RawHitAssociations");
+    const auto& rawAssoc = static_cast<const edm4eic::MCRecoTrackerHitAssociationCollection&>(*(mEvent->get(branch_name + "RawHitAssociations")));
     for (const auto& assoc : rawAssoc) 
     {
-        std::cout << "rec: " << assoc.getRawHit() << std::endl;
-        std::cout << "sim: " << assoc.getSimHit() << std::endl;
+        int collect_id[2] = {0,0};
+        int count_id = 0;
+        auto mcParticle = assoc.getSimHit().getParticle();
+        for (auto &p : mcParticle.getParents())
+        {
+            if ( count_id < 2)
+                collect_id[count_id] = p.getObjectID().index;
+            count_id ++;
+            // std::cout << "parent: " << p << std::endl; 
+        }
+
+        for ( int i = 0; i < 2; i ++ )
+        {
+            if ( collect_id[i] == mc_index[i] )
+            {
+                for ( int pos = 0; pos < 4; pos ++ )
+                {
+                    if (assoc.getSimHit().getPosition().z > zRange[pos][0] && assoc.getSimHit().getPosition().z < zRange[pos][1])
+                        spec_hit[i][pos] += 1;
+                }
+            }
+        }
     }
 
+    // cout << " ** new hit search " << endl << endl;
+
+    // const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
+    // for ( const auto& mcp : mcparts )
+    // {
+    //     cout << "MC particle: " << mcp << endl;
+    // }
+
 	return;
+}
+
+void FarForward::ClearHits() 
+{
+    for ( int p = 0; p < 4; p ++ )
+    {
+        det[p]->clear();
+        for ( int s = 0; s < 2; s ++ )
+            spec_hit[s][p] = 0;
+    }
+}
+
+int FarForward::GetMCHits(int s, int d) 
+{
+    return spec_hit[s][d];
 }
 
 double FarForward::GetEnergy() 
@@ -104,7 +137,7 @@ double FarForward::GetEnergy()
     ZDC_PBG.clear();
 
 	// auto& detCluster = mEvent->get<edm4eic::ClusterCollection>(branch_name);
-    auto& detCluster = mEvent->get<edm4eic::ReconstructedParticleCollection>(branch_name);
+    const auto& detCluster = static_cast<const edm4eic::ReconstructedParticleCollection&>(*(mEvent->get(branch_name)));
  
     double e_sum = 0.0;
     ZDC_E.clear();

@@ -23,13 +23,14 @@ public:
     edm4eic::TrackerHitCollection* det[4];
 
     void SetEvent(const podio::Frame* event); 
-    void Process();
-    void GetHits();
+    void GetHits(int mc_index[2]);
     double GetEnergy();
 
     void set_rotation(double r);
     void set_xShift(int p, double xs);
     void set_zRange(int p, double min, double max);
+    int GetMCHits(int s, int d);
+    void ClearHits();
 
     int get_n_tracks();
 
@@ -60,6 +61,7 @@ private:
     double rotate;
     double xShift[4];
     double zRange[4][2];
+    int spec_hit[2][4];
 };
 
 #endif

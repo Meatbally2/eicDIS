@@ -2,24 +2,24 @@
 #include "../GlobalUtil/preLoadLib.hh"
 #include "tagAna.h"
 
-void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
+void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1)
 {
     std::cout << "** Analysing far-forwards, energy is set to: " << Ee << "x" << Eh << std::endl;
 
     // Standard setup
 
     AnaManager* ana_manager = new AnaManager("tag");
-    ana_manager->Initialize(select_region, sr, file0, analyse_p);
+    ana_manager->Initialize(select_region, sr, file0, beam_type);
     ana_manager->SetBeamEnergy(Ee, Eh);
 
-    std::string type_title = analyse_p ? "ep" : "e^{3}He";
-    std::string energy_title = analyse_p ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    draw_manager = new DrawManager(type_title, energy_title, ana_manager->campaign);
+    std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep DVMP"};
+    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    draw_manager = new DrawManager(type_title[beam_type], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
 
     if (select_region)
     {
-        if ( analyse_p )
+        if ( beam_type )
             draw_manager->SetQ2min(pow(10,sr));
         else
             draw_manager->SetQ2range(pow(10,sr), pow(10,sr+1));
@@ -28,8 +28,8 @@ void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     // .. input setup
     auto reader = podio::ROOTReader();
     ana_manager->GetInputNames();
-    reader.openFiles(ana_manager->GetLocalInputNames());
-    // reader.openFiles(ana_manager->GetInputNames());
+    // reader.openFiles(ana_manager->GetLocalInputNames());
+    reader.openFiles(ana_manager->GetInputNames());
 
     // .. output setup;
     CreateOutputTree(ana_manager->GetOutputName()); 
@@ -54,6 +54,7 @@ void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
         if(ev%100==0) 
             cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
 
+        find_spectators(&event);
         process_ff(&event);
         outTree->Fill();
             
@@ -66,6 +67,44 @@ void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0)
     outTree->Write(outTree->GetName(), 2);
 
     // outFile->Close();
+
+    return;
+}
+
+void find_spectators(const podio::Frame* event)
+{
+    spec.clear();
+
+    const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(event->get("MCParticles")));
+    for ( auto mcp : mcparts )
+    {
+        if ( mcp.getGeneratorStatus() == 1 )
+        {
+            if( mcp.getPDG() == ID_NEUTRON || mcp.getPDG() == ID_PROTON )
+            {
+                // cout << mcp << endl;
+
+                int count_id = 0;
+                int collect_id[2] = {0,0};
+                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
+                {
+                    if ( count_id < 2)
+                        collect_id[count_id] = it->getObjectID().index;
+
+                    count_id ++;
+                }
+
+                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
+                {
+                    spectator_info* spec_info = new spectator_info;
+                    spec_info->pbg = mcp.getPDG();
+                    spec_info->mc_index = mcp.getObjectID().index;
+                    spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
+                    spec.push_back(spec_info);
+                }
+            }
+        }
+    }
 
     return;
 }
@@ -102,10 +141,6 @@ void setup_omd()
     double xShift[4] = {-941.0, -941.0, -1032.0, -1032.0};
     double zRange[4][2] = {{25500, 25512}, {25515, 25528}, {26950, 27010}, {27015, 27030}};
 
-    // for ( int i = 0; i < 4; i ++ )
-    //     for ( int j = 0; j < 2; j ++ )
-    //         zRange[i][j] += 3000; // shift by 1m downstream
-
     omdFinder->set_rotation(rotate);
     for ( int i = 0; i < 4; i ++ )
     {
@@ -133,11 +168,32 @@ void process_ff(const podio::Frame* event)
     zdc_energy = 0.0;
     fZDCn = false;
 
-    for ( auto ff : ffFinder )
+    for (int s = 0; s < 2; s ++ )
     {
-        ff->SetEvent(event);
-        ff->GetHits();
-        ff->fill_hit_histograms();
+        if (spec.size() > s)
+        {
+            for ( int j = 0; j < 4; j ++ )
+            {
+                spec[s]->det_hits[0][j] = 0;
+                spec[s]->det_hits[1][j] = 0;
+            }
+        }
+    }
+
+    for (int i = 0; i < ffFinder.size(); i ++ )
+    {
+        int index[2] = {spec[0]->mc_index, spec[1]->mc_index};
+        ffFinder[i]->SetEvent(event);
+        ffFinder[i]->GetHits(index);
+
+        for ( int s = 0; s < 2; s ++ )
+        {
+            for ( int j = 0; j < 4; j ++ )
+                spec[s]->det_hits[i][j] = ffFinder[i]->GetMCHits(s,j);
+        }       
+
+        ffFinder[i]->fill_hit_histograms();
+        ffFinder[i]->ClearHits();
     }
 
     zdcFinder->SetEvent(event);
@@ -158,6 +214,23 @@ void process_ff(const podio::Frame* event)
             is_tagged = false;
     }
 
+    // mc tagging
+    for ( int s = 0; s < 2; s ++ )
+    {
+        int n_rp_mc = *std::min_element(spec[s]->det_hits[0], spec[s]->det_hits[0] + 4);
+        int n_omd_mc = *std::min_element(spec[s]->det_hits[1], spec[s]->det_hits[1] + 4);
+        if ( n_rp_mc + n_omd_mc > 0)
+            spec[s]->tagged = true;
+    }
+
+    for ( int j = 0; j < 4; j ++ )
+    {
+        Spec1_rpHits[j] = spec[0]->det_hits[0][j];
+        Spec1_omdHits[j] = spec[0]->det_hits[1][j];
+        Spec2_rpHits[j] = spec[1]->det_hits[0][j];
+        Spec2_omdHits[j] = spec[1]->det_hits[1][j];
+    }
+    
     return;
 }
 
@@ -169,20 +242,19 @@ void plot_ff()
     for ( auto ff : ffFinder )
     {
         canvases = ff->draw_histograms();
-        
-        for (auto c : canvases)
+        for (auto &c : canvases)
             draw_manager->LableAndCollect(c);
-
-        canvases.clear();
     }
-        
-    canvases = zdcFinder->draw_histograms();
-    for (auto c : canvases)
-        draw_manager->LableAndCollect(c);
 
     canvases.clear();
-    
+
+    canvases = zdcFinder->draw_histograms();
+    for (auto &c : canvases)
+        draw_manager->LableAndCollect(c);
+
     draw_manager->SaveToTree(outFile);
+
+    // canvases.clear();
 
     return;
 }
@@ -196,6 +268,11 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("nTracks", &n_proton_tracks);
     outTree->Branch("E_ZDC", &zdc_energy);
     outTree->Branch("fZDCn", &fZDCn);
+
+    outTree->Branch("Spec1_rpHits", Spec1_rpHits, "Spec1_rpHits[4]/I");
+    outTree->Branch("Spec1_omdHits", Spec1_omdHits, "Spec1_omdHits[4]/I");
+    outTree->Branch("Spec2_rpHits", Spec2_rpHits, "Spec2_rpHits[4]/I");
+    outTree->Branch("Spec2_omdHits", Spec2_omdHits, "Spec2_omdHits[4]/I");
 
     return;
 }
