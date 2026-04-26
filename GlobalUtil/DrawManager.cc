@@ -79,11 +79,14 @@ void DrawManager::SaveToTree(TFile* &outFile)
 // Modified from ePIC example
 void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
 {
+    if (!c) return;
+
     // Position code
     // 0: top-left (default)
     // 1: top-right 
     // 2: bottom-right
     // 3: mid right, small canvas
+    // 4: A1 coverage plots
     // Not working very well for canvas with multiple pads yet
 
     std::string lumi_unit = type == "ep" ? "fb^{-1}" : "fb^{-1}/A";
@@ -130,13 +133,16 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
 
         if (scale_factor < 1.0) {
             // Small canvas: use a less aggressive scaling (square root or custom formula)
-            // scale_factor = TMath::Sqrt(scale_factor);  // Less shrinkage
-            scale_factor = 0.7 + 0.3 * scale_factor;  // Never go below 70%
+            scale_factor = TMath::Sqrt(scale_factor);  // Less shrinkage
+            // scale_factor = 0.7 + 0.3 * scale_factor;  // Never go below 70%
         }
+
+        if ( draw_position == 1 ) 
+            scale_factor = TMath::Sqrt(scale_factor)*0.9;
 
         Double_t left_margin = 0.19;
         Double_t top_margin = 0.93;
-        if ( draw_position == 1 ) {
+        if ( draw_position == 1 || draw_position == 4) {
             left_margin = 0.5;
         }
         if ( draw_position == 2 ) {
@@ -150,6 +156,11 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
 
         // ===== Add ePIC logo to the figure ======
         TImage *logo = TImage::Open("../GlobalUtil/EPIC-logo_black_transparent.png");
+        if (!logo) {
+            std::cerr << "Error: Could not load logo image!" << std::endl;
+            canvas_list.push_back(c);
+            return;
+        }
         UInt_t img_width = logo->GetWidth();    // Image width in pixels
         UInt_t img_height = logo->GetHeight();  // Image height in pixels
         Double_t img_aspect = (Double_t)img_width / (Double_t)img_height;
@@ -165,6 +176,11 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Double_t canvas_aspect = canvas_width / canvas_height;
         Double_t logo_width = logo_height * img_aspect / canvas_aspect;
 
+        if ( draw_position == 2 )
+        {
+            logo_width *= 3.0;  // Make logo wider for bottom-right position
+        }
+            
         // Create and draw logo pad
         TPad *logo_pad = new TPad("logo_pad", "logo_pad", 
                                 left_margin, top_margin - logo_height, 
@@ -198,10 +214,11 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         // Position "Internal" text right after the logo
         Double_t text_gap = 0.015 * scale_factor;  // Gap also scales
         Double_t internal_x = left_margin + logo_width + text_gap;
-        Double_t internal_y = top_margin - 0.074 * scale_factor;
+        Double_t internal_y = top_margin - 0.073 * scale_factor;
 
         if ( draw_position == 1 ) {
-            internal_y = top_margin - 0.076 * scale_factor;
+            // internal_y = top_margin - 0.076 * scale_factor;
+            internal_y = top_margin - 0.075 * scale_factor;
         }
 
         TLatex Text_ePIC;
@@ -229,10 +246,13 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
             text_x = 0.605;
         }
 
-        if ( !multiple_energies )
-            Text_com.DrawLatexNDC(text_x, current_y, Form("%s, %s", type.c_str(), energy.c_str()));
-        else
-            Text_com.DrawLatexNDC(text_x, current_y, Form("%s, L = %.1f %s", type.c_str(), lumi, lumi_unit.c_str()));
+        if ( draw_position != 4 )
+        {
+            if ( !multiple_energies )
+                Text_com.DrawLatexNDC(text_x, current_y, Form("%s, %s", type.c_str(), energy.c_str()));
+            else
+                Text_com.DrawLatexNDC(text_x, current_y, Form("%s, L = %.1f %s", type.c_str(), lumi, lumi_unit.c_str()));
+        }
 
         if ( setDIS )
         {

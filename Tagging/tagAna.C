@@ -39,9 +39,16 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     setup_rp();
     setup_zdc();
 
+    h_xq2_pt = new TH1F(Form("h_xq2_pt"), ";p_{T} (GeV/c);Counts", 100, 0, 10);
+    h_xq2_pt_tag = new TH1F(Form("h_xq2_pt_tag"), ";p_{T} (GeV/c);Counts", 100, 0, 10);
+    h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 200, 15, 35, 100,0, 10);
+    h_tag_mul[0] = new TH1F(Form("h_tag_mul_p"), ";Tag multiplicity;Counts", 10, 0, 10);
+    h_tag_mul[1] = new TH1F(Form("h_tag_mul_n"), ";Tag multiplicity;Counts", 10, 0, 10);
+
     // Analysis loop
 
-    for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
+    // for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
+    for( size_t ev = 0; ev < 10; ev++ )
     {
         auto raw = reader.readNextEntry("events");
         if(!raw) 
@@ -54,12 +61,52 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
         if(ev%100==0) 
             cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
 
-        find_spectators(&event);
+        find_spectators(&event);        
         process_ff(&event);
         outTree->Fill();
             
         // ResetVariables();
     }
+
+    TCanvas* c_pt = new TCanvas("c_pt", "c_pt", 1400, 400);
+    c_pt->Divide(3,1);
+
+    c_pt->cd(1);
+    h_xq2_pt->Draw("HIST SAME");
+    h_xq2_pt->SetLineColor(kBlue);
+
+    h_xq2_pt_tag->Draw("HIST SAME");
+    h_xq2_pt_tag->SetLineColor(kRed);
+
+    TLegend* leg = new TLegend(0.6, 0.7, 0.88, 0.88);
+    leg->SetTextSize(0.05);
+    leg->SetBorderSize(0);
+    leg->SetFillColor(0);
+    leg->SetFillStyle(0);
+    leg->AddEntry(h_xq2_pt, "MC", "L");
+    leg->AddEntry(h_xq2_pt_tag, "Tagged", "L");
+    leg->Draw();
+
+    c_pt->cd(2);
+    h_xq2_pt_theta->Draw("COLZ");
+
+    c_pt->cd(3);
+    h_tag_mul[0]->Draw("HIST SAME");
+    h_tag_mul[0]->SetLineColor(kRed);
+
+    h_tag_mul[1]->Draw("HIST SAME");
+    h_tag_mul[1]->SetLineColor(kBlue);
+
+    TLegend* leg_mul = new TLegend(0.6, 0.7, 0.88, 0.88);
+    leg_mul->SetTextSize(0.05);
+    leg_mul->SetBorderSize(0);
+    leg_mul->SetFillColor(0);
+    leg_mul->SetFillStyle(0);
+    leg_mul->AddEntry(h_tag_mul[0], "ep DIS", "L");
+    leg_mul->AddEntry(h_tag_mul[1], "en DIS", "L");
+    leg_mul->Draw();
+
+    draw_manager->LableAndCollect(c_pt, 2);
 
     plot_ff();
 
@@ -67,44 +114,6 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     outTree->Write(outTree->GetName(), 2);
 
     // outFile->Close();
-
-    return;
-}
-
-void find_spectators(const podio::Frame* event)
-{
-    spec.clear();
-
-    const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(event->get("MCParticles")));
-    for ( auto mcp : mcparts )
-    {
-        if ( mcp.getGeneratorStatus() == 1 )
-        {
-            if( mcp.getPDG() == ID_NEUTRON || mcp.getPDG() == ID_PROTON )
-            {
-                // cout << mcp << endl;
-
-                int count_id = 0;
-                int collect_id[2] = {0,0};
-                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
-                {
-                    if ( count_id < 2)
-                        collect_id[count_id] = it->getObjectID().index;
-
-                    count_id ++;
-                }
-
-                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
-                {
-                    spectator_info* spec_info = new spectator_info;
-                    spec_info->pbg = mcp.getPDG();
-                    spec_info->mc_index = mcp.getObjectID().index;
-                    spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
-                    spec.push_back(spec_info);
-                }
-            }
-        }
-    }
 
     return;
 }
@@ -182,11 +191,14 @@ void process_ff(const podio::Frame* event)
 
     for (int i = 0; i < ffFinder.size(); i ++ )
     {
-        int index[2] = {spec[0]->mc_index, spec[1]->mc_index};
+        std::vector<int> index;
+        for ( int s = 0; s < spec.size(); s ++ )
+            index.push_back(spec[s]->mc_index);
+    
         ffFinder[i]->SetEvent(event);
         ffFinder[i]->GetHits(index);
 
-        for ( int s = 0; s < 2; s ++ )
+        for ( int s = 0; s < spec.size(); s ++ )
         {
             for ( int j = 0; j < 4; j ++ )
                 spec[s]->det_hits[i][j] = ffFinder[i]->GetMCHits(s,j);
@@ -215,20 +227,45 @@ void process_ff(const podio::Frame* event)
     }
 
     // mc tagging
-    for ( int s = 0; s < 2; s ++ )
+    for ( int s = 0; s < spec.size(); s ++ )
     {
         int n_rp_mc = *std::min_element(spec[s]->det_hits[0], spec[s]->det_hits[0] + 4);
         int n_omd_mc = *std::min_element(spec[s]->det_hits[1], spec[s]->det_hits[1] + 4);
+
+        h_tag_mul[struck_type]->Fill(n_rp_mc + n_omd_mc);
+
+        // cout << "Spec " << s << " PDG "<< spec[s]->pbg << " MC hits in RP: " << n_rp_mc << ", OMD: " << n_omd_mc << std::endl;
+
         if ( n_rp_mc + n_omd_mc > 0)
+        {
             spec[s]->tagged = true;
+            if ( spec[s]->pbg == ID_PROTON)
+                h_xq2_pt_tag->Fill(spec[s]->vec.Pt());
+        }
+            
     }
 
     for ( int j = 0; j < 4; j ++ )
     {
-        Spec1_rpHits[j] = spec[0]->det_hits[0][j];
-        Spec1_omdHits[j] = spec[0]->det_hits[1][j];
-        Spec2_rpHits[j] = spec[1]->det_hits[0][j];
-        Spec2_omdHits[j] = spec[1]->det_hits[1][j];
+        if ( spec.size() > 0 )        
+        {
+            Spec1_rpHits[j] = spec[0]->det_hits[0][j];
+            Spec1_omdHits[j] = spec[0]->det_hits[1][j];
+        }
+        else        
+        {
+            Spec1_rpHits[j] = 0;
+            Spec1_omdHits[j] = 0;
+        }
+
+        if ( spec.size() > 1 )        {
+            Spec2_rpHits[j] = spec[1]->det_hits[0][j];
+            Spec2_omdHits[j] = spec[1]->det_hits[1][j];
+        }
+        else        {
+            Spec2_rpHits[j] = 0;
+            Spec2_omdHits[j] = 0;
+        }
     }
     
     return;
@@ -273,6 +310,133 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("Spec1_omdHits", Spec1_omdHits, "Spec1_omdHits[4]/I");
     outTree->Branch("Spec2_rpHits", Spec2_rpHits, "Spec2_rpHits[4]/I");
     outTree->Branch("Spec2_omdHits", Spec2_omdHits, "Spec2_omdHits[4]/I");
+
+    return;
+}
+
+void find_spectators(const podio::Frame* event)
+{
+    spec.clear();
+
+    // cout << "** Finding spectators... " << std::endl;
+
+    const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(event->get("MCParticles")));
+
+    int struck_pdg = -1;
+    std::vector<spectator_info*> candidates;
+
+    for (const auto& mcp : mcparts)
+    {
+        if (mcp.getGeneratorStatus() == 4 && mcp.getPDG() != ID_ELECTRON)
+        {
+            struck_pdg = mcp.getPDG();
+            // cout << "Struck particle PDG: " << struck_pdg << endl;
+            break;
+        }
+    }
+
+    struck_type = struck_pdg == ID_PROTON ? 0 : 1;
+
+    if ( struck_pdg == ID_NEUTRON ) // more or less working fine with some selection cuts
+    {
+        for ( auto mcp : mcparts )
+        {
+            if ( mcp.getPDG() == ID_PROTON &&mcp.getGeneratorStatus() == 1 && !mcp.isCreatedInSimulation() && !mcp.isBackscatter() )
+            {
+                // cout << mcp << endl;
+
+                if ( mcp.daughters_size() != 0 )
+                    continue;
+
+                int count_id = 0;
+                int collect_id[2] = {0,0};
+                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
+                {
+                    if ( count_id < 2)
+                        collect_id[count_id] = it->getObjectID().index;
+
+                    count_id ++;
+                }
+
+                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
+                {
+                    spectator_info* spec_info = new spectator_info;
+                    spec_info->pbg = mcp.getPDG();
+                    spec_info->mc_index = mcp.getObjectID().index;
+                    spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
+                    candidates.push_back(spec_info);
+                }
+            }
+        } 
+
+        int pair_start = -1;
+        for (size_t i = 0; i + 1 < candidates.size(); ++i)
+        {
+            if (candidates[i + 1]->mc_index == candidates[i]->mc_index + 1)
+            {
+                pair_start = static_cast<int>(i);
+                break;
+            }
+        }
+
+        if (pair_start >= 0)
+        {
+            for (int k = 0; k < 2; ++k)
+            {
+                spec.push_back(candidates[pair_start + k]);
+
+                if (candidates[pair_start + k]->pbg == ID_PROTON)
+                {
+                    h_xq2_pt->Fill(candidates[pair_start + k]->vec.Pt());
+                    h_xq2_pt_theta->Fill(candidates[pair_start + k]->vec.Theta() * 1000, candidates[pair_start + k]->vec.Pt());
+                }
+            }
+        }
+    }
+
+    if ( struck_pdg == ID_PROTON ) // spectators dispear quite a lot? potentially an issue going from BeAGLE output to hepmc3
+    {
+        for ( auto mcp : mcparts )
+        {
+            if ( mcp.getGeneratorStatus() == 1 && !mcp.isCreatedInSimulation() && !mcp.isBackscatter() )
+            {
+                // cout << mcp << endl;
+
+                if ( mcp.daughters_size() != 0 )
+                    continue;
+
+                int count_id = 0;
+                int collect_id[2] = {0,0};
+                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
+                {
+                    if ( count_id < 2)
+                        collect_id[count_id] = it->getObjectID().index;
+
+                    count_id ++;
+                }
+
+                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
+                {
+                    spectator_info* spec_info = new spectator_info;
+                    spec_info->pbg = mcp.getPDG();
+                    spec_info->mc_index = mcp.getObjectID().index;
+                    spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
+                    candidates.push_back(spec_info);
+                }
+            }
+        }
+
+        for (int k = 0; k < candidates.size(); ++k)
+        {
+            spec.push_back(candidates[k]);
+
+            if (candidates[k]->pbg == ID_PROTON)
+            {
+                h_xq2_pt->Fill(candidates[k]->vec.Pt());
+                h_xq2_pt_theta->Fill(candidates[k]->vec.Theta() * 1000, candidates[k]->vec.Pt());
+            }
+        }
+    }
 
     return;
 }

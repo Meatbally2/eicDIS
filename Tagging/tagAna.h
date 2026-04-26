@@ -57,4 +57,11 @@ int Spec1_omdHits[4];
 int Spec2_rpHits[4];
 int Spec2_omdHits[4];
 
+TH1F* h_xq2_pt;
+TH1F* h_xq2_pt_tag;
+TH2F* h_xq2_pt_theta;
+TH1F* h_tag_mul[2];
+
+int struck_type;
+
 #endif

@@ -55,8 +55,14 @@ void FarForward::set_zRange(int p, double min, double max) {
     zRange[p][1] = max;
 }
 
-void FarForward::GetHits(int mc_index[2]) 
+void FarForward::GetHits(std::vector<int> mc_index) 
 {
+    for ( int s = 0; s < mc_index.size(); s ++ )
+    {
+        for ( int d = 0; d < 4; d ++ )
+            spec_hit[d].push_back(0);
+    }
+
 	const auto& detHits = static_cast<const edm4eic::TrackerHitCollection&>(*(mEvent->get(branch_name+"RecHits")));
 
     for ( int p = 0; p < 4; p ++ )
@@ -80,26 +86,19 @@ void FarForward::GetHits(int mc_index[2])
     const auto& rawAssoc = static_cast<const edm4eic::MCRecoTrackerHitAssociationCollection&>(*(mEvent->get(branch_name + "RawHitAssociations")));
     for (const auto& assoc : rawAssoc) 
     {
-        int collect_id[2] = {0,0};
-        int count_id = 0;
-        auto mcParticle = assoc.getSimHit().getParticle();
-        for (auto &p : mcParticle.getParents())
-        {
-            if ( count_id < 2)
-                collect_id[count_id] = p.getObjectID().index;
-            count_id ++;
-            // std::cout << "parent: " << p << std::endl; 
-        }
+        // cout << " ** tag ** " << endl;
+        // cout << assoc.getSimHit().getParticle() << endl;
 
-        for ( int i = 0; i < 2; i ++ )
+        for ( int i = 0; i < mc_index.size(); i ++ )
         {
-            if ( collect_id[i] == mc_index[i] )
+            if ( assoc.getSimHit().getParticle().getObjectID().index == mc_index[i] )
             {
                 for ( int pos = 0; pos < 4; pos ++ )
                 {
                     if (assoc.getSimHit().getPosition().z > zRange[pos][0] && assoc.getSimHit().getPosition().z < zRange[pos][1])
-                        spec_hit[i][pos] += 1;
+                        spec_hit[pos][i] += 1;
                 }
+                // cout << assoc.getSimHit().getParticle() << endl;
             }
         }
     }
@@ -117,17 +116,18 @@ void FarForward::GetHits(int mc_index[2])
 
 void FarForward::ClearHits() 
 {
-    for ( int p = 0; p < 4; p ++ )
+    for ( int i = 0; i < 4; i++)
     {
-        det[p]->clear();
-        for ( int s = 0; s < 2; s ++ )
-            spec_hit[s][p] = 0;
+        spec_hit[i].clear();
     }
 }
 
 int FarForward::GetMCHits(int s, int d) 
 {
-    return spec_hit[s][d];
+    if ( s >= spec_hit[0].size() )
+        return 0;
+        
+    return spec_hit[d][s];
 }
 
 double FarForward::GetEnergy() 
