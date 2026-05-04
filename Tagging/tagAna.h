@@ -57,6 +57,12 @@ int Spec1_omdHits[4];
 int Spec2_rpHits[4];
 int Spec2_omdHits[4];
 
+std::vector<int> SpecPBG;
+std::vector<PxPyPzEVector> SpecVec;
+
+std::vector<int> OtherPBG;
+std::vector<PxPyPzEVector> OtherVec;
+
 TH1F* h_xq2_pt;
 TH1F* h_xq2_pt_tag;
 TH2F* h_xq2_pt_theta;

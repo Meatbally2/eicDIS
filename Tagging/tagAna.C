@@ -107,8 +107,9 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     leg_mul->Draw();
 
     draw_manager->LableAndCollect(c_pt, 2);
-
     plot_ff();
+
+    draw_manager->SaveToTree(outFile);
 
     outFile->cd();
     outTree->Write(outTree->GetName(), 2);
@@ -267,6 +268,12 @@ void process_ff(const podio::Frame* event)
             Spec2_omdHits[j] = 0;
         }
     }
+
+    for ( auto s : spec )
+    {
+        SpecPBG.push_back(s->pbg);
+        SpecVec.push_back(s->vec);
+    }
     
     return;
 }
@@ -289,8 +296,6 @@ void plot_ff()
     for (auto &c : canvases)
         draw_manager->LableAndCollect(c);
 
-    draw_manager->SaveToTree(outFile);
-
     // canvases.clear();
 
     return;
@@ -311,12 +316,23 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("Spec2_rpHits", Spec2_rpHits, "Spec2_rpHits[4]/I");
     outTree->Branch("Spec2_omdHits", Spec2_omdHits, "Spec2_omdHits[4]/I");
 
+    outTree->Branch("SpecPBG", &SpecPBG);
+    outTree->Branch("SpecVec", &SpecVec);
+
+    outTree->Branch("OtherPBG", &OtherPBG);
+    outTree->Branch("OtherVec", &OtherVec);
+
     return;
 }
 
 void find_spectators(const podio::Frame* event)
 {
     spec.clear();
+
+    SpecPBG.clear();
+    SpecVec.clear();
+    OtherPBG.clear();
+    OtherVec.clear();
 
     // cout << "** Finding spectators... " << std::endl;
 
