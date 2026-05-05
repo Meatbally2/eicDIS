@@ -273,6 +273,7 @@ void process_ff(const podio::Frame* event)
     {
         SpecPBG.push_back(s->pbg);
         SpecVec.push_back(s->vec);
+        SpecTag.push_back(s->tagged);
     }
     
     return;
@@ -318,6 +319,7 @@ void CreateOutputTree(TString outFileName) {
 
     outTree->Branch("SpecPBG", &SpecPBG);
     outTree->Branch("SpecVec", &SpecVec);
+    outTree->Branch("SpecTag", &SpecTag);
 
     outTree->Branch("OtherPBG", &OtherPBG);
     outTree->Branch("OtherVec", &OtherVec);
@@ -333,6 +335,7 @@ void find_spectators(const podio::Frame* event)
     SpecVec.clear();
     OtherPBG.clear();
     OtherVec.clear();
+    SpecTag.clear();
 
     // cout << "** Finding spectators... " << std::endl;
 

@@ -59,9 +59,11 @@ int Spec2_omdHits[4];
 
 std::vector<int> SpecPBG;
 std::vector<PxPyPzEVector> SpecVec;
+std::vector<bool> SpecTag;
 
 std::vector<int> OtherPBG;
 std::vector<PxPyPzEVector> OtherVec;
+std::vector<bool> OtherTag;
 
 TH1F* h_xq2_pt;
 TH1F* h_xq2_pt_tag;
