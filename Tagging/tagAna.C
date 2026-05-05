@@ -47,8 +47,8 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
     // Analysis loop
 
-    // for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
-    for( size_t ev = 0; ev < 10; ev++ )
+    for( size_t ev = 0; ev < reader.getEntries("events"); ev++ )
+    // for( size_t ev = 0; ev < 10; ev++ )
     {
         auto raw = reader.readNextEntry("events");
         if(!raw) 
