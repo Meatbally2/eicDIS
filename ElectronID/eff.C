@@ -25,7 +25,7 @@ void eff(int beam_type, int Ee, int Eh)
     if ( beam_type == 3 )
         campaign = "26.02.0";
     DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
-    draw_manager->SetEPIC();
+    draw_manager->SetEPIC("Work in Progress");
 
     draw_manager->SetDISrange(0.01, 0.95, 4, 2);
 
@@ -48,6 +48,8 @@ void eff(int beam_type, int Ee, int Eh)
 
     TH2F* h_xq2_all = BookTH2(Form("h_xq2_all"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
     TH2F* h_xq2_acp = BookTH2(Form("h_xq2_acp"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
+    TH2F* h_xq2_trk = BookTH2(Form("h_xq2_trk"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
+    TH2F* h_xq2_cal = BookTH2(Form("h_xq2_cal"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
     TH2F* h_xq2_eff = BookTH2(Form("h_xq2_eff"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
     TH2F* h_xq2_pur = BookTH2(Form("h_xq2_pur"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
     TH2F* h_xq2_eID = BookTH2(Form("h_xq2_eID"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
@@ -55,6 +57,8 @@ void eff(int beam_type, int Ee, int Eh)
 
     TH1F* h_angular_all = new TH1F("h_angular_all", ";#theta (deg);%", 180, 0, 180);
     TH1F* h_angular_acp = new TH1F("h_angular_acp", ";#theta (deg);%", 180, 0, 180);
+    TH1F* h_angular_trk = new TH1F("h_angular_trk", ";#theta (deg);%", 180, 0, 180);
+    TH1F* h_angular_cal = new TH1F("h_angular_cal", ";#theta (deg);%", 180, 0, 180);
     TH1F* h_angular_eff = new TH1F("h_angular_eff", ";#theta (deg);%", 180, 0, 180);
     TH1F* h_angular_pur = new TH1F("h_angular_pur", ";#theta (deg);%", 180, 0, 180);
     TH1F* h_angular_eID = new TH1F("h_angular_eID", ";#theta (deg);%", 180, 0, 180);
@@ -72,6 +76,8 @@ void eff(int beam_type, int Ee, int Eh)
 
         TH2F* h_tmp_all = BookTH2(Form("h_tmp_all_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
         TH2F* h_tmp_acp = BookTH2(Form("h_tmp_acp_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
+        TH2F* h_tmp_trk = BookTH2(Form("h_tmp_trk_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
+        TH2F* h_tmp_cal = BookTH2(Form("h_tmp_cal_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
         TH2F* h_tmp_eff = BookTH2(Form("h_tmp_eff_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
         TH2F* h_tmp_pur = BookTH2(Form("h_tmp_pur_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
         TH2F* h_tmp_eID = BookTH2(Form("h_tmp_eID_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
@@ -79,6 +85,8 @@ void eff(int beam_type, int Ee, int Eh)
 
         TH1F* h_tmp_angular_all = new TH1F(Form("h_tmp_angular_all_%d", i), ";#theta (deg);%", 180, 0, 180);
         TH1F* h_tmp_angular_acp = new TH1F(Form("h_tmp_angular_acp_%d", i), ";#theta (deg);%", 180, 0, 180);
+        TH1F* h_tmp_angular_trk = new TH1F(Form("h_tmp_angular_trk_%d", i), ";#theta (deg);%", 180, 0, 180);
+        TH1F* h_tmp_angular_cal = new TH1F(Form("h_tmp_angular_cal_%d", i), ";#theta (deg);%", 180, 0, 180);
         TH1F* h_tmp_angular_eff = new TH1F(Form("h_tmp_angular_eff_%d", i), ";#theta (deg);%", 180, 0, 180);
         TH1F* h_tmp_angular_pur = new TH1F(Form("h_tmp_angular_pur_%d", i), ";#theta (deg);%", 180, 0, 180);
         TH1F* h_tmp_angular_eID = new TH1F(Form("h_tmp_angular_eID_%d", i), ";#theta (deg);%", 180, 0, 180);
@@ -87,6 +95,7 @@ void eff(int beam_type, int Ee, int Eh)
         TTreeReader reader("T_eID", file);
 
         TTreeReaderValue<int>    status(reader, "eID_status");
+        TTreeReaderValue<int>    rec_status(reader, "eRecon_status");
 
         TTreeReaderValue<double> mc_xB(reader, "mc_xB");
         TTreeReaderValue<double> mc_Q2(reader, "mc_Q2");
@@ -101,6 +110,11 @@ void eff(int beam_type, int Ee, int Eh)
         TTreeReaderValue<double> rec_nu(reader, "rec_nu");
 
         TTreeReaderValue<PxPyPzEVector> vMCe(reader, "vMC_e");
+        TTreeReaderValue<PxPyPzEVector> vTRe(reader, "vTRACK_e");
+        TTreeReaderValue<PxPyPzEVector> vCLe(reader, "vCLUSTER_e");
+
+         TTreeReaderValue<double> EoP(reader, "EoP");
+        TTreeReaderValue<double> EminusPz(reader, "EminusPz");
 
         Long64_t nEntries = reader.GetEntries();
 
@@ -158,7 +172,28 @@ void eff(int beam_type, int Ee, int Eh)
                 h_tmp_acp->Fill(*mc_xB, *mc_Q2);
                 h_tmp_angular_acp->Fill(theta);
             }
-                
+
+            if ( *rec_status == FOUND_TRACK_ONLY || *rec_status == FOUND_BOTH )
+            {
+                h_tmp_trk->Fill(*mc_xB, *mc_Q2);
+                h_tmp_angular_trk->Fill(theta);
+            }
+
+            if ( *rec_status == FOUND_CLUSTER_ONLY || *rec_status == FOUND_BOTH )
+            {
+                h_tmp_cal->Fill(*mc_xB, *mc_Q2);
+                h_tmp_angular_cal->Fill(theta);
+            }
+
+            // if ( ( (180-theta > 120 && 180-theta < 150) || (180-theta > 35 && 180-theta < 60) ) && *EminusPz < 5 )
+            //         continue;
+
+            // if ( (180-theta > 125 && 180-theta < 155) && *EminusPz < 5 )
+            //         continue;
+
+            // if ( *mc_Q2 < 10 && (*EoP < 0.8 || *EoP > 1.2) )
+            //     continue;
+            
             if ( *status >= FOUND_E )
             {
                 h_tmp_eff->Fill(*mc_xB, *mc_Q2);   
@@ -173,7 +208,7 @@ void eff(int beam_type, int Ee, int Eh)
                 h_tmp_angular_eID->Fill(theta);
             }
 
-            if ( *status >= FOUND_PI )
+            if ( *status == FOUND_PI )
             {
                 h_tmp_piID->Fill(*mc_xB, *mc_Q2);
                 h_tmp_angular_piID->Fill(theta);
@@ -186,6 +221,10 @@ void eff(int beam_type, int Ee, int Eh)
         h_tmp_pur->Scale(total_lumi/gen_lumi);
         h_tmp_eID->Scale(total_lumi/gen_lumi);
         h_tmp_piID->Scale(total_lumi/gen_lumi);
+        h_tmp_trk->Scale(total_lumi/gen_lumi);
+        h_tmp_cal->Scale(total_lumi/gen_lumi);
+        h_tmp_angular_trk->Scale(total_lumi/gen_lumi);
+        h_tmp_angular_cal->Scale(total_lumi/gen_lumi);
         h_tmp_angular_all->Scale(total_lumi/gen_lumi);
         h_tmp_angular_acp->Scale(total_lumi/gen_lumi);
         h_tmp_angular_eff->Scale(total_lumi/gen_lumi);
@@ -196,6 +235,8 @@ void eff(int beam_type, int Ee, int Eh)
         h_xq2_all->Add(h_tmp_all);
         h_xq2_acp->Add(h_tmp_acp);
         h_xq2_eff->Add(h_tmp_eff);
+        h_xq2_trk->Add(h_tmp_trk);
+        h_xq2_cal->Add(h_tmp_cal);
         h_xq2_pur->Add(h_tmp_pur);
         h_xq2_eID->Add(h_tmp_eID);
         h_xq2_piID->Add(h_tmp_piID);
@@ -205,12 +246,16 @@ void eff(int beam_type, int Ee, int Eh)
         h_angular_pur->Add(h_tmp_angular_pur);
         h_angular_eID->Add(h_tmp_angular_eID);
         h_angular_piID->Add(h_tmp_angular_piID);
+        h_angular_trk->Add(h_tmp_angular_trk);
+        h_angular_cal->Add(h_tmp_angular_cal);
 
         file->Close();
     }
 
     set_2d_scale(h_xq2_all);
     TCanvas* c_xq2_all = draw_2d_standard(h_xq2_all, "c_xq2_all", "all events", 700, 600, true, true);
+    // TCanvas* c_xq2_trk = draw_2d_standard(h_xq2_trk, "c_xq2_trk", "track events", 700, 600, true, true);
+    // TCanvas* c_xq2_cal = draw_2d_standard(h_xq2_cal, "c_xq2_cal", "cal events", 700, 600, true, true);
     TCanvas* c_xq2_acp = draw_2d_standard(h_xq2_acp, "c_xq2_acp", "acp events", 700, 600, true, true);
     TCanvas* c_xq2_eID = draw_2d_standard(h_xq2_eID, "c_xq2_eID", "eID events", 700, 600, true, true);
     TCanvas* c_xq2_piID = draw_2d_standard(h_xq2_piID, "c_xq2_piID", "piID events", 700, 600, true, true);
@@ -218,6 +263,12 @@ void eff(int beam_type, int Ee, int Eh)
     TH2F* h_xq2_acp_copy = (TH2F*)h_xq2_acp->Clone();
     process_eff_hist(h_xq2_acp_copy, h_xq2_all);
     TCanvas* c_xq2_acp_eff = draw_2d_efficiency(h_xq2_acp_copy, "c_xq2_acp_eff", "xq2 acp eff", 1400, 600, false, true);
+
+    process_eff_hist(h_xq2_trk, h_xq2_all);
+    TCanvas* c_xq2_trk_eff = draw_2d_efficiency(h_xq2_trk, "c_xq2_trk", "xq2 trk eff", 1400, 600, false, true);
+
+    process_eff_hist(h_xq2_cal, h_xq2_all);
+    TCanvas* c_xq2_cal_eff = draw_2d_efficiency(h_xq2_cal, "c_xq2_cal", "xq2 cal eff", 1400, 600, false, true);
 
     TH2F* h_xq2_eff_copy = (TH2F*)h_xq2_eff->Clone();
     process_eff_hist(h_xq2_eff_copy, h_xq2_all);
@@ -245,6 +296,8 @@ void eff(int beam_type, int Ee, int Eh)
 
     draw_manager->LableAndCollect(c_xq2_acp_eff);
     draw_manager->LableAndCollect(c_xq2_eff_eff);
+    draw_manager->LableAndCollect(c_xq2_trk_eff);
+    draw_manager->LableAndCollect(c_xq2_cal_eff);
     draw_manager->LableAndCollect(c_xq2_pur_eff);
     draw_manager->LableAndCollect(c_xq2_eID_eff);
     draw_manager->LableAndCollect(c_xq2_piID_eff);
@@ -253,6 +306,9 @@ void eff(int beam_type, int Ee, int Eh)
     c_xq2_acp_eff->SaveAs(Form("../data/eID/%s_eID_acceptance.png", setting.c_str()));
     c_xq2_eff_eff->SaveAs(Form("../data/eID/%s_eID_efficiency.png", setting.c_str()));
     c_xq2_pur_eff->SaveAs(Form("../data/eID/%s_eID_purity.png", setting.c_str()));
+    c_xq2_eID_eff->SaveAs(Form("../data/eID/%s_eID_overall.png", setting.c_str()));
+    c_xq2_trk_eff->SaveAs(Form("../data/eID/%s_eID_trk.png", setting.c_str()));
+    c_xq2_cal_eff->SaveAs(Form("../data/eID/%s_eID_cal.png", setting.c_str()));
 
     // c_xq2_all->SaveAs("../data/eID/10x166_en_raw.png");
 
@@ -276,13 +332,21 @@ void eff(int beam_type, int Ee, int Eh)
     h_angular_formater->GetYaxis()->SetTitleOffset(1.);
 
     TEfficiency*  h_acceptance_angular = new TEfficiency(*h_angular_acp,*h_angular_all);
-    TEfficiency*  h_efficiency_angular = new TEfficiency(*h_angular_eff,*h_angular_acp);
+    TEfficiency*  h_trk_angular = new TEfficiency(*h_angular_trk,*h_angular_all);
+    TEfficiency*  h_cal_angular = new TEfficiency(*h_angular_cal,*h_angular_all);
+    TEfficiency*  h_efficiency_angular = new TEfficiency(*h_angular_eff,*h_angular_all);
     TEfficiency*  h_purity_angular = new TEfficiency(*h_angular_pur,*h_angular_eff);
     TEfficiency*  h_eID_angular = new TEfficiency(*h_angular_eID,*h_angular_all);
     TEfficiency*  h_piID_angular = new TEfficiency(*h_angular_piID,*h_angular_acp);
 
-    h_acceptance_angular->SetLineColor(kBlack);
-    h_acceptance_angular->SetMarkerColor(kBlack);
+    // h_acceptance_angular->SetLineColor(kBlack);
+    // h_acceptance_angular->SetMarkerColor(kBlack);
+
+    h_trk_angular->SetLineColor(kOrange+1);
+    h_trk_angular->SetMarkerColor(kOrange+1);
+
+    h_cal_angular->SetLineColor(kBlack);
+    h_cal_angular->SetMarkerColor(kBlack);
 
     h_efficiency_angular->SetLineColor(kBlue+1);
     h_efficiency_angular->SetMarkerColor(kBlue+1);
@@ -298,12 +362,16 @@ void eff(int beam_type, int Ee, int Eh)
 
     h_acceptance_angular->SetStatisticOption(TEfficiency::kFNormal);
     h_efficiency_angular->SetStatisticOption(TEfficiency::kFNormal);
+    h_trk_angular->SetStatisticOption(TEfficiency::kFNormal);
+    h_cal_angular->SetStatisticOption(TEfficiency::kFNormal);
     h_purity_angular->SetStatisticOption(TEfficiency::kFNormal);
     h_eID_angular->SetStatisticOption(TEfficiency::kFNormal);
     h_piID_angular->SetStatisticOption(TEfficiency::kFNormal);
 
-    h_acceptance_angular->Draw("SAME");
+    // h_acceptance_angular->Draw("SAME");
     h_efficiency_angular->Draw("SAME");
+    h_trk_angular->Draw("SAME");
+    h_cal_angular->Draw("SAME");
     h_purity_angular->Draw("SAME ");
     h_eID_angular->Draw("SAME");
     h_piID_angular->Draw("SAME");
@@ -318,10 +386,12 @@ void eff(int beam_type, int Ee, int Eh)
     leg->SetFillColor(0);
     leg->SetBorderSize(0);
     leg->SetTextSize(0.08);
-    leg->AddEntry(h_acceptance_angular, "Acceptance", "LPE");
-    leg->AddEntry(h_efficiency_angular, "Efficiency", "LPE");
-    leg->AddEntry(h_purity_angular, "Purity", "LPE");
-    leg->AddEntry(h_eID_angular, "Overall rate", "LPE");
+    leg->AddEntry(h_trk_angular, "e track eff.", "LPE");
+    leg->AddEntry(h_cal_angular, "e cluster eff.", "LPE");
+    // leg->AddEntry(h_acceptance_angular, "Track x Cal. eff", "LPE");
+    leg->AddEntry(h_efficiency_angular, "eID efficiency", "LPE");
+    leg->AddEntry(h_purity_angular, "eID purity", "LPE");
+    leg->AddEntry(h_eID_angular, "Overall eID rate", "LPE");
     leg->AddEntry(h_piID_angular, "#pi contamination", "LPE");
     leg->Draw();
     
@@ -414,7 +484,8 @@ void draw_leg_pad(const std::string& type, const std::string& energy, const std:
     TImage *logo = TImage::Open("../GlobalUtil/EPIC-logo_black_transparent.png");
     logo->SetConstRatio(kTRUE);
 
-    TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.0, 0.75, 0.4, 0.9);
+    // TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.0, 0.75, 0.4, 0.9);
+    TPad *logo_pad = new TPad("logo_pad", "logo_pad", 0.0, 0.75, 0.35, 0.9);
     logo_pad->SetFillStyle(0);
     logo_pad->SetFillColor(0);
     logo_pad->SetFrameFillStyle(0);
@@ -433,9 +504,11 @@ void draw_leg_pad(const std::string& type, const std::string& energy, const std:
 
     // ===== Add type ======
     leg_pad->cd();
-    TLatex *Text_plotType = new TLatex(0.45, 0.815, "Internal");
+    // TLatex *Text_plotType = new TLatex(0.45, 0.815, "Work in Progress");
+    TLatex *Text_plotType = new TLatex(0.37, 0.825, "Work in Progress");
     Text_plotType->SetNDC();
     Text_plotType->SetTextSize(0.13);
+    Text_plotType->SetTextSize(0.08);
     Text_plotType->SetTextFont(62);
     Text_plotType->SetTextAlign(12);
     Text_plotType->Draw();

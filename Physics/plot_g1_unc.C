@@ -8,21 +8,22 @@
 
 #include "TPolyMarker.h"
 
-// const int n_file = 3;
-// std::string setting[3] = {"18x275", "10x100", "5x41"};
-// std::string file_type = "p";
+std::string type_title = "ep";
+const int n_file = 3;
+std::string setting[3] = {"18x275", "10x100", "5x41"};
+std::string file_type = "p";
 
-const int n_file = 1;
-std::string setting[n_file] = {"10x166"};
-std::string file_type = "n";
+// std::string type_title = "e^{3}He";
+// const int n_file = 3;
+// std::string setting[n_file] = {"18x110","10x110","5x41"};
+// std::string file_type = "n";
 
 void plot_g1_unc()
 {
-    std::string type_title = "eHe3";
-    std::string energy_title = Form("%dx%d GeV", 10, 166);
-    DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
-    draw_manager->SetEPIC();
-    draw_manager->SetLumi(8.65);
+    
+    DrawManager* draw_manager = new DrawManager(type_title, "25.10.0");
+    draw_manager->SetEPIC("Work in Progress");
+    draw_manager->SetLumi(10);
 
     TH2F* h_xq2 = BookTH2("xq2",  ";x_{B};Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
 
@@ -40,13 +41,13 @@ void plot_g1_unc()
 
     if ( file_type == "n" )
     {
-        h_xq2->GetXaxis()->SetRangeUser(4e-4,1);
+        h_xq2->GetXaxis()->SetRangeUser(3e-4,1);
         h_xq2->GetYaxis()->SetRangeUser(1,1e4);
     }
     else
     {
         h_xq2->GetXaxis()->SetRangeUser(1e-4,1);
-        h_xq2->GetYaxis()->SetRangeUser(1,1e4);
+        h_xq2->GetYaxis()->SetRangeUser(1,2e4);
     }
     h_xq2->Draw();
 
@@ -63,7 +64,8 @@ void plot_g1_unc()
         vector<double> g1_err_col;
         vector<double> color_col;
 
-        std::ifstream file(Form("../data/en_25_10_2/%s_xq2_%s_asymm_table.txt", setting[i].c_str(), file_type.c_str()));
+        // std::ifstream file(Form("../data/en_25_10_2/eHe3_%s_xq2_%s_asymm_table.txt", setting[i].c_str(), file_type.c_str()));
+        std::ifstream file(Form("../data/ep_25_10_0/ep_%s_xq2_%s_asymm_table.txt", setting[i].c_str(), file_type.c_str()));
 
         std::string line;
         while ( getline(file, line) )
@@ -130,8 +132,8 @@ void plot_g1_unc()
     for ( auto m : m_ex )
         m->Draw();
 
-    TLegend* leg = new TLegend(0.17, 0.43, 0.38, 0.50);
-    leg->SetTextSize(0.02);
+    TLegend* leg = new TLegend(0.17, 0.43, 0.38, 0.70);
+    leg->SetTextSize(0.03);
 	leg->SetBorderSize(0);
 	leg->SetFillColor(0);
     leg->SetFillStyle(0);
@@ -183,7 +185,7 @@ void plot_g1_unc()
     
     if ( file_type == "n" )
     {
-        text_y = 1.8;
+        text_y = 1.8-0.6;
         text_x[0] = 3e-2;
     }
         
@@ -196,6 +198,6 @@ void plot_g1_unc()
     }
 
     draw_manager->LableAndCollect(c_selected);
-    c_selected->SaveAs(Form("../data/en_25_10_2/g1_unc_%s.png", file_type.c_str()));
+    c_selected->SaveAs(Form("../data/ep_25_10_0/g1_unc_%s_upper_unc.png", file_type.c_str()));
     return;
 }

@@ -77,7 +77,7 @@ void plot_a1_unc()
         a1_stats_col.push_back(a1err/abs(a1));
 
         double a1_sys = sqrt(1.5*1.5+3*3) * 0.01;
-        double a1_norm = 3.5 * 0.01;
+        double a1_norm = 2.9 * 0.01;
         a1_sys_col.push_back(a1_sys);
         a1_norm_col.push_back(a1_norm);
 

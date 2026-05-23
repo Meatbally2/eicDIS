@@ -55,13 +55,13 @@ TStyle* ePIC_style()
   ePIC_style->SetTitleSize(g_tsize,"z");
 
   // use bold lines and markers
-  ePIC_style->SetMarkerStyle(20);
-  ePIC_style->SetMarkerSize(1.2);
+  // ePIC_style->SetMarkerStyle(20);
+  // ePIC_style->SetMarkerSize(1.2);
   ePIC_style->SetHistLineWidth(2.);
   ePIC_style->SetLineStyleString(2,"[12 12]"); // postscript dashes
 
   // get rid of error bar caps
-  ePIC_style->SetEndErrorSize(0.);
+  // ePIC_style->SetEndErrorSize(0.);
 
   // statistics
   ePIC_style->SetOptStat(0);

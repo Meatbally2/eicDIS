@@ -4,6 +4,7 @@
 #include "../GlobalUtil/DrawManager.cc"
 #include "../GlobalUtil/getBoost.h"
 // #include "../GlobalUtil/Constants.hh"
+#include "../GlobalUtil/luminosityTable.h"
 
 #include "kinematics.cc"
 #include "reconMethod.hh"
@@ -17,21 +18,29 @@ using ROOT::Math::LorentzRotation;
 enum {EL, JB, DA, SIG, ESIG, MC};
 
 void define_histograms();
-void plot_energy_and_track(TCanvas* &c1, TCanvas* &c2, TCanvas* &c3, TCanvas* &c4);
+void plot_energy_and_track();
+void format_pad();
+void format_hist(TH1* hist);
+void draw_eta_axis(TH1* hist);
+void ReverseXAxis(TH1 *h);
 
-TH1F* h_dEc[4];
-TH1F* h_dEt[4];
-TH1F* h_dPc[4];
-TH1F* h_dPt[4];
-TH1F* h_dt[4];
-TH1F* h_dp[4];
-TH2F* h_tde[2];
-TH2F* h_tdp[2];
-TH2F* h_tdphi;
-TH2F* h_pde;
-TH2F* h_ede;
-TH2F* h_pt;
-TH2F* h_et;
+DrawManager* draw_manager;
+
+struct EPQA
+{
+   TH1F* h_dE[4];
+   TH1F* h_dP[4];
+   TH1F* h_dtheta[4];
+   TH1F* h_dphi[4];
+
+   TH2F* h_dEvT[4];
+   TH2F* h_dPvT[4];
+
+   TH2F* h_dEvT_sum;
+   TH2F* h_dPvT_sum;
+};
+EPQA trackQA;
+EPQA clusterQA;
 
 TH1F* h_dhf[4];
 TH1F* h_dpt[4];

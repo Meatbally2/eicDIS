@@ -12,7 +12,7 @@ void load_function(TH2F* h_xq2, std::vector<std::vector<KEbin*>> &bins, std::str
     // if ( name == "he3" )
     //     name = "d";
 
-    std::ifstream fs_file(Form("fs_%s_table.txt", name.c_str()));
+    std::ifstream fs_file(Form("functions/fs_%s_table.txt", name.c_str()));
 
     std::string line;
     while ( getline(fs_file, line) )

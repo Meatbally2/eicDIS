@@ -32,6 +32,10 @@ class KEbin {
     double n_gen = 0;
     double n_acp = 0;
 
+    // systematics estimate
+    double frac_sys_err = sqrt(1.5*1.5+3*3) * 0.01;
+    double frac_norm_err = sqrt(1.5*1.5+1.5*1.5+2*2) * 0.01;
+
     // status -- good to proceed for calculation?
     bool is_averaged = false;
     bool use_weight = false;
@@ -51,6 +55,10 @@ class KEbin {
     double unc_ap = 0;
     double unc_a1 = 0;
     double unc_a2 = 0;
+    double sys_a1 = 0;
+    double norm_a1 = 0;
+    double sys_a2 = 0;
+    double norm_a2 = 0;
 
     double f1 = 0;
     double f2 = 0;
@@ -90,7 +98,7 @@ class KEbin {
     void set_n_raw(double n_raw_);
     void calc_cs(double lumi);
     void calc_accept();
-    void process_bin(double m_nucleon, double epol, double ipol);
+    void process_bin(double m_nucleon, double epol, double ipol, double a1);
 };
 
 KEbin::KEbin(double x, double Q2, double eE_, double nE_)
@@ -257,7 +265,7 @@ void KEbin::calc_cs(double lumi)
   return;
 }
 
-void KEbin::process_bin(double m_nucleon, double ePol, double iPol)
+void KEbin::process_bin(double m_nucleon, double ePol, double iPol, double a1)
 {
   // if ( !is_averaged )
   //   return;
@@ -338,11 +346,24 @@ void KEbin::process_bin(double m_nucleon, double ePol, double iPol)
   double a2p1 = xi / (D*(1+eta*xi));
   double a2p2 = 1 / (d*(1+eta*xi));
 
-  if ( n_events != 0 )
+  if ( n_events != 0 ) 
   {
+    // statistical error
     unc_ap = 1./(sqrt(n_events/2.) * ePol * iPol);
     unc_a1 = sqrt(pow(p1*unc_ap, 2) + pow(p2*unc_ap, 2));
     unc_a2 = sqrt(pow(a2p1*unc_ap, 2) + pow(a2p2*unc_ap, 2));
+
+    // measurement systematics
+    sys_a1 = a1 * frac_sys_err;
+    norm_a1 = a1 * frac_norm_err;
+    double sys_a_par = sys_a1 * D;
+    double norm_a_par = norm_a1 * D;
+    // sys_a2 = sqrt(pow(sys_a_par / (D*eta), 2) + pow(sys_a1/eta, 2));
+    // norm_a2 = sqrt(pow(norm_a_par / (D*eta), 2) + pow(norm_a1/eta, 2));
+    // sys_a2  = sqrt(pow(a2p1*sys_a_par, 2) + pow(a2p2*sys_a_par, 2));
+    // norm_a2 = sqrt(pow(a2p1*norm_a_par, 2) + pow(a2p2*norm_a_par, 2));
+    sys_a2 = sys_a1 * D / d;
+    norm_a2 = norm_a1 * D / d;
   }
 
   // cout << "a1 err " << unc_ap << " " << unc_a1 << endl;

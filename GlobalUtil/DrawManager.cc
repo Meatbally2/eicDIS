@@ -166,7 +166,8 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Double_t img_aspect = (Double_t)img_width / (Double_t)img_height;
 
         // Base logo height in NDC (at reference canvas size)
-        Double_t base_logo_height_ndc = 0.17;
+        // Double_t base_logo_height_ndc = 0.17;
+        Double_t base_logo_height_ndc = 0.15;
 
         // Scale the logo height based on canvas size
         Double_t logo_height = base_logo_height_ndc * scale_factor;
@@ -176,10 +177,10 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Double_t canvas_aspect = canvas_width / canvas_height;
         Double_t logo_width = logo_height * img_aspect / canvas_aspect;
 
-        if ( draw_position == 2 )
-        {
-            logo_width *= 3.0;  // Make logo wider for bottom-right position
-        }
+        // if ( draw_position == 2 )
+        // {
+        //     logo_width *= 3.0;  // Make logo wider for bottom-right position
+        // }
             
         // Create and draw logo pad
         TPad *logo_pad = new TPad("logo_pad", "logo_pad", 
@@ -222,7 +223,8 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         }
 
         TLatex Text_ePIC;
-        Text_ePIC.SetTextSize(0.065 * scale_factor);  // Text size also scales
+        // Text_ePIC.SetTextSize(0.065 * scale_factor);  // Text size also scales
+        Text_ePIC.SetTextSize(0.055 * scale_factor);  // Text size also scales
         Text_ePIC.SetTextFont(62);
         Text_ePIC.SetTextAlign(13);  // Top-left alignment
         if ( draw_position == 1 ) {

@@ -61,8 +61,9 @@ void fill_data(std::string type, asymm_data g1_col[], std::vector<int> qbin)
                 {
                     g1_col[i].x.push_back(x+x_shift);
                     g1_col[i].value.push_back(g1);
-                    // g1_col[i].error.push_back(g1err_all);
-                    g1_col[i].error.push_back(g1err);
+                    // g1_col[i].error_all.push_back(g1err_all);
+                    // g1_col[i].error.push_back(g1err);
+                    g1_col[i].error.push_back(g1err_all);
                 }
             }
         }
@@ -84,8 +85,8 @@ void format_pad()
 
 void compare_g1n()
 {
-    std::string type_title = "eHe3";
-    std::string energy_title = Form("%dx%d GeV", 10, 166);
+    std::string type_title = "e^{3}He";
+    std::string energy_title = Form("%dx%d GeV/A", 10, 166);
     DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
     draw_manager->SetEPIC();
     draw_manager->SetLumi(8.65);
@@ -154,6 +155,6 @@ void compare_g1n()
     // g1_n_ff_col[2].gr_data->SetMinimum(-0.2);
     // g1_n_ff_col[2].gr_data->SetMaximum(0.31);
 
-    draw_manager->LableAndCollectSpecial(c_g1);
+    draw_manager->LableAndCollect(c_g1,3);
     c_g1->SaveAs(Form("../data/en_25_10_2/compare_g1n_%s_%s.png", setting.c_str(), "n"));
 }

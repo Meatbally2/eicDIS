@@ -9,25 +9,43 @@
 
 const double ePol = 0.7;
 const double iPol = 0.7;
-// const double m_nucleon = 938.272088*1e-3;
-const double m_nucleon = MASS_NEUTRON;
 
-// const double e_lepton = 18;
-// const double e_nucleon = 110.;
-// std::string setting = "18x110";
-// double bin_shift = 0.0;
+double bin_shift = 0;
 
-const double e_lepton = 10;
-const double e_nucleon = 166.;
-std::string setting = "10x166";
-double bin_shift = 0.0;
-
-void asymm()
+void asymm(int beam_type, int Ee, int Eh)
 {
-	const int n_x_bin = 25;
-    const int n_q_bin = 25;
+    // ePIC plotting style setup
+    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
+    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    std::string campaign = beam_type ? "25.10.2" : "25.10.0";
+    if ( beam_type == 4 )
+        campaign = "25.10.4";
+    DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
+    draw_manager->SetEPIC();
 
-	TFile* file = new TFile(Form("../data/en_25_10_2/FullRecon_%dx%d.root", (int)e_lepton, (int)e_nucleon));
+    draw_manager->SetDISrange(0.01, 0.95, 4, 2);
+
+    double text_lumi = 1.0; // fb^-1
+    if ( beam_type == 0 && Ee == 10 && Eh == 166 )
+        text_lumi = 1.5; // fb^-1
+    if ( beam_type == 4 && Ee == 10 && Eh == 130 )
+        text_lumi = 1.0; // fb^-1
+    if ( beam_type == 4 && Ee == 10 && Eh == 250 )
+        text_lumi = 2.5; // fb^-1
+    draw_manager->SetLumi(text_lumi);
+     
+	const double m_nucleon = beam_type == 0 ? MASS_NEUTRON : MASS_PROTON;
+
+	std::string date = beam_type == 0 ? "en_25_10_2" : "ep_25_10_0";
+	if ( beam_type == 4 )
+		date = "ep_25_10_4";
+	TFile* file = new TFile(Form("../data/%s/FullRecon_%dx%d_new.root", date.c_str(), (int)Ee, (int)Eh));
+	if ( !file )
+	{
+		std::cout << "file not found" << std::endl;
+		return;
+	}
+
 	TH2F* h_xq2 = (TH2F*) file->Get("H_XQ_REC");
 	// TH2F* h_xq2 = (TH2F*) file->Get("h_xq2_mc_n");
 
@@ -37,7 +55,7 @@ void asymm()
 		return;
 	}
 
-	std::vector<std::vector<KEbin*>> bins = create_bins(h_xq2, e_lepton, e_nucleon);
+	std::vector<std::vector<KEbin*>> bins = create_bins(h_xq2, Ee, Eh);
 
 	for ( int ix = 0; ix < h_xq2->GetXaxis()->GetNbins(); ix ++ )
     {
@@ -56,7 +74,7 @@ void asymm()
 	set_2d_scale(h_xq2);
 	TCanvas* c_xq = draw_2d_standard(h_xq2, "c_xq", "n events", 650, 600, true, true);
 
-	double Q2max = 4*e_nucleon*e_lepton;
+	double Q2max = 4*Eh*Ee;
 	double nu_max = Q2max/(2*m_nucleon);
 
 	std::vector<TLatex*> t_a1_x;
@@ -68,7 +86,8 @@ void asymm()
 	std::vector<std::vector<double>> a1_col_low_acp;
 	std::vector<std::vector<double>> er_col_low_acp;
 
-	ofstream outfile(Form("../data/en_25_10_2/%s_xq2_n_collection.txt", setting.c_str()));
+	std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
+	ofstream outfile(beam_type == 0 ? Form("../data/%s/%s_xq2_n_collection_new.txt", date.c_str(), setting.c_str()) : Form("../data/%s/%s_xq2_p_collection_new.txt", date.c_str(), setting.c_str()));
 
 	for ( int ix = 0; ix < h_xq2->GetXaxis()->GetNbins(); ix ++ )
 	{
@@ -86,18 +105,27 @@ void asymm()
 			if ( !bins[ix][iq]->is_averaged )
 				continue;
 
+			double x = h_xq2->GetXaxis()->GetBinCenter(ix+1);
+			double q = h_xq2->GetYaxis()->GetBinCenter(iq+1);
+			double print_a1 = beam_type == 0 ? find_a1n(x, q) : find_a1p(x, q);
+			double a1 = print_a1 - 3 * TMath::Log10(x);
+
 			// cout << h_xq2->GetXaxis()->GetBinCenter(ix+1) << " " << h_xq2->GetYaxis()->GetBinCenter(iq+1) << endl;
-			bins[ix][iq]->process_bin(m_nucleon, ePol, iPol);
+			if ( beam_type == 0 )
+				bins[ix][iq]->process_bin(m_nucleon, ePol, iPol, print_a1);
+			else
+				bins[ix][iq]->process_bin(m_nucleon, ePol, iPol, print_a1);
 			// cout <<  " end bin " << endl;
 
 			if ( bins[ix][iq]->y <= 0.01 || bins[ix][iq]->y >= 0.95)
 				continue;
 
-			double x = h_xq2->GetXaxis()->GetBinCenter(ix+1);
-			double q = h_xq2->GetYaxis()->GetBinCenter(iq+1);
-			double print_a1 = find_a1n(x, q);
-			double a1 = print_a1 - 3 * TMath::Log10(x);
 			double err = bins[ix][iq]->unc_a1;
+			double a2err = bins[ix][iq]->unc_a2;
+			double a1_sys = bins[ix][iq]->sys_a1;
+			double a1_norm = bins[ix][iq]->norm_a1;
+			double a2_sys = bins[ix][iq]->sys_a2;
+			double a2_norm = bins[ix][iq]->norm_a2;
 
 			last_bin_width = h_xq2->GetYaxis()->GetBinWidth(iq+1);
 
@@ -114,7 +142,7 @@ void asymm()
 				er_set_low_acp.push_back(err);
 			}
 			
-			outfile << x << " " << q << " " << bins[ix][iq]->n_events << " " << print_a1 << " " << err << std::endl;
+			outfile << x << " " << q << " " << bins[ix][iq]->n_events << " " << print_a1 << " " << err << " " << a2err << " " << a1_sys << " " << a1_norm << " " << a2_sys << " " << a2_norm << std::endl;
 			
 			if ( x_first == 0)
 				x_first = x;
@@ -171,7 +199,10 @@ void asymm()
 		// g->SetTitle(Form("x = %f", x_col[i]));
 		gStyle->SetTitleFontSize(0.08);
 		g->GetXaxis()->SetTitle(Form("Q^{2} (GeV/c^{2})^{2}"));
-		g->GetYaxis()->SetTitle(Form("A_{1}^{n} - 3 #times log_{10}(x)"));
+		if ( beam_type == 0 )
+			g->GetYaxis()->SetTitle(Form("A_{1}^{n} - 3 #times log_{10}(x)"));
+		else
+			g->GetYaxis()->SetTitle(Form("A_{1}^{p} - 3 #times log_{10}(x)"));
 		// g->GetYaxis()->SetTitle(Form("A_{1}^{p}"));
 		g_a1_q2.push_back(g);
 		format_graph(g);
@@ -259,7 +290,7 @@ void asymm()
 		t_a1_x[i]->Draw("SAME");
 
 	TLegend* leg = new TLegend(0.6, 0.80, 0.88, 0.88);
-	leg->AddEntry(g_a1_q2[0], Form("%.0f #times %0.f GeV", e_lepton, e_nucleon), "PE");
+	leg->AddEntry(g_a1_q2[0], Form("%d #times %d GeV", Ee, Eh), "PE");
 	leg->SetTextSize(0.03);
 	leg->SetBorderSize(0);
 	leg->SetFillColor(0);

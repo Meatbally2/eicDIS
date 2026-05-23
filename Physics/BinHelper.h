@@ -36,6 +36,7 @@ void load_bins_from_text_simple(std::string file, TH2F* h_xq2, std::vector<std::
 
         std::stringstream ss(line);
         ss >> x >> q2 >> n;
+        // std::cout << x << " " << q2 << " " << n << std::endl;
 
         int xbin = h_xq2->GetXaxis()->FindBin(x);
         int qbin = h_xq2->GetYaxis()->FindBin(q2);
@@ -70,6 +71,7 @@ void load_bins_from_text(std::string file, TH2F* h_xq2, std::vector<std::vector<
 
         std::stringstream ss(line);
         ss >> x >> q2 >> weighted_x >> weighted_q2 >> y >> nu >> n >> n_raw;
+        std::cout << x << " " << q2 << " " << n << std::endl;
 
         int xbin = h_xq2->GetXaxis()->FindBin(x);
         int qbin = h_xq2->GetYaxis()->FindBin(q2);

@@ -23,12 +23,7 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     starting_file = starting_file_index_*step;
     beam_type = beam_type_;
 
-    if ( beam_type == EP_PYTHIA6 )
-        campaign = "25.10.4";
-    else if ( beam_type == EP_DVMP )
-        campaign = "25.10.3";
-    else
-        campaign = "26.02.0";
+     campaign = "26.03.1";
     
     return;
 }

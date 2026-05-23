@@ -41,8 +41,16 @@ void fill_data(std::string type, asymm_data a1_col[], std::vector<int> qbin)
     std::string file_type = type;
     if ( type == "p" )
         file_type = "n";
+    if ( type == "he3" )
+        file_type = "he3";
 
-    std::ifstream file(Form("../data/en_25_10_2/%s_xq2_%s_asymm_table.txt", setting.c_str(), file_type.c_str()));
+    std::string prefix;;
+    if ( type == "he3" || type == "n" )
+        prefix = "eHe3_";
+
+    std::ifstream file(Form("../data/en_25_10_2/%s%s_xq2_%s_asymm_table.txt", prefix.c_str(), setting.c_str(), file_type.c_str()));
+
+    cout << Form("../data/en_25_10_2/%s_%s_xq2_%s_asymm_table.txt", prefix.c_str(), setting.c_str(), file_type.c_str()) << endl;
 
     std::string line;
     while ( getline(file, line) )
@@ -105,10 +113,10 @@ void format_pad()
 
 void compare_unc()
 {
-    std::string type_title = "eHe3";
-    std::string energy_title = Form("%dx%d GeV", 10, 166);
+    std::string type_title = "e^{3}He";
+    std::string energy_title = Form("%dx%d GeV/A", 10, 166);
     DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
-    draw_manager->SetEPIC();
+    draw_manager->SetEPIC("Performance");
     draw_manager->SetLumi(8.65);
 
     std::vector<int> qbin;

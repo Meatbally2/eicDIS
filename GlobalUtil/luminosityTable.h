@@ -145,7 +145,7 @@ double get_lumi( int beam_type, int Ee, int Eh, int group, int ev0, int ev1 )
             //     std::cout << "Process " << i << ", cross section: " << cs[i] << " fb, gen lumi: " << gen_lumi << " fb^-1" << std::endl;
             // }
 
-            double gen_lumi = ev0/cs[group];
+            double gen_lumi = ev0/(cs[group]*(1e-34/1e-43));
             return gen_lumi;
         }
 
@@ -170,10 +170,15 @@ double get_lumi( int beam_type, int Ee, int Eh, int group, int ev0, int ev1 )
             //     double gen_lumi = ev[i][0]/cs[i];
             //     lumi.push_back(gen_lumi);
                 
-            //     std::cout << "Process " << i << ", cross section: " << cs[i] << " fb, gen lumi: " << gen_lumi << " fb^-1" << std::endl;
+                // double gen_lumi = 500000./(cs[group]*(1e-34/1e-43));
+                // std::cout << "Process " << group << ", cross section: " << cs[group] << " gen lumi: " << gen_lumi << " fb^-1" << std::endl;
             // }
 
-            double gen_lumi = ev0/cs[group];
+            double gen_lumi = ev0/(cs[group]*(1e-34/1e-43));
+            // gen_lumi = ev0/(cs[group]*(1e-34/1e-43));
+
+            // std::cout << "ev0 " << ev0 << " " << gen_lumi << " fb^-1" << std::endl;
+
             return gen_lumi;
         }
     }

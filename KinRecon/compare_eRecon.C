@@ -3,17 +3,30 @@
 #include "../GlobalUtil/drawHelper.h"
 // #include "GlobalUtil/bin.h"
 
-// std::string setting = "18x275";
-std::string setting = "10x166";
+const std::string group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
-void compare_eRecon()
+void compare_eRecon(int beam_type, int Ee, int Eh)
 {
-    std::string type_title = "e^{3}He";
-    std::string energy_title = Form("%dx%d GeV", 10, 166);
-    DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
+    // ePIC plotting style setup
+    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
+    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    std::string campaign = beam_type ? "25.10.0" : "25.10.2";
+    if ( beam_type == 4 )
+        campaign = "25.10.4";
+    DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
     draw_manager->SetEPIC();
 
-    TFile* f = new TFile(Form("eHe3_%s_ReconStats.root",setting.c_str()));
+    double text_lumi = 10; // fb^-1
+    if ( beam_type == 0 && Ee == 10 && Eh == 166 )
+        text_lumi = 8.65; // fb^-1
+    if ( beam_type == 4 && Ee == 10 && Eh == 130 )
+        text_lumi = 5.33; // fb^-1
+    if ( beam_type == 4 && Ee == 10 && Eh == 250 )
+        text_lumi = 9.18; // fb^-1
+    draw_manager->SetLumi(text_lumi);
+
+    std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
+    TFile* f = new TFile(Form("%s_ReconStats.root", setting.c_str()));
     if( f == NULL )
     {
         printf("File not found!\n");
@@ -44,7 +57,7 @@ void compare_eRecon()
     for ( int i = 0; i < 5; i ++ )
         g_recon[i] = new TGraph();
 
-    ofstream outfile(Form("%s_eID_selection_temp.txt", setting.c_str()));
+    ofstream outfile(Form("%s_eID_selection_test.txt", setting.c_str()));
     
     for ( int ix = 0; ix < h_xq2_eff->GetXaxis()->GetNbins(); ix ++ )
     {
@@ -83,8 +96,8 @@ void compare_eRecon()
     // c_selected->SetLogy();
     h_xq2->Draw();
 
-    TLegend* leg = new TLegend(0.15, 0.52, 0.55, 0.72);
-    leg->SetTextSize(0.03);
+    TLegend* leg = new TLegend(0.18, 0.46, 0.55, 0.66);
+    leg->SetTextSize(0.042);
 	leg->SetBorderSize(0);
 	leg->SetFillColor(0);
     leg->SetFillStyle(0);
@@ -155,5 +168,5 @@ void compare_eRecon()
     // g_yline[n_line]->Draw("SAME L");
 
     draw_manager->LableAndCollect(c_selected);
-    c_selected->SaveAs(Form("../data/en_25_10_2/eID_selection_%dx%d.png", 10, 166));
+    // c_selected->SaveAs(Form("../data/en_25_10_2/eID_selection_%dx%d.png", Ee, Eh));
 }

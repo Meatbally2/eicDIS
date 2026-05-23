@@ -112,7 +112,7 @@ void print_he3_a1()
     double q_last = 0;
     double a1_last = 0;
 
-    ofstream outfile(Form("../data/en_25_10_2/%s_xq2_he3_asymm_table.txt", setting.c_str()));
+    ofstream outfile(Form("../data/en_25_10_2/eHe3_%s_xq2_he3_asymm_table.txt", setting.c_str()));
 
     for ( int ix = 0; ix < h_xq2->GetXaxis()->GetNbins(); ix ++ )
     {
@@ -121,16 +121,17 @@ void print_he3_a1()
             if ( !bins[ix][iq]->is_averaged )
                 continue;
 
-            bins[ix][iq]->process_bin(m_nucleon, ePol, iPol);
-
-            if ( bins[ix][iq]->y <= 0.01 || bins[ix][iq]->y >= 0.95)
-                continue;
-
             double x = h_xq2->GetXaxis()->GetBinCenter(ix+1);
             double q2 = h_xq2->GetYaxis()->GetBinCenter(iq+1);
 
             double func_a1 = find_a1_he3(x, q2, bins[ix][iq]->f2p, bins[ix][iq]->f2n, bins[ix][iq]->f2_he3);
             double a1 = func_a1 - 3 * TMath::Log10(x);
+
+            bins[ix][iq]->process_bin(m_nucleon, ePol, iPol, a1);
+
+            if ( bins[ix][iq]->y <= 0.01 || bins[ix][iq]->y >= 0.95)
+                continue;
+
             double err = bins[ix][iq]->unc_a1;
 
             // cout << x << " " << q2 << " " << bins[ix][iq]->f2p << " " << bins[ix][iq]->f2n << " " << bins[ix][iq]->f2_he3 << " " << func_a1 << endl;

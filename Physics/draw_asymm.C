@@ -12,15 +12,6 @@
 // std::string setting = "18x275";
 // const double m_nucleon = MASS_PROTON;
 
-
-std::string type = "n";
-const double e_lepton = 10;
-const double e_nucleon = 166.;
-std::string setting = "10x166";
-const double m_nucleon = MASS_NEUTRON;
-
-
-
 const double ePol = 0.7;
 const double iPol = 0.7;
 
@@ -61,23 +52,35 @@ void format_low(TGraphErrors* &g)
     return;
 }
 
-void draw_asymm()
+void draw_asymm(int beam_type, int Ee, int Eh)
 {
-    std::string type_title = "eHe3";
-    std::string energy_title = Form("%dx%d GeV", 10, 166);
-    DrawManager* draw_manager = new DrawManager(type_title, energy_title, "25.10.2");
+    // ePIC plotting style setup
+    std::string type_title[3] = {"e^{3}He", "ep", "#gammap"};
+    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
+    std::string campaign = beam_type ? "25.10.0" : "25.10.2";
+    DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
     draw_manager->SetEPIC();
-    draw_manager->SetLumi(8.65);
 
-    std::string type = m_nucleon == MASS_NEUTRON ? "n" : "p";
+    std::cout << "Drawing asymmetry for " << type_title[beam_type] << " at " << energy_title << std::endl;
+
+    double text_lumi = 10; // fb^-1
+    if ( beam_type == 0 && Ee == 10 && Eh == 166 )
+        text_lumi = 8.65; // fb^-1
+    // draw_manager->SetLumi(text_lumi);
+
+    const double m_nucleon = beam_type == 0 ? MASS_NEUTRON : MASS_PROTON;
+    std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
+    std::string type = beam_type == 0 ? "n" : "p";
+    
+    //
 
     TH2F* h_xq2 = BookTH2("xq2",  ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
 
-    std::vector<std::vector<KEbin*>> bins = create_bins(h_xq2, e_lepton, e_nucleon);
-    if ( type == "p" )
-        load_bins_from_text(Form("../data/en_25_10_2/%s_xq2_collection.txt", setting.c_str()), h_xq2, bins);
+    std::vector<std::vector<KEbin*>> bins = create_bins(h_xq2, Ee, Eh);
+    if ( beam_type > 0 )
+        load_bins_from_text(Form("../data/ep_25_10_0/%s_xq2_collection.txt", setting.c_str()), h_xq2, bins);
     else
-        load_bins_from_text_simple(Form("../data/en_25_10_2/%s_xq2_%s_collection.txt", setting.c_str(), type.c_str()), h_xq2, bins);
+        load_bins_from_text_simple(Form("../data/en_25_10_2/%s_xq2_n_collection.txt", setting.c_str()), h_xq2, bins);
 
     asymm_data a1_col;
 
@@ -102,10 +105,12 @@ void draw_asymm()
             double x = h_xq2->GetXaxis()->GetBinCenter(ix+1);
 			double q = h_xq2->GetYaxis()->GetBinCenter(iq+1);
 
-            double a1 = type == "p" ? find_a1p(x, q) : find_a1n(x, q);
+            double a1 = beam_type > 0 ? find_a1p(x, q) : find_a1n(x, q);
             double a1err = bins[ix][iq]->unc_a1;
+            // double a1sys = a1 * sqrt(1.5*1.5+3*3) * 0.01;
             double a1sys = a1 * sqrt(1.5*1.5+3*3) * 0.01;
-            double a1norm = a1 * 3.5 * 0.01;
+            // double a1norm = a1 * 3.5 * 0.01;
+            double a1norm = a1 * 4.7 * 0.01;
 
             a1 = a1 - 3 * TMath::Log10(x);
         
@@ -181,11 +186,12 @@ void draw_asymm()
     a1_col.gr_data->SetTitle("");
     gStyle->SetTitleFontSize(0.08);
     a1_col.gr_data->GetXaxis()->SetTitle(Form("Q^{2} (GeV/c^{2})^{2}"));
-    a1_col.gr_data->GetYaxis()->SetTitle(Form("A_{1}^{%s} - 3 #times log_{10}(x)", type.c_str()));
+    std::string a1type = beam_type == 0 ? "n" : "p";
+    a1_col.gr_data->GetYaxis()->SetTitle(Form("A_{1}^{%s} - 3 #times log_{10}(x)", a1type.c_str()));
     format_graph(a1_col.gr_data);
     a1_col.gr_data->SetMinimum(0);
 	a1_col.gr_data->SetMaximum(13);
-    if ( type == "n" )
+    if ( a1type == "n" )
         a1_col.gr_data->SetMaximum(11);
 	a1_col.gr_data->GetXaxis()->SetLimits(1,2e5);
 
@@ -217,12 +223,12 @@ void draw_asymm()
     for ( auto t : a1_col.text_x )
         t->Draw("SAME");
 
-    TLegend* leg = new TLegend(0.55, 0.55, 0.85, 0.78);
+    TLegend* leg = new TLegend(0.58, 0.55, 0.88, 0.75);
     // leg->SetHeader(Form("%.0f #times %0.f GeV", e_lepton, e_nucleon), "C");
 	leg->AddEntry(a1_col.gr_data, "Statistical unc." , "E");
     leg->AddEntry(a1_col.gr_sys, "Point-by-point sys." , "E");
     leg->AddEntry(a1_col.gr_norm[0], "Normalization sys." , "F");
-    leg->AddEntry(a1_col.gr_low, Form("Lower statistics"), "P");
+    leg->AddEntry(a1_col.gr_low, Form("#deltaA_{1} > 0.25"), "P");
 	leg->SetTextSize(0.03);
 	leg->SetBorderSize(0);
 	leg->SetFillColor(0);
@@ -231,10 +237,10 @@ void draw_asymm()
     // SetePICStyle();
     // c_a1->Update();
 
-    // set_2d_scale(h_xq2);
-    // TCanvas* c_xq = draw_2d_standard(h_xq2, "c_xq", "all events", 650, 600, true, true);
+    set_2d_scale(h_xq2);
+    TCanvas* c_xq = draw_2d_standard(h_xq2, "c_xq", "all events", 650, 600, true, true);
 
-    draw_manager->LableAndCollectSpecial2(c_a1);
+    draw_manager->LableAndCollect(c_a1, 4);
     c_a1->SaveAs(Form("../data/en_25_10_2/asymm_a1_%s_%s.png", type.c_str(), setting.c_str()));
-    c_a1->SaveAs(Form("../data/en_25_10_2/asymm_a1_%s_%s.pdf", type.c_str(), setting.c_str()));
+    // c_a1->SaveAs(Form("../data/en_25_10_2/asymm_a1_%s_%s.pdf", a1type.c_str(), setting.c_str()));
 }
