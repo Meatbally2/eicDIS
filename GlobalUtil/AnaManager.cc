@@ -165,7 +165,7 @@ vector<std::string> AnaManager::GetInputNames()
         else if ( beam_type == BEAM_BG )
         {
             // std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
-            std::string gen_group = "Bkg_Exact1S_2us/GoldCt/5um/DIS/NC/"; 
+            std::string gen_group = "Bkg_Exact1S_2us/GoldCt/10um/DIS/NC/"; 
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = "minQ2=1/";
             target = gen_group + beam_group + sample_group;
@@ -220,7 +220,7 @@ vector<std::string> AnaManager::GetInputNames()
             if ( beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
                 compare = line.compare(scope.size(), target.size(), target);
 
-            if ( campaign == "26.02.0" )
+            if ( campaign == "26.03.1" )
                 compare = line.compare(address.size()+prefix.size(), target.size(), target);
             
             if ( compare != 0 )
