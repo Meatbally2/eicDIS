@@ -126,12 +126,6 @@ vector<std::string> AnaManager::GetInputNames()
 
         // std::cout << " r " << r << std::endl;
         
-        // std::string file_name;
-        // if ( beam_type )
-        //     file_name = Form("../data/ep_25_05_0/18x275minQ2=%.0f_filelist.txt", pow(10,r));
-        // else
-        //     file_name = Form("../data/en_25_05_0/10x166minQ2=%.0f_filelist.txt", pow(10,r));
-
         std::string target;
         if ( beam_type == EHE3 )
         {
@@ -213,15 +207,7 @@ vector<std::string> AnaManager::GetInputNames()
             ss >> fname;
             // fname.erase(0, 5);
 
-            int compare = line.compare(prefix.size(), target.size(), target);
-            // std::cout << "checking: " << line.substr(address.size()+prefix.size(), target.size()) << std::endl;
-            // std::cout << "compare: " << compare << std::endl;
-
-            if ( beam_type == EP_PYTHIA6 || beam_type == EP_DVMP )
-                compare = line.compare(scope.size(), target.size(), target);
-
-            if ( campaign == "26.03.1" )
-                compare = line.compare(address.size()+prefix.size(), target.size(), target);
+            int compare = line.compare(address.size()+prefix.size(), target.size(), target);
             
             if ( compare != 0 )
                 continue;
@@ -243,12 +229,7 @@ vector<std::string> AnaManager::GetInputNames()
                     break;
             }
                 
-            // inFiles.push_back(address+fname);
-            if ( beam_type == EP_PYTHIA6 || beam_type == EP_DVMP)
-                inFiles.push_back(address+prefix+line.erase(0, scope.size()));
-            else
-                // inFiles.push_back(address+line);
-                inFiles.push_back(line);
+            inFiles.push_back(line);
 
             // std::cout << "File " << total_file << ": " << fname << std::endl;
             //  std::cout << "File " << total_file << ": " << address+line << std::endl;
