@@ -5,7 +5,7 @@ const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
 const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
 // const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
-const std::string address =  "root://dtn-eic.jlab.org:1094/";
+std::string address =  "root://dtn-eic.jlab.org:1094/";
 
 const int step = 200; // number of files to process in one batch
 
@@ -23,8 +23,20 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     starting_file = starting_file_index_*step;
     beam_type = beam_type_;
 
-     campaign = "26.03.1";
-    
+    campaign = "26.03.1";
+
+    if ( Ee == 10 && Eh == 100 && beam_type == EP_PYTHIA6 )
+    {
+        campaign = "26.04.1";
+        address = "root://epicxrd1.sdcc.bnl.gov:1095/";
+    }
+
+    if ( beam_type == PI_BG )
+    {
+        campaign = "26.03.0";
+        address = "root://epicxrd1.sdcc.bnl.gov:1095/";
+    }
+
     return;
 }
 
@@ -114,7 +126,8 @@ vector<std::string> AnaManager::GetInputNames()
     // std::string file_name = "../data/test.txt";
     
     std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
-    // std::string phys_group = "/epic_craterlake/DIS/";
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG) )
+        prefix = "/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
 
     std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
 
@@ -167,6 +180,10 @@ vector<std::string> AnaManager::GetInputNames()
         else if ( beam_type == EP_PYTHIA6 )
         {
             std::string gen_group = "DIS/pythia6.428-1.0/NC/noRad/ep/"; 
+
+            if ( Ee == 10 && Eh == 100 )
+                gen_group = "SIDIS/pythia6-eic/1.2.0/ep_noradcor/";
+
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+1));
             target = gen_group + beam_group + sample_group;

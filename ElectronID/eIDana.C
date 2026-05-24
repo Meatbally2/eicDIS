@@ -10,8 +10,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
     // Standard setup
     AnaManager* ana_manager = new AnaManager("eid");
-    ana_manager->Initialize(select_region, sr, file0, beam_type);
     ana_manager->SetBeamEnergy(Ee, Eh);
+    ana_manager->Initialize(select_region, sr, file0, beam_type);
     // ana_manager->InitializeForLocal(ev_type);
 
     std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep DVMP"};
