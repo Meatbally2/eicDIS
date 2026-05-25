@@ -68,6 +68,9 @@ std::string AnaManager::GetOutputName()
     std::string prefix[7] = {"eHe3", "ep", "piBG", "beamBG", "ep", "epDVMP", "ep"};
     outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
+    if ( beam_type == PI_BG )
+        outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, "minQ2=0", ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
+
     return outname;
 }
 
