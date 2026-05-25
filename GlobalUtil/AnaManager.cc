@@ -176,12 +176,18 @@ vector<std::string> AnaManager::GetInputNames()
         else if ( beam_type == EP_PYTHIA6 )
         {
             std::string gen_group = "DIS/pythia6.428-1.0/NC/noRad/ep/"; 
-
-            if ( Ee == 10 && Eh == 100 )
-                gen_group = "SIDIS/pythia6-eic/1.2.0/ep_noradcor/";
-
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+1));
+
+            if ( Ee == 10 && Eh == 100 )
+            {
+                gen_group = "SIDIS/pythia6-eic/1.2.0/ep_noradcor/";
+
+                if ( r == 3 )
+                    sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+2));
+            }
+                
+
             target = gen_group + beam_group + sample_group;
         }
         else if ( beam_type == EP_DVMP )
