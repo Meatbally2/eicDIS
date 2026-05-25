@@ -25,7 +25,7 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
 
     campaign = "26.03.1";
 
-    if ( Ee == 10 && Eh == 100 && beam_type == EP_PYTHIA6 )
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
     {
         campaign = "26.04.1";
         address = "root://epicxrd1.sdcc.bnl.gov:1095/";
@@ -93,13 +93,6 @@ vector<std::string> AnaManager::GetLowQInputNames()
 
     for ( int r = 0; r <= 1709; r ++ )
     {
-        // if ( starting_file < 0 )
-        //     if ( r > 10 )
-        //         break;
-
-        if ( r == 1519 )
-            continue;
-
         std::string fname = Form("epic:/RECO/25.05.0/epic_craterlake/SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run9.ab.%04d.eicrecon.edm4eic.root", r);
         fname.erase(0, 5);
         std::cout << "File " << r << " : " << fname << std::endl;
@@ -116,7 +109,7 @@ vector<std::string> AnaManager::GetInputNames()
     std::vector<std::string> inFiles;
 
     int n_set = beam_type ? 4 : 3;
-    if ( beam_type == BEAM_BG || beam_type == EP_DVMP )
+    if ( beam_type == EP_DVMP )
         n_set = 1;
     
     int total_file = 0;
@@ -126,7 +119,7 @@ vector<std::string> AnaManager::GetInputNames()
     // std::string file_name = "../data/test.txt";
     
     std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG) )
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG) )
         prefix = "/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
 
     std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
@@ -174,7 +167,7 @@ vector<std::string> AnaManager::GetInputNames()
             // std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
             std::string gen_group = "Bkg_Exact1S_2us/GoldCt/10um/DIS/NC/"; 
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = "minQ2=1/";
+            std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
             target = gen_group + beam_group + sample_group;
         }
         else if ( beam_type == EP_PYTHIA6 )
