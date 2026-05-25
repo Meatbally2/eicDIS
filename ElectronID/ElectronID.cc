@@ -4,6 +4,7 @@
 #include "edm4eic/ClusterCollection.h"
 
 #include <iostream>
+#include <unordered_set>
 
 #include <Math/LorentzVector.h>
 using ROOT::Math::PxPyPzEVector;
@@ -66,6 +67,11 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	else_det.clear();
 	det_val.clear();
 	// std::cout << "** Event set in ElectronID. " << std::endl;
+
+	meMCValid = false;
+	meMC = edm4hep::MCParticleCollection();
+	meMC.setSubsetCollection();
+
 	return;
 }
 
@@ -84,7 +90,7 @@ edm4hep::MCParticle ElectronID::GetMC(edm4eic::ReconstructedParticle e_rec) {
 
 int ElectronID::Check_eID(edm4eic::ReconstructedParticle e_rec) {
 
-	edm4hep::MCParticleCollection meMC = GetMCElectron();
+	const auto& meMC = GetMCElectron();
 	if ( meMC.size() == 0 )
 		return 86; // No MC electron found
 
@@ -239,7 +245,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 
 	std::vector<edm4hep::MCParticle> mc_hadronic;
-	edm4hep::MCParticleCollection meMC = GetMCElectron();
+	const auto& meMC = GetMCElectron();
 
 	bool found_scattered_e = false; 
 	for(const auto& mcp : mcparts) {
@@ -255,16 +261,17 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 	return mhMC;
 }
 
-edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
-
-	edm4hep::MCParticleCollection meMC;
-	meMC.setSubsetCollection();
+const edm4hep::MCParticleCollection& ElectronID::GetMCElectron(){
 	
-	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
-	if ( eScatIndex != -1 )
-		meMC.push_back(mcparts[eScatIndex]);
+	if (meMCValid)
+		return meMC;
+
+	meMC = edm4hep::MCParticleCollection();
+    meMC.setSubsetCollection();
 
 	////
+
+	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 
 	for (const auto& mcp : mcparts) 
 	{
@@ -274,20 +281,32 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 		std::vector<edm4hep::MCParticle> stack;
 		stack.insert(stack.end(), mcp.getDaughters().begin(), mcp.getDaughters().end());
 
+		std::unordered_set<int> visited;
+		constexpr std::size_t kMaxExpandedNodes = 100000;
+		std::size_t expanded_nodes = 0;
+
 		int shortest_gen = 999;
 		int generations = 0;
 		edm4hep::MCParticle meMC_candidates;
 		bool found_candidate = false;
 
-		while (!stack.empty() ) {
+		while (!stack.empty()) {
+			if (++expanded_nodes > kMaxExpandedNodes) {
+				std::cerr << "Warning: GetMCElectron traversal reached safety limit for root index "
+						<< mcp.getObjectID().index << std::endl;
+				break;
+			}
+
 			generations++;
 			auto cur = stack.back();
 			stack.pop_back();
 
+			const int cur_idx = cur.getObjectID().index;
+			if (cur_idx >= 0 && !visited.insert(cur_idx).second)
+				continue;
+
 			if (cur.getPDG() == 11 && cur.getGeneratorStatus() == 1) {
-				
-				if ( generations < shortest_gen )
-				{
+				if (generations < shortest_gen) {
 					shortest_gen = generations;
 					meMC_candidates = cur;
 					found_candidate = true;
@@ -297,7 +316,11 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 
 			const auto& kids = cur.getDaughters();
 			if (!kids.empty()) {
-				stack.insert(stack.end(), kids.begin(), kids.end());
+				for (const auto& kid : kids) {
+					const int kid_idx = kid.getObjectID().index;
+					if (kid_idx < 0 || visited.find(kid_idx) == visited.end())
+						stack.push_back(kid);
+				}
 			}
 		}
 
@@ -305,6 +328,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCElectron() {
 			meMC.push_back(meMC_candidates);
 	}
 
+	meMCValid = true;
 	return meMC;
 }
 
@@ -312,7 +336,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
 
 	// cout << "New process " << endl;
 
-	const edm4hep::MCParticleCollection meMC = GetMCElectron();
+	const auto& meMC = GetMCElectron();
 	edm4eic::ReconstructedParticleCollection meRecon;
 	meRecon.setSubsetCollection();
 

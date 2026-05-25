@@ -34,7 +34,7 @@ public:
 	edm4eic::ReconstructedParticleCollection FindHadronicFinalState(int object_id);
 	edm4eic::ReconstructedParticleCollection FindScatteredElectron();	
 	edm4eic::ReconstructedParticleCollection GetTruthReconElectron();	
-	edm4hep::MCParticleCollection GetMCElectron();	
+	const edm4hep::MCParticleCollection& GetMCElectron();	
 	edm4hep::MCParticleCollection GetMCHadronicFinalState();
 	edm4eic::ReconstructedParticle SelectHighestPT(const edm4eic::ReconstructedParticleCollection& rcparts);
 	double GetCalorimeterEnergy(const edm4eic::ReconstructedParticle& rcp);
@@ -71,6 +71,9 @@ public:
 	vector<DetValues> else_det;
 
 	double rcpart_n_clusters;
+
+	bool meMCValid = false;
+	edm4hep::MCParticleCollection meMC;
 
 private:
 
