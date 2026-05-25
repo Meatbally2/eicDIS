@@ -70,7 +70,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
         podio::Frame event(std::move(raw));
         eFinder->SetEvent(&event);
 
-        // if(ev%100==0) 
+        if(ev%100==0) 
             cout << "Analysing event " << ev << "/" << reader->getEntries("events") << endl;
 
         // Generator information (mcID)
