@@ -115,7 +115,7 @@ vector<std::string> AnaManager::GetInputNames()
     std::vector<std::string> inFiles;
 
     int n_set = beam_type ? 4 : 3;
-    if ( beam_type == EP_DVMP && beam_type == PI_BG)
+    if ( beam_type == EP_DVMP || beam_type == PI_BG)
         n_set = 1;
     
     int total_file = 0;
@@ -129,6 +129,8 @@ vector<std::string> AnaManager::GetInputNames()
         prefix = "/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
 
     std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
+
+    std::cout << "n_set: " << n_set << std::endl;
 
     for ( int r = 0; r < n_set; r ++ )
     {
