@@ -115,7 +115,7 @@ vector<std::string> AnaManager::GetInputNames()
     std::vector<std::string> inFiles;
 
     int n_set = beam_type ? 4 : 3;
-    if ( beam_type == EP_DVMP )
+    if ( beam_type == EP_DVMP && beam_type == PI_BG)
         n_set = 1;
     
     int total_file = 0;
