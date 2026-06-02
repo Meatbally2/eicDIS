@@ -28,7 +28,7 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     if ( beam_type == EP )
         campaign = "26.04.1";
 
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG || beam_type == EP) )
     {
         campaign = "26.04.1";
         address = "root://epicxrd1.sdcc.bnl.gov:1095/";
@@ -125,7 +125,7 @@ vector<std::string> AnaManager::GetInputNames()
     // std::string file_name = "../data/test.txt";
     
     std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG) )
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG || beam_type == EP) )
         prefix = "/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
 
     std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
@@ -210,7 +210,7 @@ vector<std::string> AnaManager::GetInputNames()
 
         // std::cout << "prefix: " << prefix << std::endl;
         // std::cout << "prefix size: " << prefix.size() << " target size: " << target.size() << std::endl; 
-        std::cout << "searching: " << target << std::endl;    
+        std::cout << "searching: " << campaign << " .. " << target << std::endl;    
 
    
         std::ifstream data_file(file_name);

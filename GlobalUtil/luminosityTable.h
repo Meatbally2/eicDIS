@@ -10,7 +10,8 @@ double get_lumi( int beam_type, int Ee, int Eh, int group, int ev0, int ev1 )
     {
         if ( Ee == 10 && Eh == 166 )
         {
-            double cs[3][2] = {{0.198440424611563, 0.205327493968226}, {4.04371412707044E-02, 4.41976212963417E-02}, {1.36416909784756E-03, 1.69583242740138E-03}};
+            // double cs[3][2] = {{0.198440424611563, 0.205327493968226}, {4.04371412707044E-02, 4.41976212963417E-02}, {1.36416909784756E-03, 1.69583242740138E-03}};
+            double cs[3][2] = {{0.198391130397345, 0.205324015179919}, {4.04422382173879E-02, 4.41949481804582E-02}, {1.36417880997703E-03, 1.69571887085303E-03}};
             // double ev[3][2] = {{333675, 666325}, {333694, 666306}, {333365, 666640}};
 
             // for ( int i = 0; i < 3; i ++ )
@@ -120,7 +121,14 @@ double get_lumi( int beam_type, int Ee, int Eh, int group, int ev0, int ev1 )
 
     if ( beam_type == EP_PYTHIA6 )
     {
-         if ( Ee == 10 && Eh == 130 )
+        if ( Ee == 10 && Eh == 100 )
+        {
+            double cs[4] = {5.38729e+08, 3.96426e+07, 1.20881e+06, 4285.54}; // fb
+            double gen_lumi = ev0/cs[group];
+            return gen_lumi;
+        }
+
+        if ( Ee == 10 && Eh == 130 )
         {
             // double cs[4] = {0.63928175476836346, 4.7191206939697819E-002, 1.5146539778048273E-003, 45.369017792412620};
             double cs[4] = {0.63928175476836346, 4.7191206939697819E-002, 1.5146539778048273E-003, 8.1678590974353973E-006}; 
@@ -185,9 +193,20 @@ double get_lumi( int beam_type, int Ee, int Eh, int group, int ev0, int ev1 )
 
     if ( beam_type == PI_BG )
     {
-        double gen_lumi = 9.26e-4; // fb^-1
-        // lumi.push_back(gen_lumi);
-        return gen_lumi;
+        if ( Ee == 18 && Eh == 275 )
+        {
+            double gen_lumi = 9.26e-4; // fb^-1
+            // lumi.push_back(gen_lumi);
+            return gen_lumi;
+        }
+        
+
+        if ( Ee == 10 && Eh == 100 )
+        {
+            double cs = 4.01663e+10; // fb
+            double gen_lumi = ev0/(cs);
+            return gen_lumi;
+        }
     }
 
     return 0;
