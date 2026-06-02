@@ -26,7 +26,7 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     campaign = "26.03.1";
 
     if ( beam_type == EP )
-        campaign = "26.03.0";
+        campaign = "26.04.1";
 
     if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
     {

@@ -248,12 +248,12 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
             text_x = 0.605;
         }
 
-        if ( draw_position != 4 )
+        if ( draw_position != 4 && draw_position != 1 )
         {
             if ( !multiple_energies )
                 Text_com.DrawLatexNDC(text_x, current_y, Form("%s, %s", type.c_str(), energy.c_str()));
             else
-                Text_com.DrawLatexNDC(text_x, current_y, Form("%s, L = %.1f %s", type.c_str(), lumi, lumi_unit.c_str()));
+                Text_com.DrawLatexNDC(text_x, current_y, Form("%s", type.c_str()));
         }
 
         if ( setDIS )
