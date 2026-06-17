@@ -230,9 +230,9 @@ void process_ff(const podio::Frame* event)
     // mc tagging
     for ( int s = 0; s < spec.size(); s ++ )
     {
-        int n_rp_mc = *std::min_element(spec[s]->det_hits[0], spec[s]->det_hits[0] + 4);
-        int n_omd_mc = *std::min_element(spec[s]->det_hits[1], spec[s]->det_hits[1] + 4);
-
+        int n_omd_mc = *std::min_element(spec[s]->det_hits[0], spec[s]->det_hits[0] + 4); // omd first
+        int n_rp_mc = *std::min_element(spec[s]->det_hits[1], spec[s]->det_hits[1] + 4);
+        
         h_tag_mul[struck_type]->Fill(n_rp_mc + n_omd_mc);
 
         // cout << "Spec " << s << " PDG "<< spec[s]->pbg << " MC hits in RP: " << n_rp_mc << ", OMD: " << n_omd_mc << std::endl;
@@ -250,8 +250,8 @@ void process_ff(const podio::Frame* event)
     {
         if ( spec.size() > 0 )        
         {
-            Spec1_rpHits[j] = spec[0]->det_hits[0][j];
-            Spec1_omdHits[j] = spec[0]->det_hits[1][j];
+            Spec1_omdHits[j] = spec[0]->det_hits[0][j];
+            Spec1_rpHits[j] = spec[0]->det_hits[1][j];
         }
         else        
         {
@@ -259,11 +259,13 @@ void process_ff(const podio::Frame* event)
             Spec1_omdHits[j] = 0;
         }
 
-        if ( spec.size() > 1 )        {
-            Spec2_rpHits[j] = spec[1]->det_hits[0][j];
-            Spec2_omdHits[j] = spec[1]->det_hits[1][j];
+        if ( spec.size() > 1 )        
+        {
+            Spec2_omdHits[j] = spec[1]->det_hits[0][j];
+            Spec2_rpHits[j] = spec[1]->det_hits[1][j];
         }
-        else        {
+        else        
+        {
             Spec2_rpHits[j] = 0;
             Spec2_omdHits[j] = 0;
         }
@@ -312,10 +314,10 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("E_ZDC", &zdc_energy);
     outTree->Branch("fZDCn", &fZDCn);
 
-    outTree->Branch("Spec1_rpHits", Spec1_rpHits, "Spec1_rpHits[4]/I");
     outTree->Branch("Spec1_omdHits", Spec1_omdHits, "Spec1_omdHits[4]/I");
-    outTree->Branch("Spec2_rpHits", Spec2_rpHits, "Spec2_rpHits[4]/I");
+    outTree->Branch("Spec1_rpHits", Spec1_rpHits, "Spec1_rpHits[4]/I");
     outTree->Branch("Spec2_omdHits", Spec2_omdHits, "Spec2_omdHits[4]/I");
+    outTree->Branch("Spec2_rpHits", Spec2_rpHits, "Spec2_rpHits[4]/I");
 
     outTree->Branch("SpecPBG", &SpecPBG);
     outTree->Branch("SpecVec", &SpecVec);

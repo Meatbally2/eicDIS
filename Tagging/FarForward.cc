@@ -75,8 +75,8 @@ void FarForward::GetHits(std::vector<int> mc_index)
     {
         for ( int pos = 0; pos < 4; pos ++ )
         {
-            // hx_raw->Fill(rp.getPosition().x);
-            // hz_raw->Fill(rp.getPosition().z);
+            hx_raw->Fill(rp.getPosition().x);
+            hz_raw->Fill(rp.getPosition().z);
 
             if (rp.getPosition().z > zRange[pos][0] && rp.getPosition().z < zRange[pos][1])
                 det[pos]->push_back(rp);
@@ -175,12 +175,12 @@ void FarForward::define_histograms()
         for ( int i = 0; i < 4; i ++ )
             h_det_xy[i] = new TH2F(Form("h_%s_xy_%d", det_name.c_str(), i), Form("%s %d hits;x [mm];y [mm]", det_title.c_str(), i), 200, -200, 200, 200, -200, 200);
 
-        // hx_raw = new TH1F(Form("h_%s_x_raw", det_name.c_str()), Form("%s Raw X;X [mm];Counts", det_title.c_str()), 2200, -1400, -800);
+        hx_raw = new TH1F(Form("h_%s_x_raw", det_name.c_str()), Form("%s Raw X;X [mm];Counts", det_title.c_str()), 2200, -1400, -800);
 
-        // if ( det_name == "rp" )
-        //     hz_raw = new TH1F(Form("h_%s_z_raw", det_name.c_str()), Form("%s Raw Z;Z [mm];Counts", det_title.c_str()), 2000, 32400, 34400);
-        // else
-        //     hz_raw = new TH1F(Form("h_%s_z_raw", det_name.c_str()), Form("%s Raw Z;Z [mm];Counts", det_title.c_str()), 6000, 22000, 28000);
+        if ( det_name == "rp" )
+            hz_raw = new TH1F(Form("h_%s_z_raw", det_name.c_str()), Form("%s Raw Z;Z [mm];Counts", det_title.c_str()), 2000, 32400, 34400);
+        else
+            hz_raw = new TH1F(Form("h_%s_z_raw", det_name.c_str()), Form("%s Raw Z;Z [mm];Counts", det_title.c_str()), 6000, 22000, 28000);
     }
 
     return;
@@ -275,16 +275,16 @@ std::vector<TCanvas*> FarForward::draw_histograms()
 
         canvases.push_back(c_det_xy);
 
-        // TCanvas* c_det_xz = BookCanvas(Form("c_%s_xz", det_name.c_str()), Form("c_%s_xz", det_name.c_str()), 1200, 500);
-        // c_det_xz->Divide(2,1); 
+        TCanvas* c_det_xz = BookCanvas(Form("c_%s_xz", det_name.c_str()), Form("c_%s_xz", det_name.c_str()), 1200, 500);
+        c_det_xz->Divide(2,1); 
          
-        // c_det_xz->cd(1);
-        // gPad->SetGrid();
-        // hx_raw->Draw("HIST");
+        c_det_xz->cd(1);
+        gPad->SetGrid();
+        hx_raw->Draw("HIST");
 
-        // c_det_xz->cd(2);
-        // gPad->SetGrid();
-        // hz_raw->Draw("HIST");
+        c_det_xz->cd(2);
+        gPad->SetGrid();
+        hz_raw->Draw("HIST");
 
         // canvases.push_back(c_det_xz);
     }
