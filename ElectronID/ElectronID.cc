@@ -4,7 +4,10 @@
 #include "edm4eic/ClusterCollection.h"
 
 #include <iostream>
+#include <queue>
 #include <unordered_set>
+#include <unordered_map>
+#include <climits>
 
 #include <Math/LorentzVector.h>
 using ROOT::Math::PxPyPzEVector;
@@ -261,75 +264,81 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 	return mhMC;
 }
 
-const edm4hep::MCParticleCollection& ElectronID::GetMCElectron(){
-	
-	if (meMCValid)
-		return meMC;
+const edm4hep::MCParticleCollection& ElectronID::GetMCElectron() {
 
-	meMC = edm4hep::MCParticleCollection();
+    if (meMCValid)
+        return meMC;
+
+    meMC = edm4hep::MCParticleCollection();
     meMC.setSubsetCollection();
 
-	////
+    const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 
-	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
+    std::vector<int> beam_electron_indices;
+    for (const auto& p : mcparts) {
+        if (p.getPDG() == 11 && p.getGeneratorStatus() == 4)
+            beam_electron_indices.push_back(p.getObjectID().index);
+    }
 
-	for (const auto& mcp : mcparts) 
-	{
-		if (mcp.getPDG() != 11 || mcp.getGeneratorStatus() != 4) 
-			continue;
+    if (beam_electron_indices.empty()) {
+        meMCValid = true;
+        return meMC;
+    }
 
-		std::vector<edm4hep::MCParticle> stack;
-		stack.insert(stack.end(), mcp.getDaughters().begin(), mcp.getDaughters().end());
+    std::unordered_map<int, std::pair<int, std::vector<edm4hep::MCParticle>>> per_beam;
+    for (int idx : beam_electron_indices)
+        per_beam[idx] = {INT_MAX, {}};
 
-		std::unordered_set<int> visited;
-		constexpr std::size_t kMaxExpandedNodes = 100000;
-		std::size_t expanded_nodes = 0;
+    for (const auto& cand : mcparts) {
+        if (cand.getPDG() != 11 || cand.getGeneratorStatus() != 1)
+            continue;
 
-		int shortest_gen = 999;
-		int generations = 0;
-		edm4hep::MCParticle meMC_candidates;
-		bool found_candidate = false;
+        std::queue<std::pair<edm4hep::MCParticle, int>> frontier;
+        std::unordered_set<int> visited;
 
-		while (!stack.empty()) {
-			if (++expanded_nodes > kMaxExpandedNodes) {
-				std::cerr << "Warning: GetMCElectron traversal reached safety limit for root index "
-						<< mcp.getObjectID().index << std::endl;
-				break;
-			}
+        visited.insert(cand.getObjectID().index);
+        frontier.emplace(cand, 0);
 
-			generations++;
-			auto cur = stack.back();
-			stack.pop_back();
+        while (!frontier.empty()) {
+            auto [cur, depth] = frontier.front();
+            frontier.pop();
 
-			const int cur_idx = cur.getObjectID().index;
-			if (cur_idx >= 0 && !visited.insert(cur_idx).second)
-				continue;
+            const int cur_idx = cur.getObjectID().index;
 
-			if (cur.getPDG() == 11 && cur.getGeneratorStatus() == 1) {
-				if (generations < shortest_gen) {
-					shortest_gen = generations;
-					meMC_candidates = cur;
-					found_candidate = true;
-				}
-				break;
-			}
+            if (cur.getPDG() == 11 && cur.getGeneratorStatus() == 4
+                && per_beam.count(cur_idx)) {
 
-			const auto& kids = cur.getDaughters();
-			if (!kids.empty()) {
-				for (const auto& kid : kids) {
-					const int kid_idx = kid.getObjectID().index;
-					if (kid_idx < 0 || visited.find(kid_idx) == visited.end())
-						stack.push_back(kid);
-				}
-			}
-		}
+                auto& [min_gen, cands] = per_beam[cur_idx];
+                if (depth < min_gen) {
+                    min_gen = depth;
+                    cands.clear();
+                    cands.push_back(cand);
+                } else if (depth == min_gen) {
+                    cands.push_back(cand);
+                }
+                break;
+            }
 
-		if ( found_candidate )
-			meMC.push_back(meMC_candidates);
-	}
+            for (auto it = cur.parents_begin(); it != cur.parents_end(); ++it) {
+                const auto parent = *it;
+                const int parent_idx = parent.getObjectID().index;
+                if (parent_idx >= 0 && visited.insert(parent_idx).second)
+                    frontier.emplace(parent, depth + 1);
+            }
+        }
+    }
 
-	meMCValid = true;
-	return meMC;
+    std::vector<int> sorted_beam = beam_electron_indices;
+    std::sort(sorted_beam.begin(), sorted_beam.end());
+
+    for (int beam_idx : sorted_beam) {
+        const auto& [min_gen, cands] = per_beam[beam_idx];
+        for (const auto& c : cands)
+            meMC.push_back(c);
+    }
+
+    meMCValid = true;
+    return meMC;
 }
 
 edm4eic::ReconstructedParticleCollection ElectronID::GetTruthReconElectron() {
