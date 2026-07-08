@@ -140,11 +140,12 @@ TH2F* BookTH2(std::string name, std::string title, double n_xbins, double xmin, 
   // TH2F* h = new TH2F(name.c_str(), title.c_str(), n_xbins, xmin, xmax, n_ybins, ymin, ymax);
   h->GetXaxis()->CenterTitle();
   h->GetYaxis()->CenterTitle();
+  h->GetZaxis()->CenterTitle();
   h->GetXaxis()->SetTitleOffset(1.2);
   h->GetYaxis()->SetTitleOffset(1.2);
 
   TExec *exDefault = new TExec("ex1","gStyle->SetPalette(kBird)");
-  TExec *exUser = new TExec("ex1",Form("gStyle->SetPalette(%d)",colorMap));
+  TExec *exUser = new TExec("ex1",Form("gStyle->SetPalette(%d);",colorMap));
 
   if ( colorMap != 0 )
     h->GetListOfFunctions()->Add(exUser);
@@ -252,12 +253,20 @@ void set_eff_text_off()
   return;
 }
 
-TCanvas* draw_2d_efficiency(TH2F* &h, std::string c_name, std::string c_title, double width, double height, bool is_log_z, bool is_std_scale)
+TCanvas* draw_2d_efficiency(TH2F* &h, std::string c_name, std::string c_title, double width, double height, bool is_log_z, bool is_std_scale, std::string digit = ".3f")
 {
+    gStyle->SetPaintTextFormat(digit.c_str());
+
+    TExec *exUser = new TExec("ex_text",Form("gStyle->SetPaintTextFormat(\"%s\");", digit.c_str()));
+    h->GetListOfFunctions()->Add(exUser);
+  
     TCanvas* c = BookCanvas(c_name.c_str(), c_title.c_str(), width, height);
     c->SetLogx();
     c->SetLogy();
+    c->SetFrameFillColor(kWhite);
     h->SetStats(0);
+    h->SetMarkerColor(kBlack);
+    h->SetMarkerSize(1.5);
     
     if ( eff_text_on )
       h->Draw("COLZ TEXT");
@@ -288,20 +297,20 @@ void process_eff_hist(TH2F* &h_top, TH2F* &h_bottom)
 {
     h_top->Divide(h_bottom);
     for ( int ix = 0; ix < h_top->GetXaxis()->GetNbins(); ix ++ )
-	{
-		for ( int iq = 0; iq < h_top->GetYaxis()->GetNbins(); iq ++ )
-		{
-            double eff = h_top->GetBinContent(ix+1, iq+1);
-            double eff_round = std::round(eff * 1000) / 1000.;
-            if ( eff_round > 1.5 )
-                eff_round = 1.5;
-            // h_top->SetBinContent(ix+1, iq+1, std::round(eff * 1000) / 1000.);
-            // if ( eff_round < 2 )
-                h_top->SetBinContent(ix+1, iq+1, eff_round);
-            // else
-            //     h_top->SetBinContent(ix+1, iq+1, 0);
-        }
-    }
+    {
+      for ( int iq = 0; iq < h_top->GetYaxis()->GetNbins(); iq ++ )
+      {
+              double eff = h_top->GetBinContent(ix+1, iq+1);
+              double eff_round = std::round(eff * 1000) / 1000.;
+              // if ( eff_round > 1.5 )
+              //     eff_round = 1.5;
+              // h_top->SetBinContent(ix+1, iq+1, std::round(eff * 1000) / 1000.);
+              // if ( eff_round < 2 )
+                  h_top->SetBinContent(ix+1, iq+1, eff_round);
+              // else
+              //     h_top->SetBinContent(ix+1, iq+1, 0);
+          }
+      }
 
     return;
 }

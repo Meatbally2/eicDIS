@@ -1,0 +1,9 @@
+
+- assymm.C: make A1 plot for one energy setting, produce xxx_collection.txt
+- print_asymm.C: print xxx_asymm_table.txt for other analysis
+
+- combine_asymm.C: combine A1 from different energy settings (This is the version for presentation/paper/documents/etc.). Use xxx_collection.txt as input.
+- per_Qbin_assym.C: draw A1 and g1 vs x for each Q2 bin. Use xxx_collection.txt as input.
+
+## Special setting
+- assymm_ECCEbins.C: make A1 plot for one energy setting with ECCE binning, produce xxx_ecce_bins.txt

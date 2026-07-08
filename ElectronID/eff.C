@@ -1,12 +1,15 @@
-#include "../GlobalUtil/luminosityTable.h"
 #include "../GlobalUtil/DrawManager.cc"
+#include "../GlobalUtil/HistManager.cc"
 #include "../GlobalUtil/Constants.hh"
-#include "../GlobalUtil/drawHelper.h"
+#include "../GlobalUtil/luminosityTable.h"
 
 #include <Math/LorentzVector.h>
 using ROOT::Math::PxPyPzEVector;
 
 #include "draw_angle.C"
+
+using HistGroup1D = HistManager::HistGroup1D;
+using HistGroup2D = HistManager::HistGroup2D;
 
 const std::string group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
@@ -17,83 +20,66 @@ void draw_leg_pad(const std::string& type, const std::string& energy, const std:
 void eff(int beam_type, int Ee, int Eh)
 {
     // ePIC plotting style setup
-    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
+    std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep + 2#mus beamBG", "ep"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    std::string campaign = beam_type ? "26.02.0" : "26.02.0";
-    if ( beam_type == 4 )
-        campaign = "25.10.4";
-    if ( beam_type == 3 )
-        campaign = "26.02.0";
+    std::string campaign = "26.03.1";
+    if ( beam_type == 1 || beam_type == 3 )
+        campaign = "26.04.1";
     DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
     draw_manager->SetEPIC("Work in Progress");
 
     draw_manager->SetDISrange(0.01, 0.95, 4, 2);
 
     int n_group = beam_type == 0 ? 3 : 4;
-    if ( beam_type == 3 )
+    if ( beam_type == 2 )
         n_group = 1;
 
-    double text_lumi = 10; // fb^-1
+    double text_lumi = 1; // fb^-1
     if ( beam_type == 0 && Ee == 10 && Eh == 166 )
-        text_lumi = 8.65; // fb^-1
+        text_lumi = 1.5; // fb^-1
     if ( beam_type == 4 && Ee == 10 && Eh == 130 )
-        text_lumi = 5.33; // fb^-1
+        text_lumi = 1.0; // fb^-1
     if ( beam_type == 4 && Ee == 10 && Eh == 250 )
-        text_lumi = 9.18; // fb^-1
+        text_lumi = 2.5; // fb^-1
     draw_manager->SetLumi(text_lumi);
+
+    // histograms
+    HistManager* hist_manager = new HistManager();
     
     std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
-    if ( beam_type == 3 )
-        setting = Form("beamBG_%dx%d", (int)Ee, (int)Eh);
+    if ( beam_type == 2 )
+        setting = Form("piBG_%dx%d", (int)Ee, (int)Eh);
 
-    TH2F* h_xq2_all = BookTH2(Form("h_xq2_all"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_acp = BookTH2(Form("h_xq2_acp"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_trk = BookTH2(Form("h_xq2_trk"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_cal = BookTH2(Form("h_xq2_cal"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_eff = BookTH2(Form("h_xq2_eff"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_pur = BookTH2(Form("h_xq2_pur"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_eID = BookTH2(Form("h_xq2_eID"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-    TH2F* h_xq2_piID = BookTH2(Form("h_xq2_piID"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
+    auto h_xq2_all = hist_manager->BookHistograms(Form("h_xq2_all"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_acp = hist_manager->BookHistograms(Form("h_xq2_acp"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_trk = hist_manager->BookHistograms(Form("h_xq2_trk"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_cal = hist_manager->BookHistograms(Form("h_xq2_cal"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_eff = hist_manager->BookHistograms(Form("h_xq2_eff"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_pur = hist_manager->BookHistograms(Form("h_xq2_pur"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_eID = hist_manager->BookHistograms(Form("h_xq2_eID"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
+    auto h_xq2_piID = hist_manager->BookHistograms(Form("h_xq2_piID"), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5);
 
-    TH1F* h_angular_all = new TH1F("h_angular_all", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_acp = new TH1F("h_angular_acp", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_trk = new TH1F("h_angular_trk", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_cal = new TH1F("h_angular_cal", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_eff = new TH1F("h_angular_eff", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_pur = new TH1F("h_angular_pur", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_eID = new TH1F("h_angular_eID", ";#theta (deg);%", 180, 0, 180);
-    TH1F* h_angular_piID = new TH1F("h_angular_piID", ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_all = hist_manager->MakeHistograms(Form("h_angular_all"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_acp = hist_manager->MakeHistograms(Form("h_angular_acp"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_trk = hist_manager->MakeHistograms(Form("h_angular_trk"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_cal = hist_manager->MakeHistograms(Form("h_angular_cal"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_eff = hist_manager->MakeHistograms(Form("h_angular_eff"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_pur = hist_manager->MakeHistograms(Form("h_angular_pur"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_eID = hist_manager->MakeHistograms(Form("h_angular_eID"), ";#theta (deg);%", 180, 0, 180);
+    auto h_angular_piID = hist_manager->MakeHistograms(Form("h_angular_piID"), ";#theta (deg);%", 180, 0, 180);
 
     for ( int i = 0; i < n_group; i ++ )
     {
-        std::string date = beam_type == 0 ? "en_26_02_2" : "ep_26_02_0";
-         if ( beam_type == 3 )
-            date = "ep_26_02_0";
-        if ( beam_type == 4 )
-            date = "ep_25_10_4";
+        std::string date = beam_type == 0 ? "en_26_03_1" : "ep_26_04_1";
         // TFile* file = beam_type == 2 ? new TFile("/Users/winl/eic/eicDIS/data/beamBG_10x100_eid_combined.root") : new TFile(Form("../data/%s/root_files/%s_%s_eid_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
-        TFile* file  = new TFile(Form("../data/%s/root_files/%s_%s_eid_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
-
-        TH2F* h_tmp_all = BookTH2(Form("h_tmp_all_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_acp = BookTH2(Form("h_tmp_acp_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_trk = BookTH2(Form("h_tmp_trk_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_cal = BookTH2(Form("h_tmp_cal_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_eff = BookTH2(Form("h_tmp_eff_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_pur = BookTH2(Form("h_tmp_pur_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_eID = BookTH2(Form("h_tmp_eID_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-        TH2F* h_tmp_piID = BookTH2(Form("h_tmp_piID_%d", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature);
-
-        TH1F* h_tmp_angular_all = new TH1F(Form("h_tmp_angular_all_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_acp = new TH1F(Form("h_tmp_angular_acp_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_trk = new TH1F(Form("h_tmp_angular_trk_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_cal = new TH1F(Form("h_tmp_angular_cal_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_eff = new TH1F(Form("h_tmp_angular_eff_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_pur = new TH1F(Form("h_tmp_angular_pur_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_eID = new TH1F(Form("h_tmp_angular_eID_%d", i), ";#theta (deg);%", 180, 0, 180);
-        TH1F* h_tmp_angular_piID = new TH1F(Form("h_tmp_angular_piID_%d", i), ";#theta (deg);%", 180, 0, 180);
+        if ( beam_type == 3 )
+            date = "ep_26_03_1";
+        std::string file_path = beam_type == 3 ? Form("../data/%s/root_files/%s_%s_eid_pythia6_combined.root", date.c_str(), setting.c_str(), group[i].c_str()) : Form("../data/%s/root_files/%s_%s_eid_combined.root", date.c_str(), setting.c_str(), group[i].c_str());
+        if ( beam_type == 2 )
+            file_path = Form("../data/%s/root_files/%s_eid_combine.root", date.c_str(), setting.c_str());
+        TFile* file  = new TFile(file_path.c_str());
 
         TTreeReader reader("T_eID", file);
-
         TTreeReaderValue<int>    status(reader, "eID_status");
         TTreeReaderValue<int>    rec_status(reader, "eRecon_status");
 
@@ -113,29 +99,34 @@ void eff(int beam_type, int Ee, int Eh)
         TTreeReaderValue<PxPyPzEVector> vTRe(reader, "vTRACK_e");
         TTreeReaderValue<PxPyPzEVector> vCLe(reader, "vCLUSTER_e");
 
-         TTreeReaderValue<double> EoP(reader, "EoP");
+        TTreeReaderValue<double> EoP(reader, "EoP");
         TTreeReaderValue<double> EminusPz(reader, "EminusPz");
+
+        // TFile* beamFile = new TFile(Form("../data/%s/root_files/%s_%s_beam_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
+        // TTreeReader beam_reader("T_Beam", beamFile);
+        // TTreeReaderValue<int> N_PDG(beam_reader, "N_PDG");
 
         Long64_t nEntries = reader.GetEntries();
 
-        // get generated lumi
-        double total_lumi = beam_type == 0 ? text_lumi*3 : text_lumi; // fb^-1
-        double gen_lumi = 0;
-        gen_lumi = get_lumi(beam_type, Ee, Eh, i, nEntries, 0);
-        if ( beam_type == 2 )
-            gen_lumi = get_lumi(1, Ee, Eh, i, nEntries, 0);
-        if ( gen_lumi == 0 )
-        {
-            std::cout << "** Lumi table not found! " << std::endl;
-            return;
-        }
+        int en_num = 0;
+        int ep_num = 0;
 
         for( size_t ev = 0; ev < nEntries; ev++ ) 
         {
             reader.Next();
+            // beam_reader.Next();
 
-            // if(ev%100==0) 
-            // cout << "Analysing file " << i << " event " << ev << "/" << nEntries << "\t\r" << std::flush;
+            int fill_index = -1;
+            // if ( *N_PDG == ID_PROTON )
+            // {
+                ep_num ++;
+                fill_index = 1;
+            // }
+            // else if ( *N_PDG == ID_NEUTRON )
+            // {
+            //     en_num ++;
+            //     fill_index = 0;
+            // }
 
             if ( *status < FOUND_MC )
                 continue; 
@@ -163,26 +154,26 @@ void eff(int beam_type, int Ee, int Eh)
 
             if ( *status >= FOUND_MC )
             {
-                h_tmp_all->Fill(*mc_xB, *mc_Q2);
-                h_tmp_angular_all->Fill(theta);
+                h_xq2_all.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_angular_all.ind[i][fill_index]->Fill(theta);
             }
                 
             if ( *status >= FOUND_TRUTH )
             {
-                h_tmp_acp->Fill(*mc_xB, *mc_Q2);
-                h_tmp_angular_acp->Fill(theta);
+                h_xq2_acp.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_angular_acp.ind[i][fill_index]->Fill(theta);
             }
 
             if ( *rec_status == FOUND_TRACK_ONLY || *rec_status == FOUND_BOTH )
             {
-                h_tmp_trk->Fill(*mc_xB, *mc_Q2);
-                h_tmp_angular_trk->Fill(theta);
+                h_xq2_trk.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_angular_trk.ind[i][fill_index]->Fill(theta);
             }
 
             if ( *rec_status == FOUND_CLUSTER_ONLY || *rec_status == FOUND_BOTH )
             {
-                h_tmp_cal->Fill(*mc_xB, *mc_Q2);
-                h_tmp_angular_cal->Fill(theta);
+                h_xq2_cal.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_angular_cal.ind[i][fill_index]->Fill(theta);
             }
 
             // if ( ( (180-theta > 120 && 180-theta < 150) || (180-theta > 35 && 180-theta < 60) ) && *EminusPz < 5 )
@@ -196,97 +187,87 @@ void eff(int beam_type, int Ee, int Eh)
             
             if ( *status >= FOUND_E )
             {
-                h_tmp_eff->Fill(*mc_xB, *mc_Q2);   
-                h_tmp_angular_eff->Fill(theta);
+                h_xq2_eff.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);   
+                h_angular_eff.ind[i][fill_index]->Fill(theta);
             }
 
             if ( *status == FOUND_E )
             {
-                h_tmp_pur->Fill(*mc_xB, *mc_Q2);
-                h_tmp_eID->Fill(*mc_xB, *mc_Q2);
-                h_tmp_angular_pur->Fill(theta);
-                h_tmp_angular_eID->Fill(theta);
+                h_xq2_pur.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_xq2_eID.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_angular_pur.ind[i][fill_index]->Fill(theta);
+                h_angular_eID.ind[i][fill_index]->Fill(theta);
             }
 
-            if ( *status == FOUND_PI )
+            if ( *status == FOUND_PI || *status == FOUND_OTHERS )
             {
-                h_tmp_piID->Fill(*mc_xB, *mc_Q2);
-                h_tmp_angular_piID->Fill(theta);
+                h_xq2_piID.ind[i][fill_index]->Fill(*mc_xB, *mc_Q2);
+                h_angular_piID.ind[i][fill_index]->Fill(theta);
             }
         }
 
-        h_tmp_all->Scale(total_lumi/gen_lumi);
-        h_tmp_acp->Scale(total_lumi/gen_lumi);
-        h_tmp_eff->Scale(total_lumi/gen_lumi);
-        h_tmp_pur->Scale(total_lumi/gen_lumi);
-        h_tmp_eID->Scale(total_lumi/gen_lumi);
-        h_tmp_piID->Scale(total_lumi/gen_lumi);
-        h_tmp_trk->Scale(total_lumi/gen_lumi);
-        h_tmp_cal->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_trk->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_cal->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_all->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_acp->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_eff->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_pur->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_eID->Scale(total_lumi/gen_lumi);
-        h_tmp_angular_piID->Scale(total_lumi/gen_lumi);
+        // get generated lumi
+        double total_lumi = beam_type == 0 ? text_lumi*3 : text_lumi; // fb^-1
+        double gen_lumi = 0;
+        gen_lumi = get_lumi(beam_type, Ee, Eh, i, nEntries, 0);
+        if ( beam_type == 2 )
+            gen_lumi = get_lumi(1, Ee, Eh, i, nEntries, 0);
+        if ( gen_lumi == 0 )
+        {
+            std::cout << "** Lumi table not found! " << std::endl;
+            return;
+        }
 
-        h_xq2_all->Add(h_tmp_all);
-        h_xq2_acp->Add(h_tmp_acp);
-        h_xq2_eff->Add(h_tmp_eff);
-        h_xq2_trk->Add(h_tmp_trk);
-        h_xq2_cal->Add(h_tmp_cal);
-        h_xq2_pur->Add(h_tmp_pur);
-        h_xq2_eID->Add(h_tmp_eID);
-        h_xq2_piID->Add(h_tmp_piID);
-        h_angular_all->Add(h_tmp_angular_all);
-        h_angular_acp->Add(h_tmp_angular_acp);
-        h_angular_eff->Add(h_tmp_angular_eff);
-        h_angular_pur->Add(h_tmp_angular_pur);
-        h_angular_eID->Add(h_tmp_angular_eID);
-        h_angular_piID->Add(h_tmp_angular_piID);
-        h_angular_trk->Add(h_tmp_angular_trk);
-        h_angular_cal->Add(h_tmp_angular_cal);
-
+        // if ( beam_type == 0)
+        // {
+        //     double n_lumi = get_lumi(beam_type, Ee, Eh, i, en_num, 0);
+        //     double p_lumi = get_lumi(beam_type, Ee, Eh, i, 0, ep_num);
+        //     hist_manager->SumHistograms(i, total_lumi / n_lumi, total_lumi / p_lumi);
+        // }
+        // else
+        // {
+            double p_lumi = get_lumi(beam_type, Ee, Eh, i, ep_num, 0);
+            hist_manager->SumHistograms(i, 1, total_lumi / p_lumi);
+        // }
+        
         file->Close();
     }
 
-    set_2d_scale(h_xq2_all);
-    TCanvas* c_xq2_all = draw_2d_standard(h_xq2_all, "c_xq2_all", "all events", 700, 600, true, true);
+    set_2d_scale(h_xq2_all.sum);
+    TCanvas* c_xq2_all = draw_2d_standard(h_xq2_all.sum, "c_xq2_all", "all events", 700, 600, true, true);
     // TCanvas* c_xq2_trk = draw_2d_standard(h_xq2_trk, "c_xq2_trk", "track events", 700, 600, true, true);
     // TCanvas* c_xq2_cal = draw_2d_standard(h_xq2_cal, "c_xq2_cal", "cal events", 700, 600, true, true);
-    TCanvas* c_xq2_acp = draw_2d_standard(h_xq2_acp, "c_xq2_acp", "acp events", 700, 600, true, true);
-    TCanvas* c_xq2_eID = draw_2d_standard(h_xq2_eID, "c_xq2_eID", "eID events", 700, 600, true, true);
-    TCanvas* c_xq2_piID = draw_2d_standard(h_xq2_piID, "c_xq2_piID", "piID events", 700, 600, true, true);
+    TCanvas* c_xq2_acp = draw_2d_standard(h_xq2_acp.sum, "c_xq2_acp", "acp events", 700, 600, true, true);
+    TCanvas* c_xq2_eID = draw_2d_standard(h_xq2_eID.sum, "c_xq2_eID", "eID events", 700, 600, true, true);
+    TCanvas* c_xq2_piID = draw_2d_standard(h_xq2_piID.sum, "c_xq2_piID", "piID events", 700, 600, true, true);
 
-    TH2F* h_xq2_acp_copy = (TH2F*)h_xq2_acp->Clone();
-    process_eff_hist(h_xq2_acp_copy, h_xq2_all);
+    TH2F* h_xq2_acp_copy = (TH2F*)h_xq2_acp.sum->Clone();
+    process_eff_hist(h_xq2_acp_copy, h_xq2_all.sum);
     TCanvas* c_xq2_acp_eff = draw_2d_efficiency(h_xq2_acp_copy, "c_xq2_acp_eff", "xq2 acp eff", 1400, 600, false, true);
 
-    process_eff_hist(h_xq2_trk, h_xq2_all);
-    TCanvas* c_xq2_trk_eff = draw_2d_efficiency(h_xq2_trk, "c_xq2_trk", "xq2 trk eff", 1400, 600, false, true);
+    process_eff_hist(h_xq2_trk.sum, h_xq2_all.sum);
+    TCanvas* c_xq2_trk_eff = draw_2d_efficiency(h_xq2_trk.sum, "c_xq2_trk", "xq2 trk eff", 1400, 600, false, true);
 
-    process_eff_hist(h_xq2_cal, h_xq2_all);
-    TCanvas* c_xq2_cal_eff = draw_2d_efficiency(h_xq2_cal, "c_xq2_cal", "xq2 cal eff", 1400, 600, false, true);
+    process_eff_hist(h_xq2_cal.sum, h_xq2_all.sum);
+    TCanvas* c_xq2_cal_eff = draw_2d_efficiency(h_xq2_cal.sum, "c_xq2_cal", "xq2 cal eff", 1400, 600, false, true);
 
-    TH2F* h_xq2_eff_copy = (TH2F*)h_xq2_eff->Clone();
-    process_eff_hist(h_xq2_eff_copy, h_xq2_all);
+    TH2F* h_xq2_eff_copy = (TH2F*)h_xq2_eff.sum->Clone();
+    process_eff_hist(h_xq2_eff_copy, h_xq2_all.sum);
     TCanvas* c_xq2_eff_eff = draw_2d_efficiency(h_xq2_eff_copy, "c_xq2_eff_eff", "xq2 eff eff", 1400, 600, false, true);
     draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 160.0, Ee*1.0, Eh*1.0);
     draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 130.0, Ee*1.0, Eh*1.0);
     draw_angle(c_xq2_eff_eff, h_xq2_eff_copy, 40.0, Ee*1.0, Eh*1.0);
 
-    TH2F* h_xq2_pur_copy = (TH2F*)h_xq2_pur->Clone();
-    process_eff_hist(h_xq2_pur_copy, h_xq2_eff);
+    TH2F* h_xq2_pur_copy = (TH2F*)h_xq2_pur.sum->Clone();
+    process_eff_hist(h_xq2_pur_copy, h_xq2_eff.sum);
     TCanvas* c_xq2_pur_eff = draw_2d_efficiency(h_xq2_pur_copy, "c_xq2_pur_eff", "xq2 pur eff", 1400, 600, false, true);
 
-    TH2F* h_xq2_eID_copy = (TH2F*)h_xq2_eID->Clone();
-    process_eff_hist(h_xq2_eID_copy, h_xq2_acp);
+    TH2F* h_xq2_eID_copy = (TH2F*)h_xq2_eID.sum->Clone();
+    process_eff_hist(h_xq2_eID_copy, h_xq2_acp.sum);
     TCanvas* c_xq2_eID_eff = draw_2d_efficiency(h_xq2_eID_copy, "c_xq2_eID_eff", "xq2 eID eff", 1400, 600, false, true);
 
-    TH2F* h_xq2_piID_copy = (TH2F*)h_xq2_piID->Clone();
-    process_eff_hist(h_xq2_piID_copy, h_xq2_acp);
+    TH2F* h_xq2_piID_copy = (TH2F*)h_xq2_piID.sum->Clone();
+    process_eff_hist(h_xq2_piID_copy, h_xq2_acp.sum);
     TCanvas* c_xq2_piID_eff = draw_2d_efficiency(h_xq2_piID_copy, "c_xq2_piID_eff", "xq2 piID eff", 1400, 600, false, true);
 
     draw_manager->LableAndCollect(c_xq2_all);
@@ -303,13 +284,26 @@ void eff(int beam_type, int Ee, int Eh)
     draw_manager->LableAndCollect(c_xq2_piID_eff);
 
     // gStyle->SetImageScaling(3.);
-    c_xq2_acp_eff->SaveAs(Form("../data/eID/%s_eID_acceptance.png", setting.c_str()));
-    c_xq2_eff_eff->SaveAs(Form("../data/eID/%s_eID_efficiency.png", setting.c_str()));
-    c_xq2_pur_eff->SaveAs(Form("../data/eID/%s_eID_purity.png", setting.c_str()));
-    c_xq2_eID_eff->SaveAs(Form("../data/eID/%s_eID_overall.png", setting.c_str()));
-    c_xq2_trk_eff->SaveAs(Form("../data/eID/%s_eID_trk.png", setting.c_str()));
-    c_xq2_cal_eff->SaveAs(Form("../data/eID/%s_eID_cal.png", setting.c_str()));
-
+    std::string date = beam_type == 0 ? "en_26_03_1" : "ep_26_04_1";
+    if ( beam_type == 3 )
+    {
+        c_xq2_acp_eff->SaveAs(Form("../data/%s/%s_eID_acceptance_pythia6.png", date.c_str(), setting.c_str()));
+        c_xq2_eff_eff->SaveAs(Form("../data/%s/%s_eID_efficiency_pythia6.png", date.c_str(), setting.c_str()));
+        c_xq2_pur_eff->SaveAs(Form("../data/%s/%s_eID_purity_pythia6.png", date.c_str(), setting.c_str()));
+        c_xq2_eID_eff->SaveAs(Form("../data/%s/%s_eID_overall_pythia6.png", date.c_str(), setting.c_str()));
+        c_xq2_trk_eff->SaveAs(Form("../data/%s/%s_eID_trk_pythia6.png", date.c_str(), setting.c_str()));
+        c_xq2_cal_eff->SaveAs(Form("../data/%s/%s_eID_cal_pythia6.png", date.c_str(), setting.c_str()));
+    }
+    else
+    {
+        c_xq2_acp_eff->SaveAs(Form("../data/%s/%s_eID_acceptance.png", date.c_str(), setting.c_str()));
+        c_xq2_eff_eff->SaveAs(Form("../data/%s/%s_eID_efficiency.png", date.c_str(), setting.c_str()));
+        c_xq2_pur_eff->SaveAs(Form("../data/%s/%s_eID_purity.png", date.c_str(), setting.c_str()));
+        c_xq2_eID_eff->SaveAs(Form("../data/%s/%s_eID_overall.png", date.c_str(), setting.c_str()));
+        c_xq2_trk_eff->SaveAs(Form("../data/%s/%s_eID_trk.png", date.c_str(), setting.c_str()));
+        c_xq2_cal_eff->SaveAs(Form("../data/%s/%s_eID_cal.png", date.c_str(), setting.c_str()));
+    }
+    
     // c_xq2_all->SaveAs("../data/eID/10x166_en_raw.png");
 
     TCanvas* c_angular = new TCanvas("c_angular", "c_angular", 1400, 600);
@@ -322,7 +316,7 @@ void eff(int beam_type, int Ee, int Eh)
     draw_pad->SetBottomMargin(0.25);
     draw_pad->cd();
 
-    TH1F* h_angular_formater = (TH1F*)h_angular_acp->Clone("h_angular_formater");
+    TH1F* h_angular_formater = (TH1F*)h_angular_acp.sum->Clone("h_angular_formater");
     h_angular_formater->Reset();
     h_angular_formater->Draw();
     h_angular_formater->SetMaximum(1.05);
@@ -331,13 +325,13 @@ void eff(int beam_type, int Ee, int Eh)
     h_angular_formater->GetYaxis()->CenterTitle();
     h_angular_formater->GetYaxis()->SetTitleOffset(1.);
 
-    TEfficiency*  h_acceptance_angular = new TEfficiency(*h_angular_acp,*h_angular_all);
-    TEfficiency*  h_trk_angular = new TEfficiency(*h_angular_trk,*h_angular_all);
-    TEfficiency*  h_cal_angular = new TEfficiency(*h_angular_cal,*h_angular_all);
-    TEfficiency*  h_efficiency_angular = new TEfficiency(*h_angular_eff,*h_angular_all);
-    TEfficiency*  h_purity_angular = new TEfficiency(*h_angular_pur,*h_angular_eff);
-    TEfficiency*  h_eID_angular = new TEfficiency(*h_angular_eID,*h_angular_all);
-    TEfficiency*  h_piID_angular = new TEfficiency(*h_angular_piID,*h_angular_acp);
+    TEfficiency*  h_acceptance_angular = new TEfficiency(*h_angular_acp.sum,*h_angular_all.sum);
+    TEfficiency*  h_trk_angular = new TEfficiency(*h_angular_trk.sum,*h_angular_all.sum);
+    TEfficiency*  h_cal_angular = new TEfficiency(*h_angular_cal.sum,*h_angular_all.sum);
+    TEfficiency*  h_efficiency_angular = new TEfficiency(*h_angular_eff.sum,*h_angular_all.sum);
+    TEfficiency*  h_purity_angular = new TEfficiency(*h_angular_pur.sum,*h_angular_eff.sum);
+    TEfficiency*  h_eID_angular = new TEfficiency(*h_angular_eID.sum,*h_angular_all.sum);
+    TEfficiency*  h_piID_angular = new TEfficiency(*h_angular_piID.sum,*h_angular_acp.sum);
 
     // h_acceptance_angular->SetLineColor(kBlack);
     // h_acceptance_angular->SetMarkerColor(kBlack);
@@ -382,7 +376,7 @@ void eff(int beam_type, int Ee, int Eh)
     c_angular->cd();
     draw_leg_pad(type_title[beam_type], energy_title, campaign);
 
-    TLegend* leg = new TLegend(0.1, 0.3, 0.9, 0.65);
+    TLegend* leg = new TLegend(0.1, 0.25, 0.9, 0.65);
     leg->SetFillColor(0);
     leg->SetBorderSize(0);
     leg->SetTextSize(0.08);
@@ -392,10 +386,18 @@ void eff(int beam_type, int Ee, int Eh)
     leg->AddEntry(h_efficiency_angular, "eID efficiency", "LPE");
     leg->AddEntry(h_purity_angular, "eID purity", "LPE");
     leg->AddEntry(h_eID_angular, "Overall eID rate", "LPE");
-    leg->AddEntry(h_piID_angular, "#pi contamination", "LPE");
+    // leg->AddEntry(h_piID_angular, "#pi contamination", "LPE");
+    leg->AddEntry(h_piID_angular, "Contamination", "LPE");
     leg->Draw();
     
     c_angular->SaveAs(Form("../data/eID/%s_eID_angular.png", setting.c_str()));
+
+    std::string ext[5] = {"", "", "_piBG", "_beamBG", "_pythia6"};
+    TFile* outFile = new TFile(Form("../data/%s/%s_eID_eff%s.root", date.c_str(), setting.c_str(), ext[beam_type].c_str()), "RECREATE");
+    h_xq2_eff_copy->Write();
+    h_xq2_pur_copy->Write();
+    h_xq2_eID_copy->Write();
+    outFile->Close();
 
     return;
 }

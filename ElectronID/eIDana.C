@@ -177,6 +177,18 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                 // hf = boost(hf);
                 vREC_hfs.push_back(hf);
             }
+
+            bool is_electron = ( mc_PDG == 0 || mc_PDG == 11 );
+            if (e_rec.getPDG() != 11 && e_rec.getPDG() != 0)
+                h_pID_eff->Fill(!is_electron, 0);
+            if (e_rec.getPDG() == 11)
+                h_pID_eff->Fill(is_electron, 1);
+            if (e_rec.getPDG() == -211)
+                h_pID_eff->Fill(!is_electron, 2);
+            if (e_rec.getPDG() == -321)
+                h_pID_eff->Fill(!is_electron, 3);
+            if (e_rec.getPDG() == -2212)
+                h_pID_eff->Fill(!is_electron, 4);
         }
 
         // Fill histograms
@@ -190,24 +202,56 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                     h_nTPts_e->Fill(d.nTrackPoints);
                     h_EoP_e->Fill(d.recon_EoP);
                     h_isoE_e->Fill(d.recon_isoE);
+                    h_EoEH_e->Fill(d.recon_EoEH);
                 }
                 else if ( d.parType == -211 )
                 {
                     h_nTPts_pi->Fill(d.nTrackPoints);
                     h_EoP_pi->Fill(d.recon_EoP);
                     h_isoE_pi->Fill(d.recon_isoE);
+                    h_EoEH_pi->Fill(d.recon_EoEH);
                 }
                 else if ( abs(d.parType) == 11 )
                 {
                     h_nTPts_jet_e->Fill(d.nTrackPoints);
                     h_EoP_jet_e->Fill(d.recon_EoP);
                     h_isoE_jet_e->Fill(d.recon_isoE);
+                    h_EoEH_jet_e->Fill(d.recon_EoEH);
                 }
                 else
                 {
                     h_nTPts_else->Fill(d.nTrackPoints);
                     h_EoP_else->Fill(d.recon_EoP);
                     h_isoE_else->Fill(d.recon_isoE);
+                    h_EoEH_else->Fill(d.recon_EoEH);
+                }
+
+                bool is_electron = (d.parType == 0 || abs(d.parType) == 11);
+                if ( d.recon_pID != 11 && d.recon_pID != 0)
+                {
+                    h_pID_pur->Fill(!is_electron, 0);
+                    h_pID_fal->Fill(d.parType == 0, 0);
+                }
+                    
+                if ( d.recon_pID == 11)
+                {
+                    h_pID_pur->Fill(is_electron, 1);
+                    h_pID_fal->Fill(d.parType == 0, 1);
+                }
+                else if ( d.recon_pID == -211 )
+                {
+                    h_pID_pur->Fill(d.parType == -211, 2);
+                    h_pID_fal->Fill(d.parType == 0, 2);
+                }
+                else if ( d.recon_pID == -321 )
+                {
+                    h_pID_pur->Fill(d.parType == -321, 3);
+                    h_pID_fal->Fill(d.parType == 0, 3);
+                }
+                else if ( d.recon_pID == -2212 )
+                {
+                    h_pID_pur->Fill(d.parType == -2212, 4);
+                    h_pID_fal->Fill(d.parType == 0, 4);
                 }
             }
         // }
@@ -246,6 +290,13 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     DrawParComparison(c_isoE, h_isoE_e, h_isoE_jet_e, h_isoE_pi, h_isoE_else, draw_max);
     DrawVerticalLine(c_isoE, eFinder->get_mIsoE(), draw_max);
     draw_manager->LableAndCollect(c_isoE);
+
+    TCanvas* c_EoEH = new TCanvas("c_EoEH", "c_EoEH", 1000, 600);
+    c_EoEH->SetLogy();
+
+    DrawParComparison(c_EoEH, h_EoEH_e, h_EoEH_jet_e, h_EoEH_pi, h_EoEH_else, draw_max);
+    DrawVerticalLine(c_EoEH, eFinder->get_mEoEH_min(), draw_max);
+    draw_manager->LableAndCollect(c_EoEH);
 
     TCanvas* c_EminusPz = new TCanvas("c_EminusPz", "c_EminusPz", 1000, 600);
 
@@ -288,6 +339,17 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     // h_n_cluster_in_cone_found->SetLineColor(kRed);
     // draw_manager->LableAndCollect(c_n_cluster_in_cone,2);
 
+    TCanvas* c_pID_eff = new TCanvas("c_pID_eff", "c_pID_eff", 1000, 600);
+    h_pID_pur->Draw();
+
+    gPad->Update();
+    h_pID_pur->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.05);
+
+    h_pID_fal->Draw("SAME");
+    h_pID_eff->Draw("SAME");
+
+    draw_manager->LableAndCollect(c_pID_eff);
+
     // Save
 
     outFile->cd();
@@ -310,10 +372,15 @@ void DefineHistograms() {
     h_EoP_pi = new TH1D("h_EoP_pi", "EoP pi; E/p; Counts", 100, 0., 2.);
     h_EoP_else = new TH1D("h_EoP_else", "EoP; E/p; Counts", 100, 0., 2.);
 
-    h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
-    h_isoE_jet_e = new TH1D("h_isoE_jet_e", "Isolation Energy other e's; Iso. E; Counts", 100, 0., 2.);
-    h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
-    h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 100, 0., 2.);
+    h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
+    h_isoE_jet_e = new TH1D("h_isoE_jet_e", "Isolation Energy other e's; Iso. E; Counts", 110, 0., 1.1);
+    h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
+    h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
+
+    h_EoEH_e = new TH1D("h_EoEH_e", "E/E+H e; E/E+H; Counts", 110, 0., 1.1);
+    h_EoEH_jet_e = new TH1D("h_EoEH_jet_e", "E/E+H other e's; E/E+H; Counts", 110, 0., 1.1);
+    h_EoEH_pi = new TH1D("h_EoEH_pi", "E/E+H pi; E/E+H; Counts", 110, 0., 1.1);
+    h_EoEH_else = new TH1D("h_EoEH_else", "E/E+H; E/E+H; Counts", 110, 0., 1.1);
 
     h_TrackEminusPz = new TH1D("h_TrackEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
     h_CalEminusPz = new TH1D("h_CalEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
@@ -327,6 +394,23 @@ void DefineHistograms() {
 
     h_n_cluster_in_cone = new TH1D("h_n_cluster_in_cone", "Number of clusters in isolation cone; N_{clusters in cone}; Counts", 20, -0.5, 19.5);
     h_n_cluster_in_cone_found = new TH1D("h_n_cluster_in_cone_found", "Number of clusters in isolation cone for found electrons; N_{clusters in cone}; Counts", 20, -0.5, 19.5);
+
+    h_pID_pur = new TEfficiency("h_pID_pur", ";PDG;Purity", 5, -0.5, 4.5);
+    TH1* h_total = const_cast<TH1*>(h_pID_pur->GetTotalHistogram());
+    h_total->GetXaxis()->SetBinLabel(1, "Not e");
+    h_total->GetXaxis()->SetBinLabel(2, "e");
+    h_total->GetXaxis()->SetBinLabel(3, "#pi");
+    h_total->GetXaxis()->SetBinLabel(4, "K");
+    h_total->GetXaxis()->SetBinLabel(5, "p");
+    h_total->LabelsOption("h", "X");
+
+    h_pID_fal = new TEfficiency("h_pID_fal", ";PDG;Fake Rate", 5, -0.5, 4.5);
+    h_pID_fal->SetMarkerColor(kRed+1);
+    h_pID_fal->SetLineColor(kRed+1);
+
+    h_pID_eff = new TEfficiency("h_pID_eff", ";PDG;Efficiency", 5, -0.5, 4.5);
+    h_pID_eff->SetMarkerColor(kBlue+1);
+    h_pID_eff->SetLineColor(kBlue+1);
 
     return;
 }
@@ -398,7 +482,8 @@ void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, TH1D* &h4, 
     h1->SetFillColor(kRed);
     h1->SetFillStyle(3003);
 
-    TLegend* leg = new TLegend(0.7, 0.6, 0.95, 0.88);
+    double lx = h1->GetName() == TString("h_EoP_e") ? 0.7 : 0.42;
+    TLegend* leg = new TLegend(lx, 0.6, lx+0.25, 0.88);
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
     leg->AddEntry(h1, "Electrons", "L");

@@ -17,9 +17,7 @@ void asymm(int beam_type, int Ee, int Eh)
     // ePIC plotting style setup
     std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    std::string campaign = beam_type ? "25.10.2" : "25.10.0";
-    if ( beam_type == 4 )
-        campaign = "25.10.4";
+    std::string campaign = "26.03.1";
     DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
     draw_manager->SetEPIC();
 
@@ -36,10 +34,8 @@ void asymm(int beam_type, int Ee, int Eh)
      
 	const double m_nucleon = beam_type == 0 ? MASS_NEUTRON : MASS_PROTON;
 
-	std::string date = beam_type == 0 ? "en_25_10_2" : "ep_25_10_0";
-	if ( beam_type == 4 )
-		date = "ep_25_10_4";
-	TFile* file = new TFile(Form("../data/%s/FullRecon_%dx%d_new.root", date.c_str(), (int)Ee, (int)Eh));
+	std::string date = beam_type == 0 ? "en_26_03_1" : "ep_26_03_1";
+	TFile* file = new TFile(Form("../data/%s/FullRecon_%dx%d_50fb.root", date.c_str(), (int)Ee, (int)Eh));
 	if ( !file )
 	{
 		std::cout << "file not found" << std::endl;
@@ -87,7 +83,7 @@ void asymm(int beam_type, int Ee, int Eh)
 	std::vector<std::vector<double>> er_col_low_acp;
 
 	std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
-	ofstream outfile(beam_type == 0 ? Form("../data/%s/%s_xq2_n_collection_new.txt", date.c_str(), setting.c_str()) : Form("../data/%s/%s_xq2_p_collection_new.txt", date.c_str(), setting.c_str()));
+	ofstream outfile(beam_type == 0 ? Form("../data/%s/%s_xq2_n_collection_50fb.txt", date.c_str(), setting.c_str()) : Form("../data/%s/%s_xq2_p_collection_50fb.txt", date.c_str(), setting.c_str()));
 
 	for ( int ix = 0; ix < h_xq2->GetXaxis()->GetNbins(); ix ++ )
 	{

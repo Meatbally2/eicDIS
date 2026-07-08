@@ -66,6 +66,14 @@ TH1D* h_isoE_e;
 TH1D* h_isoE_jet_e;
 TH1D* h_isoE_pi;
 TH1D* h_isoE_else;
+TH1D* h_EoEH_e;
+TH1D* h_EoEH_jet_e;
+TH1D* h_EoEH_pi;
+TH1D* h_EoEH_else;
+
+TEfficiency* h_pID_pur; // if identify, how many are correct
+TEfficiency* h_pID_fal; // if identify, how many are scatter e
+TEfficiency* h_pID_eff; // efficiency in using it as veto for scattered electron
 
 TH1D* h_TrackEminusPz;
 TH1D* h_CalEminusPz;

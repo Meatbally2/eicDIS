@@ -50,6 +50,7 @@ public:
 	double get_mDeltaH_max() const { return mDeltaH_max; }
 	double get_mIsoR() const { return mIsoR; }
 	double get_mIsoE() const { return mIsoE; }
+	double get_mEoEH_min() const { return mEoP_min; }
 	int GetMinTrackPoints() const { return minTrackPoints; }
 
 	// for HFS QA
@@ -63,6 +64,9 @@ public:
 		int nTrackPoints;
 		double recon_EoP;
 		double recon_isoE;
+		double recon_EoEH;
+		int recon_pID;
+		// double pIDgoodness;
 	};
 	vector<DetValues> det_val;
 	vector<DetValues> e_det;
@@ -89,6 +93,7 @@ private:
 	double mDeltaH_max;
 	double mIsoR;
 	double mIsoE;
+	double mEoEH_min;
 	int minTrackPoints = 3;
 	
 	void CalculateParticleValues(const edm4eic::ReconstructedParticle& rcp,
@@ -99,6 +104,7 @@ private:
 	double rcpart_sum_cluster_E;
 	double rcpart_lead_cluster_E;
 	double rcpart_isolation_E;
+	double rcpart_sum_cluster_H;
 
 	int eScatIndex;
 };

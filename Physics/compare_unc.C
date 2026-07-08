@@ -217,5 +217,5 @@ void compare_unc()
     a1_n_ex_col[2].gr_data->SetMaximum(0.5);
 
     draw_manager->LableAndCollect(c_a1);
-    c_a1->SaveAs(Form("../data/en_25_10_2/compare_a1_unc_%s_%dx%d.png", setting.c_str(), (int)e_lepton, (int)e_nucleon));
+    // c_a1->SaveAs(Form("../data/en_25_10_2/compare_a1_unc_%s_%dx%d.png", setting.c_str(), (int)e_lepton, (int)e_nucleon));
 }

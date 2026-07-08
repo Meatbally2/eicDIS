@@ -1,5 +1,6 @@
 #include "kRecAna.h"
 
+int n_group = 0;
 const std::string group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
 void kRecAna(int beam_type, int Ee, int Eh)
@@ -10,25 +11,25 @@ void kRecAna(int beam_type, int Ee, int Eh)
     // ePIC plotting style setup
     std::string type_title[5] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    std::string campaign = "26.02.0";
+    std::string campaign = "26.03.1";
     if ( beam_type == 4 )
         campaign = "25.10.4";
     draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
     draw_manager->SetEPIC("Performance");
 
-    double text_lumi = 10; // fb^-1
+    double text_lumi = 1; // fb^-1
     if ( beam_type == 0 && Ee == 10 && Eh == 166 )
-        text_lumi = 8.65; // fb^-1
+        text_lumi = 1.5; // fb^-1
     if ( beam_type == 4 && Ee == 10 && Eh == 130 )
-        text_lumi = 5.33; // fb^-1
+        text_lumi = 1.0; // fb^-1
     if ( beam_type == 4 && Ee == 10 && Eh == 250 )
-        text_lumi = 9.18; // fb^-1
-    // draw_manager->SetLumi(text_lumi);
+        text_lumi = 2.5; // fb^-1
+    draw_manager->SetLumi(text_lumi);
 
     //
 
     std::string setting = beam_type == 0 ? Form("eHe3_%dx%d", (int)Ee, (int)Eh) : Form("ep_%dx%d", (int)Ee, (int)Eh);
-    int n_group = beam_type == 0 ? 3 : 4;
+    n_group = beam_type == 0 ? 3 : 4;
 
     define_histograms();
 
@@ -37,7 +38,7 @@ void kRecAna(int beam_type, int Ee, int Eh)
     for ( int i = 0; i < n_group; i ++ )
     {
         // load files and trees
-        std::string date = beam_type == 0 ? "en_26_02_2" : "ep_26_02_0";
+        std::string date = "en_26_03_1";
         if ( beam_type == 4 )
             date = "ep_25_10_4";
         TFile* beamFile = new TFile(Form("../data/%s/root_files/%s_%s_beam_combined.root", date.c_str(), setting.c_str(), group[i].c_str()));
@@ -71,10 +72,6 @@ void kRecAna(int beam_type, int Ee, int Eh)
         algorithm[i].push_back(Kinematics("MC_Method", kGray)); // MC information
 
         Long64_t nEntries = beam_reader.GetEntries();
-
-        // get generated lumi
-        double total_lumi = beam_type == 0 ? text_lumi*3 : text_lumi; // fb^-1
-        double gen_lumi = get_lumi(beam_type, Ee, Eh, i, nEntries, 0);
 
         for ( int ev = 0; ev < nEntries; ev ++ )
         {
@@ -188,6 +185,12 @@ void kRecAna(int beam_type, int Ee, int Eh)
             clusterQA.h_dPvT[Qrange]->Fill(180-vMCe->Theta()*(180./M_PI), (cluster_P-vMCe->P())/vMCe->P());
         }
 
+        double total_lumi = beam_type == 0 ? text_lumi*3 : text_lumi; // fb^-1
+        double gen_lumi = 0;
+        gen_lumi = get_lumi(beam_type, Ee, Eh, i, nEntries, 0);
+        if ( beam_type == 2 )
+            gen_lumi = get_lumi(1, Ee, Eh, i, nEntries, 0);
+
         for ( int j = 0; j < 6; j ++ )
         {
             algorithm[i][j].h_qvq->Scale( total_lumi / gen_lumi );
@@ -196,7 +199,7 @@ void kRecAna(int beam_type, int Ee, int Eh)
 
             algorithm[i][j].h_xq->Scale( total_lumi / gen_lumi );
             algorithm[i][j].h_xq_eff->Scale( total_lumi / gen_lumi );
-        }
+        } 
 
         trackQA.h_dEvT[i]->Scale( total_lumi / gen_lumi );
         trackQA.h_dPvT[i]->Scale( total_lumi / gen_lumi );
@@ -426,7 +429,20 @@ void plot_energy_and_track()
     // l_gap2->Draw();
 
     draw_manager->LableAndCollect(c1,1);
-    c1->SaveAs(Form("../data/eID/energy_and_track_resolution.png"));
+    c1->SaveAs(Form("../data/eID/26.03_energy_and_track_resolution.png"));
+
+    TCanvas* c2 = new TCanvas("c_Q2range_resolution", "Resolution comparison for Q2", 1400, 400);
+    c2->Divide(n_group, 1);
+    for ( int i = 0; i < n_group; i ++ )
+    {
+        c2->cd(i+1);
+        clusterQA.h_dE[i]->Draw("HIST SAME");
+        clusterQA.h_dE[i]->SetLineColor(kBlue);
+
+        trackQA.h_dE[i]->Draw("HIST SAME");
+        trackQA.h_dE[i]->SetLineColor(kRed);
+    }
+    draw_manager->LableAndCollect(c2);
 
     return;
 }

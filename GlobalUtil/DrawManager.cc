@@ -87,6 +87,8 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
     // 2: bottom-right
     // 3: mid right, small canvas
     // 4: A1 coverage plots
+    // 5: bottom-left
+    // 6: bottom-left, tighter text
     // Not working very well for canvas with multiple pads yet
 
     std::string lumi_unit = type == "ep" ? "fb^{-1}" : "fb^{-1}/A";
@@ -152,6 +154,9 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         if ( draw_position == 3 ) {
             left_margin = 0.66;
             top_margin = 0.69;
+        }
+        if ( draw_position == 5 || draw_position == 6 ) {
+            top_margin = 0.42;
         }
 
         // ===== Add ePIC logo to the figure ======
@@ -220,6 +225,10 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         if ( draw_position == 1 ) {
             // internal_y = top_margin - 0.076 * scale_factor;
             internal_y = top_margin - 0.075 * scale_factor;
+        }
+
+        if ( draw_position == 6 ) {
+            internal_x = left_margin + logo_width - 0.12 * scale_factor;
         }
 
         TLatex Text_ePIC;

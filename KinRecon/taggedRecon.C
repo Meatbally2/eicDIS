@@ -42,7 +42,7 @@ void load_eID_selection(TH2F* &h_eID, string setting)
     return;
 }
 
-void FullRecon(int beam_type, int Ee, int Eh)
+void taggedRecon(int beam_type, int Ee, int Eh)
 {
     // ECCE binning
     // set_ECCE_bin();
@@ -50,9 +50,9 @@ void FullRecon(int beam_type, int Ee, int Eh)
     // ePIC plotting style setup
     std::string type_title[3] = {"e^{3}He", "ep", "#gammap"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    std::string campaign = beam_type ? "25.10.0" : "25.10.2";
+    std::string campaign = "26.03.1";
     DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, campaign);
-    draw_manager->SetEPIC();
+    draw_manager->SetEPIC("Performance");
 
     double text_lumi = 10; // fb^-1
     if ( beam_type == 0 && Ee == 10 && Eh == 166 )
@@ -79,14 +79,9 @@ void FullRecon(int beam_type, int Ee, int Eh)
         TH2F* h_xq_stb_tmp[2] = {BookTH2(Form("H_XQ_STB%d_n", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature), BookTH2(Form("H_XQ_STB%d_p", i), ";x;Q^{2} (GeV/c^{2})^{2}", n_x_bin, -5, 0, n_q_bin,  0, 5, kLightTemperature)};
 
         // load files and trees
-        // TFile* beamFile = new TFile(Form("../data/en_25_10_2/root_files/10x166_%s_beam_combined.root", group[i].c_str()));
-        // TFile* tagFile  = new TFile(Form("../data/en_25_10_2/root_files/10x166_%s_tag_combined.root", group[i].c_str()));
-        // TFile* eidFile  = new TFile(Form("../data/en_25_10_2/root_files/10x166_%s_eIDrecon_combined.root", group[i].c_str()));
-        
-        TFile* beamFile = new TFile(Form("../data/en_25_10_2/root_files/eHe3_%dx%d_%s_beam_combined.root", Ee, Eh, group[i].c_str()));
-        TFile* tagFile  = new TFile(Form("../data/en_25_10_2/root_files/eHe3_%dx%d_%s_tag_combined.root", Ee, Eh, group[i].c_str()));
-        // TFile* eidFile  = new TFile(Form("../data/en_25_10_2/root_files/eHe3_%dx%d_%s_eIDrecon_combined.root", Ee, Eh, group[i].c_str()));
-        TFile* eidFile  = new TFile(Form("../data/en_25_10_2/root_files/eHe3_%dx%d_%s_eid_combined.root", Ee, Eh, group[i].c_str()));
+        TFile* beamFile = new TFile(Form("../data/en_26_03_1/root_files/eHe3_%dx%d_%s_beam_combined.root", Ee, Eh, group[i].c_str()));
+        TFile* tagFile  = new TFile(Form("../data/en_26_03_1/root_files/eHe3_%dx%d_%s_tag_combined.root", Ee, Eh, group[i].c_str()));
+        TFile* eidFile  = new TFile(Form("../data/en_26_03_1/root_files/eHe3_%dx%d_%s_eid_combined.root", Ee, Eh, group[i].c_str()));
 
         TTreeReader beam_reader("T_Beam", beamFile);
         TTreeReaderValue<int> N_PDG(beam_reader, "N_PDG");
@@ -183,7 +178,7 @@ void FullRecon(int beam_type, int Ee, int Eh)
             if ( Ereco[Q2] < 10 && boosted_vCLe.E() > 0)
             {
                 Ereco.clear();
-                Ereco = calc_elec_method(boosted_vCLe.E(), boosted_vCLe.theta(), pt_had, sigma_h, Ee, Eh);
+                Ereco = calc_elec_method(boosted_vCLe.E(), boosted_vTRe.theta(), pt_had, sigma_h, Ee, Eh);
             }
             
             reco = Ereco;
@@ -195,7 +190,7 @@ void FullRecon(int beam_type, int Ee, int Eh)
                 if ( reco[Q2] < 10 && boosted_vCLe.E() > 0)
                 {
                     reco.clear();
-                    reco = calc_da_method(boosted_vCLe.E(), boosted_vCLe.theta(), pt_had, sigma_h, Ee, Eh);
+                    reco = calc_da_method(boosted_vCLe.E(), boosted_vTRe.theta(), pt_had, sigma_h, Ee, Eh);
                 }
             }
                 
@@ -256,16 +251,16 @@ void FullRecon(int beam_type, int Ee, int Eh)
     draw_manager->LableAndCollect(c_xq2_rec);
     draw_manager->LableAndCollect(c_xq2_stb);
 
-    // c_xq2_mc->SaveAs(Form("../data/en_25_10_2/FullRecon_mc_%dx%d_he3.png", (int)Ee, (int)Eh));
-    // c_xq2_rec->SaveAs(Form("../data/en_25_10_2/FullRecon_rec_%dx%d_cuts.png", (int)Ee, (int)Eh));
-    // c_xq2_stb->SaveAs(Form("../data/en_25_10_2/FullRecon_binStability_%dx%d.png", (int)Ee, (int)Eh));
+    // c_xq2_mc->SaveAs(Form("../data/en_26_03_1/FullRecon_mc_%dx%d_he3.png", (int)Ee, (int)Eh));
+    // c_xq2_rec->SaveAs(Form("../data/en_26_03_1/FullRecon_rec_%dx%d_cuts.png", (int)Ee, (int)Eh));
+    // c_xq2_stb->SaveAs(Form("../data/en_26_03_1/FullRecon_binStability_%dx%d.png", (int)Ee, (int)Eh));
 
-    TFile*outFile = new TFile(Form("../data/en_25_10_2/FullRecon_%dx%d_new.root", (int)Ee, (int)Eh), "RECREATE");
-    // TFile*outFile = new TFile(Form("../data/en_25_10_2/FullRecon_%dx%d_ECCEbins.root", (int)Ee, (int)Eh), "RECREATE");
-    outFile->cd();
-    draw_manager->SaveToTree(outFile);
-    h_xq_mc->Write();
-    h_xq_he3->Write();
-    h_xq_rec->Write();
-    h_xq_stb->Write();
+    // TFile*outFile = new TFile(Form("../data/en_26_03_1/FullRecon_%dx%d.root", (int)Ee, (int)Eh), "RECREATE");
+    // // TFile*outFile = new TFile(Form("../data/en_26_03_1/FullRecon_%dx%d_ECCEbins.root", (int)Ee, (int)Eh), "RECREATE");
+    // outFile->cd();
+    // draw_manager->SaveToTree(outFile);
+    // h_xq_mc->Write();
+    // h_xq_he3->Write();
+    // h_xq_rec->Write();
+    // h_xq_stb->Write();
 }
