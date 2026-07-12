@@ -29,7 +29,7 @@ ElectronID::ElectronID() {
 
 	minTrackPoints = 3;
 
-	mEoP_min = 0.95;
+	mEoEH_min = 0.85;
 
 	boost = LorentzRotation(); // Initialize to identity
 }
@@ -51,7 +51,7 @@ ElectronID::ElectronID(double Ee, double Eh) {
 
 	minTrackPoints = 3;
 
-	mEoP_min = 0.85;
+	mEoEH_min = 0.85;
 
 	boost = LorentzRotation(); // Initialize to identity
 }
@@ -255,6 +255,31 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			//  	continue;
 			// }
 		}
+		// else if (reconPart.getClusters().size() > 0)
+		// {
+		// 	// Calculate rcpart_ member variables for this event
+		// 	CalculateParticleValues(reconPart, rcparts);
+
+		// 	// Calculate isolation fraction for this event (ECal only)
+		// 	double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
+
+		// 	// Calculate E/E+H for this event
+		// 	double recon_EoEH = rcpart_sum_cluster_E / (rcpart_sum_cluster_E + rcpart_sum_cluster_H);
+
+		// 	// pID detector look up
+		// 	int recon_pID = reconPart.getPDG();
+		// 	double pIDgoodness = reconPart.getGoodnessOfPID();
+
+		// 	det_val.push_back({Check_eID(reconPart), 0, -1, recon_isoE, recon_EoEH, recon_pID});
+
+		// 	if(recon_isoE < mIsoE) 
+		// 		continue;
+
+		// 	if (recon_EoEH < mEoEH_min) 
+		// 		continue;
+
+		// 	scatteredElectronCandidates.push_back(reconPart);
+		// }
 	}	
 
 	// If EoP is found use that, otherwise loosen cuts 

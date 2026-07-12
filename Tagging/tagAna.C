@@ -27,7 +27,6 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     
     // .. input setup
     auto reader = podio::ROOTReader();
-    ana_manager->GetInputNames();
     // reader.openFiles(ana_manager->GetLocalInputNames());
     reader.openFiles(ana_manager->GetInputNames());
 
@@ -97,6 +96,8 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     h_tag_mul[1]->Draw("HIST SAME");
     h_tag_mul[1]->SetLineColor(kBlue);
 
+    h_tag_mul[0]->GetYaxis()->SetRangeUser(1, std::max(h_tag_mul[0]->GetMaximum(), h_tag_mul[1]->GetMaximum())*1.5);
+
     TLegend* leg_mul = new TLegend(0.6, 0.7, 0.88, 0.88);
     leg_mul->SetTextSize(0.05);
     leg_mul->SetBorderSize(0);
@@ -106,7 +107,7 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     leg_mul->AddEntry(h_tag_mul[1], "en DIS", "L");
     leg_mul->Draw();
 
-    draw_manager->LableAndCollect(c_pt, 2);
+    // draw_manager->LableAndCollect(c_pt, 2);
     plot_ff();
 
     draw_manager->SaveToTree(outFile);
@@ -235,7 +236,7 @@ void process_ff(const podio::Frame* event)
         
         h_tag_mul[struck_type]->Fill(n_rp_mc + n_omd_mc);
 
-        // cout << "Spec " << s << " PDG "<< spec[s]->pbg << " MC hits in RP: " << n_rp_mc << ", OMD: " << n_omd_mc << std::endl;
+        // cout << "Struck type " << struck_type << " Spec " << s << " MC hits in RP: " << n_rp_mc << ", OMD: " << n_omd_mc << std::endl;
 
         if ( n_rp_mc + n_omd_mc > 0)
         {
@@ -419,9 +420,17 @@ void find_spectators(const podio::Frame* event)
     {
         for ( auto mcp : mcparts )
         {
+            // if (mcp.getGeneratorStatus() == 4 )
+            // {
+            //     struck_pdg = mcp.getPDG();
+            //     cout << "Struck particle PDG: " << struck_pdg << endl;
+            //     // break;
+            // }
+            
             if ( mcp.getGeneratorStatus() == 1 && !mcp.isCreatedInSimulation() && !mcp.isBackscatter() )
             {
-                // cout << mcp << endl;
+                // if ( mcp.getPDG() == ID_PROTON || mcp.getPDG() == ID_NEUTRON || mcp.getPDG() == ID_DEUTERON )
+                //     cout << mcp << endl;
 
                 if ( mcp.daughters_size() != 0 )
                     continue;
