@@ -91,6 +91,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             // vMC_e = boost(vMC_e);
             // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
             countMCe += e_mc.size();
+
+            h_pt_theta->Fill(vMC_e.Theta()*(180./M_PI), abs(vMC_e.Pt()));
         }
 
         // Use MC to find reconstructed electron (TruthID)
@@ -195,6 +197,24 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
         // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
         // if (e_mc[0].getEnergy() > 5 )
         // {
+            for ( const auto& d : eFinder->mod_val )
+            {
+                if ( d.parType == 0 )
+                {
+                    if ( vMC_e.Theta()*(180./M_PI) > 158 && vMC_e.Theta()*(180./M_PI) < 162 ) 
+                    {
+                        h_EoP_gapF_mod->Fill(d.recon_EoP);
+                        h_EoEH_gapF_mod->Fill(d.recon_EoEH);
+                    }
+                        
+                    if ( vMC_e.Theta()*(180./M_PI) > 22 && vMC_e.Theta()*(180./M_PI) < 33 )
+                    {
+                        h_EoP_gapB_mod->Fill(d.recon_EoP);
+                        h_EoEH_gapB_mod->Fill(d.recon_EoEH);
+                    }
+                }
+            }
+
             for ( const auto& d : eFinder->det_val )
             {
                 if ( d.parType == 0 )
@@ -203,6 +223,20 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                     h_EoP_e->Fill(d.recon_EoP);
                     h_isoE_e->Fill(d.recon_isoE);
                     h_EoEH_e->Fill(d.recon_EoEH);
+                    h_PIDe_e->Fill(d.recon_Le);
+                    h_PIDh_e->Fill(d.recon_Lh);
+
+                    if ( vMC_e.Theta()*(180./M_PI) > 158 && vMC_e.Theta()*(180./M_PI) < 162 ) 
+                    {
+                        h_EoP_gapF->Fill(d.recon_EoP);
+                        h_EoEH_gapF->Fill(d.recon_EoEH);
+                    }
+                        
+                    if ( vMC_e.Theta()*(180./M_PI) > 22 && vMC_e.Theta()*(180./M_PI) < 33 )
+                    {
+                        h_EoP_gapB->Fill(d.recon_EoP);
+                        h_EoEH_gapB->Fill(d.recon_EoEH);
+                    }
                 }
                 else if ( d.parType == -211 )
                 {
@@ -210,6 +244,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                     h_EoP_pi->Fill(d.recon_EoP);
                     h_isoE_pi->Fill(d.recon_isoE);
                     h_EoEH_pi->Fill(d.recon_EoEH);
+                    h_PIDe_pi->Fill(d.recon_Le);
+                    h_PIDh_pi->Fill(d.recon_Lh);
                 }
                 else if ( abs(d.parType) == 11 )
                 {
@@ -217,6 +253,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                     h_EoP_jet_e->Fill(d.recon_EoP);
                     h_isoE_jet_e->Fill(d.recon_isoE);
                     h_EoEH_jet_e->Fill(d.recon_EoEH);
+                    h_PIDe_jet_e->Fill(d.recon_Le);
+                    h_PIDh_jet_e->Fill(d.recon_Lh);
                 }
                 else
                 {
@@ -224,6 +262,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                     h_EoP_else->Fill(d.recon_EoP);
                     h_isoE_else->Fill(d.recon_isoE);
                     h_EoEH_else->Fill(d.recon_EoEH);
+                    h_PIDe_else->Fill(d.recon_Le);
+                    h_PIDh_else->Fill(d.recon_Lh);
                 }
 
                 bool is_electron = (d.parType == 0 || abs(d.parType) == 11);
@@ -284,6 +324,39 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     DrawVerticalLine(c_EoP, eFinder->get_mEoP_max(), draw_max);
     draw_manager->LableAndCollect(c_EoP);
 
+    TCanvas* c_gap = new TCanvas("c_gap", "c_gap", 1400, 800);
+    c_gap->Divide(2,2);
+
+    c_gap->cd(1);
+    gPad->SetLogy();
+    h_EoP_gapB->Draw("HIST");
+    h_EoP_gapB->SetLineColor(kGray+2);
+    h_EoP_gapB_mod->Draw("HIST SAME");
+    h_EoP_gapB_mod->SetLineColor(kRed);
+
+    c_gap->cd(2);
+    gPad->SetLogy();
+    h_EoP_gapF->Draw("HIST");
+    h_EoP_gapF->SetLineColor(kGray+2);
+    h_EoP_gapF_mod->Draw("HIST SAME");
+    h_EoP_gapF_mod->SetLineColor(kRed);
+
+    c_gap->cd(3);
+    gPad->SetLogy();
+    h_EoEH_gapB->Draw("HIST");
+    h_EoEH_gapB->SetLineColor(kGray+2);
+    h_EoEH_gapB_mod->Draw("HIST SAME");
+    h_EoEH_gapB_mod->SetLineColor(kRed);
+
+    c_gap->cd(4);
+    gPad->SetLogy();
+    h_EoEH_gapF->Draw("HIST");
+    h_EoEH_gapF->SetLineColor(kGray+2);
+    h_EoEH_gapF_mod->Draw("HIST SAME");
+    h_EoEH_gapF_mod->SetLineColor(kRed);
+
+    draw_manager->LableAndCollect(c_gap);
+
     TCanvas* c_isoE = new TCanvas("c_isoE", "c_isoE", 1000, 600);
     c_isoE->SetLogy();
 
@@ -297,6 +370,19 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     DrawParComparison(c_EoEH, h_EoEH_e, h_EoEH_jet_e, h_EoEH_pi, h_EoEH_else, draw_max);
     DrawVerticalLine(c_EoEH, eFinder->get_mEoEH_min(), draw_max);
     draw_manager->LableAndCollect(c_EoEH);
+
+    TCanvas* c_PIDe = new TCanvas("c_PIDe", "c_PIDe", 1000, 600);
+    c_PIDe->SetLogy();
+
+    DrawParComparison(c_PIDe, h_PIDe_e, h_PIDe_jet_e, h_PIDe_pi, h_PIDe_else, draw_max);
+    draw_manager->LableAndCollect(c_PIDe);
+
+    TCanvas* c_PIDh = new TCanvas("c_PIDh", "c_PIDh", 1000, 600);
+    c_PIDh->SetLogy();
+    
+    DrawParComparison(c_PIDh, h_PIDh_e, h_PIDh_jet_e, h_PIDh_pi, h_PIDh_else, draw_max);
+    DrawVerticalLine(c_PIDh, eFinder->get_mPID_veto(), draw_max);
+    draw_manager->LableAndCollect(c_PIDh);
 
     TCanvas* c_EminusPz = new TCanvas("c_EminusPz", "c_EminusPz", 1000, 600);
 
@@ -350,6 +436,10 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
     draw_manager->LableAndCollect(c_pID_eff);
 
+    TCanvas* c_pt_theta = new TCanvas("c_pt_theta", "c_pt_theta", 1000, 600);
+    h_pt_theta->Draw("COLZ");
+    draw_manager->LableAndCollect(c_pt_theta);
+
     // Save
 
     outFile->cd();
@@ -372,6 +462,11 @@ void DefineHistograms() {
     h_EoP_pi = new TH1D("h_EoP_pi", "EoP pi; E/p; Counts", 100, 0., 2.);
     h_EoP_else = new TH1D("h_EoP_else", "EoP; E/p; Counts", 100, 0., 2.);
 
+    h_EoP_gapF = new TH1D("h_EoP_gapF", "EoP gapF; E/p; Counts", 100, 0., 2.);
+    h_EoP_gapB = new TH1D("h_EoP_gapB", "EoP gapB; E/p; Counts", 100, 0., 2.);
+    h_EoP_gapF_mod = new TH1D("h_EoP_gapF_mod", "EoP gapF; E/p; Counts", 100, 0., 2.);
+    h_EoP_gapB_mod = new TH1D("h_EoP_gapB_mod", "EoP gapB; E/p; Counts", 100, 0., 2.);
+
     h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
     h_isoE_jet_e = new TH1D("h_isoE_jet_e", "Isolation Energy other e's; Iso. E; Counts", 110, 0., 1.1);
     h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
@@ -381,6 +476,23 @@ void DefineHistograms() {
     h_EoEH_jet_e = new TH1D("h_EoEH_jet_e", "E/E+H other e's; E/E+H; Counts", 110, 0., 1.1);
     h_EoEH_pi = new TH1D("h_EoEH_pi", "E/E+H pi; E/E+H; Counts", 110, 0., 1.1);
     h_EoEH_else = new TH1D("h_EoEH_else", "E/E+H; E/E+H; Counts", 110, 0., 1.1);
+
+    h_EoEH_gapB = new TH1D("h_EoEH_gapB", "E/E+H gapB; E/E+H; Counts", 110, 0., 1.1);
+    h_EoEH_gapF = new TH1D("h_EoEH_gapF", "E/E+H gapF; E/E+H; Counts", 110, 0., 1.1);
+    h_EoEH_gapF_mod = new TH1D("h_EoEH_gapF_mod", "E/E+H gapF; E/E+H; Counts", 110, 0., 1.1);
+    h_EoEH_gapB_mod = new TH1D("h_EoEH_gapB_mod", "E/E+H gapB; E/E+H; Counts", 110, 0., 1.1);
+
+    h_PIDe_e = new TH1D("h_PIDe_e", "PID e; PID; Counts", 100, 0., 1.);
+    h_PIDe_jet_e = new TH1D("h_PIDe_jet_e", "PID other e's; PID; Counts", 100, 0., 1.);
+    h_PIDe_pi = new TH1D("h_PIDe_pi", "PID pi; PID; Counts", 100, 0., 1.);
+    h_PIDe_else = new TH1D("h_PIDe_else", "PID; PID; Counts", 100, 0., 1.);
+
+    h_PIDh_e = new TH1D("h_PIDh_e", "PID e; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
+    h_PIDh_jet_e = new TH1D("h_PIDh_jet_e", "PID other e's; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
+    h_PIDh_pi = new TH1D("h_PIDh_pi", "PID pi; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
+    h_PIDh_else = new TH1D("h_PIDh_else", "PID; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
+
+    h_pt_theta = new TH2D("h_pt_theta", "p_{T} vs #theta; #theta; p_{T}", 180, 0., 180, 50, 0., 50.);
 
     h_TrackEminusPz = new TH1D("h_TrackEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
     h_CalEminusPz = new TH1D("h_CalEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);

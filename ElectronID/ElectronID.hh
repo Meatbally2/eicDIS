@@ -51,6 +51,7 @@ public:
 	double get_mIsoR() const { return mIsoR; }
 	double get_mIsoE() const { return mIsoE; }
 	double get_mEoEH_min() const { return mEoEH_min; }
+	double get_mPID_veto() const { return mPID_veto; }
 	int GetMinTrackPoints() const { return minTrackPoints; }
 
 	// for HFS QA
@@ -66,13 +67,11 @@ public:
 		double recon_isoE;
 		double recon_EoEH;
 		int recon_pID;
-		// double pIDgoodness;
+		double recon_Le; // likelihood of being an electron
+		double recon_Lh; // likelihood of being a hadron
 	};
 	vector<DetValues> det_val;
-	vector<DetValues> e_det;
-	vector<DetValues> jet_e_det;
-	vector<DetValues> pi_det;
-	vector<DetValues> else_det;
+	vector<DetValues> mod_val;
 
 	double rcpart_n_clusters;
 
@@ -93,7 +92,9 @@ private:
 	double mDeltaH_max;
 	double mIsoR;
 	double mIsoE;
+	double mEcone;
 	double mEoEH_min;
+	double mPID_veto;
 	int minTrackPoints = 3;
 	
 	void CalculateParticleValues(const edm4eic::ReconstructedParticle& rcp,
@@ -105,6 +106,8 @@ private:
 	double rcpart_lead_cluster_E;
 	double rcpart_isolation_E;
 	double rcpart_sum_cluster_H;
+	double rcpart_sum_cluster_E_wider;
+	double rcpart_sum_cluster_H_wider;
 
 	int eScatIndex;
 };

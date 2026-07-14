@@ -5,7 +5,8 @@ const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
 const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
 // const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
-std::string address =  "root://dtn-eic.jlab.org:1094/";
+// std::string address =  "root://dtn-eic.jlab.org:1094/";
+std::string address =  "root://epicxrd1.sdcc.bnl.gov:1095/";
 
 const int step = 200; // number of files to process in one batch
 
@@ -25,20 +26,18 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
 
     campaign = "26.03.1";
 
+    if ( beam_type == EHE3 )
+        campaign = "26.04.1";
+ 
     if ( beam_type == EP )
         campaign = "26.04.1";
+        // campaign = "26.06.0";
 
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG || beam_type == EP) )
-    {
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
         campaign = "26.04.1";
-        address = "root://epicxrd1.sdcc.bnl.gov:1095/";
-    }
 
     if ( beam_type == PI_BG )
-    {
         campaign = "26.03.0";
-        address = "root://epicxrd1.sdcc.bnl.gov:1095/";
-    }
 
     return;
 }
@@ -125,7 +124,7 @@ vector<std::string> AnaManager::GetInputNames()
     // std::string file_name = "../data/test.txt";
     
     std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG || beam_type == EP) )
+    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG || beam_type == EP) || beam_type == EHE3) 
         prefix = "/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
 
     std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
@@ -158,10 +157,19 @@ vector<std::string> AnaManager::GetInputNames()
         }
         else if ( beam_type == EP || beam_type == EP_CC )
         {
-            std::string gen_group = beam_type == EP ? "DIS/NC/" : "DIS/CC/"; 
+            std::string gen_group = beam_type == EP ? "DIS/NC/" : "DIS/CC/";
             std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
             target = gen_group + beam_group + sample_group;
+            
+            // std::string gen_group = beam_type == EP ? "DIS/pythia8.316-1.0/NC/noRad/ep/" : "DIS/pythia8.316-1.0/CC/noRad/ep/"; 
+            // std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
+            // std::string sample_group = Form("q2_%.0fto%.0f/",pow(10,r), pow(10,r+1));
+        
+            // if ( r == 3 )
+            //     sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+2));
+            
+            // target = gen_group + beam_group + sample_group;
         }
         else if ( beam_type == PI_BG )
         {
@@ -232,6 +240,8 @@ vector<std::string> AnaManager::GetInputNames()
             // fname.erase(0, 5);
 
             int compare = line.compare(address.size()+prefix.size(), target.size(), target);
+
+            // std::cout << line.substr(address.size()+prefix.size(), target.size()) << " vs " << target << " .. compare: " << compare << std::endl;
             
             if ( compare != 0 )
                 continue;
@@ -276,7 +286,7 @@ vector<std::string> AnaManager::GetInputNames()
         return {};
     }
 
-    std::cout << "Number of valid input files: " << validFiles.size() << " .. passing them to PODIO" << std::endl;
+    // std::cout << "Number of valid input files: " << validFiles.size() << " .. passing them to PODIO" << std::endl;
 
     // for ( const auto& line : inFiles )
     //     std::cout << line << std::endl;

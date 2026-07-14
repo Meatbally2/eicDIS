@@ -29,7 +29,10 @@ ElectronID::ElectronID() {
 
 	minTrackPoints = 3;
 
+	mEcone = 0.3;
 	mEoEH_min = 0.85;
+
+	mPID_veto = 0.62;
 
 	boost = LorentzRotation(); // Initialize to identity
 }
@@ -51,7 +54,10 @@ ElectronID::ElectronID(double Ee, double Eh) {
 
 	minTrackPoints = 3;
 
+	mEcone = 0.3;
 	mEoEH_min = 0.85;
+
+	mPID_veto = 0.62;
 
 	boost = LorentzRotation(); // Initialize to identity
 }
@@ -68,11 +74,8 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	hfs_dpz.clear();
 	hfs_de.clear();
 	hfs_theta.clear();
-	e_det.clear();
-	jet_e_det.clear();
-	pi_det.clear();
-	else_det.clear();
 	det_val.clear();
+	mod_val.clear();
 	// std::cout << "** Event set in ElectronID. " << std::endl;
 
 	meMCValid = false;
@@ -195,12 +198,15 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			// Calculate rcpart_ member variables for this event
 			CalculateParticleValues(reconPart, rcparts);
 
+			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
+			double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
+
 			// Calculate isolation fraction for this event (ECal only)
 			double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
 
 			// Calculate E/p for this event
 			double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
-
+			
 			// Calculate E/E+H for this event
 			double recon_EoEH = rcpart_sum_cluster_E / (rcpart_sum_cluster_E + rcpart_sum_cluster_H);
 
@@ -208,7 +214,46 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			int recon_pID = reconPart.getPDG();
 			double pIDgoodness = reconPart.getGoodnessOfPID();
 
-			det_val.push_back({Check_eID(reconPart), n_track_points, recon_EoP, recon_isoE, recon_EoEH, recon_pID});
+			double Le = 0.0, Lpi = 0.0, Lk = 0.0, Lp = 0.0;
+
+			for (const auto& pid : reconPart.getParticleIDs()) 
+			{
+				const int apdg = std::abs(pid.getPDG());
+				const double L = pid.getLikelihood();
+				if (apdg == 11) Le = std::max(Le, L);
+				else if (apdg == 211) Lpi = std::max(Lpi, L);
+				else if (apdg == 321) Lk = std::max(Lk, L);
+				else if (apdg == 2212) Lp = std::max(Lp, L);
+			}
+
+			double Lhad = std::max({Lpi, Lk, Lp});
+			double Lhadsum = Lpi + Lk + Lp;
+			double eFrac = (Le + Lhadsum > 0.0) ? Le / (Le + Lhadsum) : 0.0;
+			double hFrac = (Le + Lhad > 0.0) ? Lhad / (Le + Lhad) : 0.0;
+
+			// find real PDG of the particle
+			int mc_PDG = Check_eID(reconPart);
+
+			// if ( mc_PDG == 11 || mc_PDG == 0 )
+			// 	std::cout << "eFrac: " << eFrac << std::endl;
+			// else if ( mc_PDG == -211 )
+			// 	std::cout << "Lhad pi: " << Lhad << std::endl;
+			// else if ( mc_PDG == -321 )
+			// 	std::cout << "Lhad K: " << Lhad << std::endl;
+			// else if ( mc_PDG == -2212 )
+			// 	std::cout << "Lhad p: " << Lhad << std::endl;
+
+			det_val.push_back({mc_PDG, n_track_points, recon_EoP, recon_isoE, recon_EoEH, recon_pID, eFrac, hFrac});
+
+			if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
+			{
+				// std::cout << "trackTheta: " << trackTheta << ", clusterTheta: " << clusterTheta << std::endl;
+				// std::cout << "recon_EoP before modification: " << recon_EoP << ", recon_EoEH before modification: " << recon_EoEH << std::endl;
+				double mod_EoP = rcpart_sum_cluster_E_wider / edm4hep::utils::magnitude(reconPart.getMomentum());
+				double mod_EoEH = rcpart_sum_cluster_E_wider / (rcpart_sum_cluster_E_wider + rcpart_sum_cluster_H_wider);
+				mod_val.push_back({mc_PDG, n_track_points, mod_EoP, recon_isoE, mod_EoEH, recon_pID, eFrac, hFrac});
+				// std::cout << "recon_EoP after modification: " << recon_EoP << ", recon_EoEH after modification: " << recon_EoEH << std::endl;
+			}
 
 			// if ( recon_pID == -321 )
 			// 	std::cout << "Reconstructed particle PDG: " << recon_pID << ", goodness of PID: " << pIDgoodness << ", real PDG: " << Check_eID(reconPart) << std::endl;
@@ -216,27 +261,31 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			if ( n_track_points < minTrackPoints ) 
 				continue;
 
-			if(recon_isoE < mIsoE) 
+			if (recon_isoE < mIsoE) 
+				continue;
+			
+			if (hFrac > mPID_veto) 
 				continue;
 
-			if (recon_EoEH < mEoEH_min) 
+			// if (recon_EoEH < mEoEH_min) 
+			// 	continue;
+			
+			// scatteredElectronCandidates.push_back(reconPart);
+
+			if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+			{
+				scatteredElectronCandidates.push_back(reconPart);
 				continue;
-
-			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
-			double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
-
-			scatteredElectronCandidates.push_back(reconPart);
-
-			// if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
-			// {
-			// 	scatteredElectronCandidates.push_back(reconPart);
-			// 	continue;
-			// }
-			// else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
-			// {
-			// 	scatteredElectronCandidates_noEoP.push_back(reconPart);
-			// 	continue;
-			// }
+			}
+			else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
+			{
+				double pt = edm4hep::utils::magnitudeTransverse(reconPart.getMomentum());
+				if ( pt > 1 )
+				{
+					scatteredElectronCandidates_noEoP.push_back(reconPart);
+					continue;
+				}
+			}
 
 			// scatteredElectronCandidates_noEoP.push_back(reconPart);
 
@@ -431,6 +480,8 @@ void ElectronID::CalculateParticleValues(const edm4eic::ReconstructedParticle& r
 	rcpart_lead_cluster_E = 0.;
 	rcpart_isolation_E = 0.;
 	rcpart_sum_cluster_H = 0.;
+	rcpart_sum_cluster_E_wider = 0.;
+	rcpart_sum_cluster_H_wider = 0.;
 
 	const edm4eic::Cluster* lead_cluster = nullptr;
 
@@ -483,6 +534,113 @@ void ElectronID::CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
 		}
 	}
 
+	// const auto& ecal_clusters = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("EcalClusters")));
+
+	// for (const auto& ecal_cluster : ecal_clusters) {
+	// 	const auto& other_pos = ecal_cluster.getPosition();
+	// 	double other_eta = edm4hep::utils::eta(other_pos);
+	// 	double other_phi = edm4hep::utils::angleAzimuthal(other_pos);
+
+	// 	double d_eta = other_eta - lead_eta;
+	// 	double d_phi = other_phi - lead_phi;
+
+	// 	// Adjust d_phi to be in the range (-pi, pi)
+	// 	if (d_phi > M_PI) d_phi-=2*M_PI;
+	// 	if (d_phi < -M_PI) d_phi+=2*M_PI;
+
+	// 	double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
+
+	// 	// Check if the cluster is within the isolation cone
+	// 	if (dR < mEcone) {
+	// 		rcpart_sum_cluster_E_wider += ecal_cluster.getEnergy();
+	// 	}
+	// }
+
+    const auto& ecal_barrel = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("EcalBarrelScFiClusters")));
+	// const auto& ecal_image = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("EcalBarrelImagingClusters")));
+	const auto& ecal_f_endcap = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("EcalEndcapNClusters")));
+    const auto& ecal_b_endcap = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("EcalEndcapPClusters")));
+
+	for ( const auto& ecal_cluster : ecal_barrel) {
+		const auto& other_pos = ecal_cluster.getPosition();
+		double other_eta = edm4hep::utils::eta(other_pos);
+		double other_phi = edm4hep::utils::angleAzimuthal(other_pos);
+
+		double d_eta = other_eta - lead_eta;
+		double d_phi = other_phi - lead_phi;
+
+		// Adjust d_phi to be in the range (-pi, pi)
+		if (d_phi > M_PI) d_phi-=2*M_PI;
+		if (d_phi < -M_PI) d_phi+=2*M_PI;
+
+		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
+
+		// Check if the cluster is within the isolation cone
+		if (dR < mEcone) {
+			rcpart_sum_cluster_E_wider += ecal_cluster.getEnergy();
+		}
+	}
+
+	// for ( const auto& ecal_cluster : ecal_image) {
+	// 	const auto& other_pos = ecal_cluster.getPosition();
+	// 	double other_eta = edm4hep::utils::eta(other_pos);
+	// 	double other_phi = edm4hep::utils::angleAzimuthal(other_pos);
+
+	// 	double d_eta = other_eta - lead_eta;
+	// 	double d_phi = other_phi - lead_phi;
+
+	// 	// Adjust d_phi to be in the range (-pi, pi)
+	// 	if (d_phi > M_PI) d_phi-=2*M_PI;
+	// 	if (d_phi < -M_PI) d_phi+=2*M_PI;
+
+	// 	double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
+
+	// 	// Check if the cluster is within the isolation cone
+	// 	if (dR < mEcone) {
+	// 		rcpart_sum_cluster_E_wider += ecal_cluster.getEnergy();
+	// 	}
+	// }
+
+	for ( const auto& ecal_cluster : ecal_f_endcap) {
+		const auto& other_pos = ecal_cluster.getPosition();
+		double other_eta = edm4hep::utils::eta(other_pos);
+		double other_phi = edm4hep::utils::angleAzimuthal(other_pos);
+
+		double d_eta = other_eta - lead_eta;
+		double d_phi = other_phi - lead_phi;
+
+		// Adjust d_phi to be in the range (-pi, pi)
+		if (d_phi > M_PI) d_phi-=2*M_PI;
+		if (d_phi < -M_PI) d_phi+=2*M_PI;
+
+		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
+
+		// Check if the cluster is within the isolation cone
+		if (dR < mEcone) {
+			rcpart_sum_cluster_E_wider += ecal_cluster.getEnergy();
+		}
+	}
+
+	for ( const auto& ecal_cluster : ecal_b_endcap) {
+		const auto& other_pos = ecal_cluster.getPosition();
+		double other_eta = edm4hep::utils::eta(other_pos);
+		double other_phi = edm4hep::utils::angleAzimuthal(other_pos);
+
+		double d_eta = other_eta - lead_eta;
+		double d_phi = other_phi - lead_phi;
+
+		// Adjust d_phi to be in the range (-pi, pi)
+		if (d_phi > M_PI) d_phi-=2*M_PI;
+		if (d_phi < -M_PI) d_phi+=2*M_PI;
+
+		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
+
+		// Check if the cluster is within the isolation cone
+		if (dR < mEcone) {
+			rcpart_sum_cluster_E_wider += ecal_cluster.getEnergy();
+		}
+	}
+
 	// HCal
 	const auto& hcal_barrel = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("HcalBarrelClusters")));
 	const auto& hcal_f_endcap = static_cast<const edm4eic::ClusterCollection&>(*(mEvent->get("HcalEndcapNClusters")));
@@ -503,9 +661,13 @@ void ElectronID::CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
 		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
 
 		// Check if the cluster is within the isolation cone
-		if (dR < mIsoR) {
+		if (dR < mEcone) {
 			rcpart_sum_cluster_H += hcal_cluster.getEnergy();
 			rcpart_n_clusters ++;
+		}
+
+		if (dR < mEcone) {
+			rcpart_sum_cluster_H_wider += hcal_cluster.getEnergy();
 		}
 	}
 
@@ -524,9 +686,13 @@ void ElectronID::CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
 		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
 
 		// Check if the cluster is within the isolation cone
-		if (dR < mIsoR) {
+		if (dR < mEcone) {
 			rcpart_sum_cluster_H += hcal_cluster.getEnergy();
 			rcpart_n_clusters ++;
+		}
+
+		if (dR < mEcone) {
+			rcpart_sum_cluster_H_wider += hcal_cluster.getEnergy();
 		}
 	}
 
@@ -545,9 +711,13 @@ void ElectronID::CheckSurroundingClusters(const edm4hep::Vector3f& lead_pos,
 		double dR = std::sqrt(std::pow(d_eta, 2) + std::pow(d_phi, 2));
 
 		// Check if the cluster is within the isolation cone
-		if (dR < mIsoR) {
+		if (dR < mEcone) {
 			rcpart_sum_cluster_H += hcal_cluster.getEnergy();
 			rcpart_n_clusters ++;
+		}
+
+		if (dR < mEcone) {
+			rcpart_sum_cluster_H_wider += hcal_cluster.getEnergy();
 		}
 	}
 

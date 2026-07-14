@@ -58,18 +58,41 @@ TH1D* h_nTPts_e;
 TH1D* h_nTPts_jet_e;
 TH1D* h_nTPts_pi;
 TH1D* h_nTPts_else;
+
 TH1D* h_EoP_e;
 TH1D* h_EoP_jet_e;
 TH1D* h_EoP_pi;
 TH1D* h_EoP_else;
+
+TH1D* h_EoP_gapB;
+TH1D* h_EoP_gapF;
+TH1D* h_EoP_gapF_mod;
+TH1D* h_EoP_gapB_mod;
+
 TH1D* h_isoE_e;
 TH1D* h_isoE_jet_e;
 TH1D* h_isoE_pi;
 TH1D* h_isoE_else;
+
 TH1D* h_EoEH_e;
 TH1D* h_EoEH_jet_e;
 TH1D* h_EoEH_pi;
 TH1D* h_EoEH_else;
+
+TH1D* h_EoEH_gapB;
+TH1D* h_EoEH_gapF;
+TH1D* h_EoEH_gapF_mod;
+TH1D* h_EoEH_gapB_mod;
+
+TH1D* h_PIDe_e;
+TH1D* h_PIDe_jet_e;
+TH1D* h_PIDe_pi;
+TH1D* h_PIDe_else;
+
+TH1D* h_PIDh_e;
+TH1D* h_PIDh_jet_e;
+TH1D* h_PIDh_pi;
+TH1D* h_PIDh_else;
 
 TEfficiency* h_pID_pur; // if identify, how many are correct
 TEfficiency* h_pID_fal; // if identify, how many are scatter e
@@ -88,5 +111,6 @@ TH1D* h_cand_mul_oHighPt;
 TH1D* h_n_cluster_in_cone;
 TH1D* h_n_cluster_in_cone_found;
 
+TH2D* h_pt_theta;
 
 #endif
