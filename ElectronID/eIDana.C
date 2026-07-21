@@ -157,6 +157,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                 TLorentzVector recokprime;
                 recokprime.SetXYZM(recoMC.getMomentum().x, recoMC.getMomentum().y, recoMC.getMomentum().z, MASS_ELECTRON);
                 CalculateElectronKinematics(Ee, Eh, recokprime, rec_xB, rec_Q2, rec_W2, rec_y, rec_nu);
+                vMC_rec.SetPxPyPzE(recoMC.getMomentum().x, recoMC.getMomentum().y, recoMC.getMomentum().z, recoMC.getEnergy());
             }
 
             h_cand_mul->Fill(e_candidates.size());
@@ -633,6 +634,7 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("vMC_e", &vMC_e);
 	outTree->Branch("vTRACK_e", &vTRACK_e);
 	outTree->Branch("vCLUSTER_e", &vCLUSTER_e);
+    outTree->Branch("vMC_rec", &vMC_rec);
     outTree->Branch("vMC_hfs", &vMC_hfs);
     outTree->Branch("vREC_hfs", &vREC_hfs);
 
@@ -662,6 +664,7 @@ void ResetVariables() {
     vMC_e.SetPxPyPzE(0, 0, 0, 0);
 	vTRACK_e.SetPxPyPzE(0, 0, 0, 0);
 	vCLUSTER_e.SetPxPyPzE(0, 0, 0, 0);
+    vMC_rec.SetPxPyPzE(0, 0, 0, 0);
 
     vMC_hfs.clear();
     vREC_hfs.clear();   

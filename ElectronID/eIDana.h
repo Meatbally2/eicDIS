@@ -51,6 +51,7 @@ double rec_nu;
 PxPyPzEVector vMC_e;
 PxPyPzEVector vTRACK_e;
 PxPyPzEVector vCLUSTER_e;
+PxPyPzEVector vMC_rec;
 std::vector<PxPyPzEVector> vMC_hfs;
 std::vector<PxPyPzEVector> vREC_hfs;
 

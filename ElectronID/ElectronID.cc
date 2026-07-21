@@ -163,8 +163,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates;
 	scatteredElectronCandidates.setSubsetCollection();
 
-	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_noEoP;
-	scatteredElectronCandidates_noEoP.setSubsetCollection();
+	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_lessCuts;
+	scatteredElectronCandidates_lessCuts.setSubsetCollection();
 
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_trackOnly;
 	scatteredElectronCandidates_trackOnly.setSubsetCollection();
@@ -272,22 +272,37 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			
 			// scatteredElectronCandidates.push_back(reconPart);
 
-			if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+			// if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
+			// {
+			// 	scatteredElectronCandidates.push_back(reconPart);
+			// 	continue;
+			// }
+			// else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
+			// {
+			// 	double pt = edm4hep::utils::magnitudeTransverse(reconPart.getMomentum());
+			// 	if ( pt > 1 )
+			// 	{
+			// 		scatteredElectronCandidates_lessCuts.push_back(reconPart);
+			// 		continue;
+			// 	}
+			// }
+
+			if ( recon_EoEH > mEoEH_min )
 			{
 				scatteredElectronCandidates.push_back(reconPart);
 				continue;
 			}
 			else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
 			{
-				double pt = edm4hep::utils::magnitudeTransverse(reconPart.getMomentum());
-				if ( pt > 1 )
-				{
-					scatteredElectronCandidates_noEoP.push_back(reconPart);
+				// double pt = edm4hep::utils::magnitudeTransverse(reconPart.getMomentum());
+				// if ( pt > 1 )
+				// {
+					scatteredElectronCandidates_lessCuts.push_back(reconPart);
 					continue;
-				}
+				// }
 			}
 
-			// scatteredElectronCandidates_noEoP.push_back(reconPart);
+			// scatteredElectronCandidates_lessCuts.push_back(reconPart);
 
 			// resolution of tracks and clusters is not perfect, so loosen cuts for particles that fail EoP requirement but pass other cuts
 			// double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
@@ -335,7 +350,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	if (scatteredElectronCandidates.size() > 0)
 		return scatteredElectronCandidates;
 	else
-		return scatteredElectronCandidates_noEoP;
+		return scatteredElectronCandidates_lessCuts;
 }
 
 edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
