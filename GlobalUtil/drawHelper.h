@@ -296,21 +296,21 @@ void set_2d_scale(TH2F* h)
 void process_eff_hist(TH2F* &h_top, TH2F* &h_bottom)
 {
     h_top->Divide(h_bottom);
-    for ( int ix = 0; ix < h_top->GetXaxis()->GetNbins(); ix ++ )
-    {
-      for ( int iq = 0; iq < h_top->GetYaxis()->GetNbins(); iq ++ )
-      {
-              double eff = h_top->GetBinContent(ix+1, iq+1);
-              double eff_round = std::round(eff * 1000) / 1000.;
-              // if ( eff_round > 1.5 )
-              //     eff_round = 1.5;
-              // h_top->SetBinContent(ix+1, iq+1, std::round(eff * 1000) / 1000.);
-              // if ( eff_round < 2 )
-                  h_top->SetBinContent(ix+1, iq+1, eff_round);
-              // else
-              //     h_top->SetBinContent(ix+1, iq+1, 0);
-          }
-      }
+    // for ( int ix = 0; ix < h_top->GetXaxis()->GetNbins(); ix ++ )
+    // {
+    //   for ( int iq = 0; iq < h_top->GetYaxis()->GetNbins(); iq ++ )
+    //   {
+    //           double eff = h_top->GetBinContent(ix+1, iq+1);
+    //           double eff_round = std::round(eff * 1000) / 1000.;
+    //           // if ( eff_round > 1.5 )
+    //           //     eff_round = 1.5;
+    //           // h_top->SetBinContent(ix+1, iq+1, std::round(eff * 1000) / 1000.);
+    //           // if ( eff_round < 2 )
+    //               h_top->SetBinContent(ix+1, iq+1, eff_round);
+    //           // else
+    //           //     h_top->SetBinContent(ix+1, iq+1, 0);
+    //       }
+    //   }
 
     return;
 }

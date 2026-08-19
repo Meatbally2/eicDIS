@@ -1,6 +1,7 @@
 
 #include "../GlobalUtil/preLoadLib.hh"
 #include "tagAna.h"
+#include <cmath>
 
 void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1)
 {
@@ -40,7 +41,7 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
     h_xq2_pt = new TH1F(Form("h_xq2_pt"), ";p_{T} (GeV/c);Counts", 100, 0, 10);
     h_xq2_pt_tag = new TH1F(Form("h_xq2_pt_tag"), ";p_{T} (GeV/c);Counts", 100, 0, 10);
-    h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 200, 15, 35, 100,0, 10);
+    h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 200, 15, 35, 100, 0, 10);
     h_tag_mul[0] = new TH1F(Form("h_tag_mul_p"), ";Tag multiplicity;Counts", 10, 0, 10);
     h_tag_mul[1] = new TH1F(Form("h_tag_mul_n"), ";Tag multiplicity;Counts", 10, 0, 10);
 
@@ -167,7 +168,7 @@ void setup_omd()
 void setup_zdc()
 {
     // zdcFinder = new FarForward("zdc", "HcalFarForwardZDCClusters"); 
-    zdcFinder = new FarForward("zdc", "ReconstructedFarForwardZDCNeutrals");    
+    zdcFinder = new FarForward("zdc", "ReconstructedHcalFarForwardZDCNeutrals");    
     zdcFinder->define_histograms();
     return;
 }
@@ -352,7 +353,7 @@ void find_spectators(const podio::Frame* event)
         if (mcp.getGeneratorStatus() == 4 && mcp.getPDG() != ID_ELECTRON)
         {
             struck_pdg = mcp.getPDG();
-            // cout << "Struck particle PDG: " << struck_pdg << endl;
+            cout << "\nStruck particle PDG: " << struck_pdg << endl;
             break;
         }
     }
@@ -380,6 +381,8 @@ void find_spectators(const podio::Frame* event)
                     count_id ++;
                 }
 
+                // std::cout << "Proton parent IDs: " << collect_id[0] << ", " << collect_id[1] << std::endl;
+
                 if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
                 {
                     spectator_info* spec_info = new spectator_info;
@@ -388,6 +391,12 @@ void find_spectators(const podio::Frame* event)
                     spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
                     candidates.push_back(spec_info);
                 }
+
+                // edm4hep::Vector3d has x/y/z components, not ROOT TVector methods.
+                const auto& p = mcp.getMomentum();
+                const double pt = std::sqrt(p.x * p.x + p.y * p.y);
+                const double theta_mrad = std::atan2(pt, p.z) * 1000.0;
+                cout << "angle: " << theta_mrad << " mrad, pT: " << pt << " GeV/c" << std::endl;
             }
         } 
 
