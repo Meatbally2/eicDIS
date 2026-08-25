@@ -42,10 +42,10 @@ HistManager::HistGroup1D HistManager::BookHistograms(std::string name, std::stri
     return hist_1d;
 }
 
-HistManager::HistGroup2D HistManager::MakeHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bins_y, double y_min, double y_max)
+HistManager::HistGroup2D HistManager::MakeHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bin_y, double y_min, double y_max)
 {
     HistGroup2D hist_2d;
-    hist_2d.sum = new TH2F(name.c_str(), title.c_str(), n_bin_x, x_min, x_max, n_bins_y, y_min, y_max);
+    hist_2d.sum = new TH2F(name.c_str(), title.c_str(), n_bin_x, x_min, x_max, n_bin_y, y_min, y_max);
     hist_2d.sum->SetStats(0);
     hist_2d.sum->GetXaxis()->CenterTitle();
     hist_2d.sum->GetYaxis()->CenterTitle();
@@ -54,7 +54,7 @@ HistManager::HistGroup2D HistManager::MakeHistograms(std::string name, std::stri
     {
         for ( int j = 0; j < 2; j ++ )
         {
-            hist_2d.ind[i][j] = new TH2F(Form("%s_%d_%d", name.c_str(), i, j), title.c_str(), n_bin_x, x_min, x_max, n_bins_y, y_min, y_max);
+            hist_2d.ind[i][j] = new TH2F(Form("%s_%d_%d", name.c_str(), i, j), title.c_str(), n_bin_x, x_min, x_max, n_bin_y, y_min, y_max);
         }
     }
     hist_group_2d.push_back(hist_2d);
@@ -62,16 +62,46 @@ HistManager::HistGroup2D HistManager::MakeHistograms(std::string name, std::stri
     return hist_2d;
 }
 
-HistManager::HistGroup2D HistManager::BookHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bins_y, double y_min, double y_max)
+HistManager::HistGroup2D HistManager::BookMixedTH2(std::string name, std::string title, int n_bin_x, double x_min, double x_max, bool x_log, int n_bin_y, double y_min, double y_max, bool y_log)
 {
     HistGroup2D hist_2d;
-    hist_2d.sum = BookTH2(name.c_str(), title.c_str(), n_bin_x, x_min, x_max, n_bins_y, y_min, y_max, kLightTemperature);
+    hist_2d.sum = new TH2F(name.c_str(), title.c_str(), n_bin_x, x_min, x_max, n_bin_y, y_min, y_max);
+
+    TExec *exUser = new TExec("ex1", Form("gStyle->SetPalette(kLightTemperature);"));
+    hist_2d.sum->GetListOfFunctions()->Add(exUser);
+
+    if (x_log) BinLogX(hist_2d.sum, 0);
+    if (y_log) BinLogX(hist_2d.sum, 1);
+
+    hist_2d.sum->GetXaxis()->CenterTitle();
+    hist_2d.sum->GetYaxis()->CenterTitle();
+    hist_2d.sum->GetXaxis()->SetTitleOffset(1.2);
+    hist_2d.sum->GetYaxis()->SetTitleOffset(1.2);
 
     for ( int i = 0; i < 4; i ++ )
     {
         for ( int j = 0; j < 2; j ++ )
         {
-            hist_2d.ind[i][j] = BookTH2(Form("%s_%d_%d", name.c_str(), i, j), title.c_str(), n_bin_x, x_min, x_max, n_bins_y, y_min, y_max, kLightTemperature);
+            hist_2d.ind[i][j] = new TH2F(Form("%s_%d_%d", name.c_str(), i, j), title.c_str(), n_bin_x, x_min, x_max, n_bin_y, y_min, y_max);
+            if (x_log) BinLogX(hist_2d.ind[i][j], 0);
+            if (y_log) BinLogX(hist_2d.ind[i][j], 1);
+        }
+    }
+    hist_group_2d.push_back(hist_2d);
+
+    return hist_2d;
+}
+
+HistManager::HistGroup2D HistManager::BookHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bin_y, double y_min, double y_max)
+{
+    HistGroup2D hist_2d;
+    hist_2d.sum = BookTH2(name.c_str(), title.c_str(), n_bin_x, x_min, x_max, n_bin_y, y_min, y_max, kLightTemperature);
+
+    for ( int i = 0; i < 4; i ++ )
+    {
+        for ( int j = 0; j < 2; j ++ )
+        {
+            hist_2d.ind[i][j] = BookTH2(Form("%s_%d_%d", name.c_str(), i, j), title.c_str(), n_bin_x, x_min, x_max, n_bin_y, y_min, y_max, kLightTemperature);
         }
     }
     hist_group_2d.push_back(hist_2d);

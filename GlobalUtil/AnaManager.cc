@@ -4,11 +4,10 @@
 const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
 const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
-// const std::string address =  "root://dtn-rucio.jlab.org:1094//volatile/eic/EPIC";
-// std::string address =  "root://dtn-eic.jlab.org:1094/";
 std::string address =  "root://epicxrd1.sdcc.bnl.gov:1095/";
 
 const int step = 200; // number of files to process in one batch
+// const int step = 2;
 
 AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 }
@@ -22,13 +21,14 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     region_index = region_index_;
     file_index = starting_file_index_;
     starting_file = starting_file_index_*step;
+    // starting_file = 1000;
     beam_type = beam_type_;
 
-    campaign = "26.03.1";
+    campaign = "26.07.1";
 
     if ( beam_type == EHE3 )
-        campaign = "26.07.1";
- 
+        campaign = "26.07.2";
+
     if ( beam_type == EP )
         campaign = "26.04.1";
         // campaign = "26.06.0";
@@ -67,44 +67,13 @@ std::string AnaManager::GetOutputName()
     if ( starting_file >= 0 )
         ana_name += Form("_f%d", file_index);
 
-    std::string prefix[7] = {"eHe3", "ep", "piBG", "beamBG", "ep", "epDVMP", "ep"};
+    std::string prefix[6] = {"eHe3", "ep_pythia8", "piBG", "beamBG", "ep_pythia6", "ep"};
     outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, p_group[region_index].c_str(), ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
     if ( beam_type == PI_BG )
         outname = is_select_region ? Form("tmp/%s_%dx%d_%s_%s.root", prefix[beam_type].c_str(), Ee, Eh, "minQ2=0", ana_name.c_str()) : Form("tmp/%s_%dx%d_%s.root", prefix[beam_type].c_str(), Ee, Eh, ana_name.c_str());
 
     return outname;
-}
-
-vector<std::string> AnaManager::GetLocalInputNames()
-{
-    std::vector<std::string> inFiles;
-
-    // for ( int r = 0; r < 10; r ++ )
-    // {
-    //     std::string file_name = Form("../data/BG_Study/18x275_%s/eicrecon_%d_to_%d.root", file_type.c_str(), r*100, r*100+99);
-    //     std::cout << "File " << r << " : " << file_name << std::endl;
-    //     inFiles.push_back(file_name);
-    // }     
-
-    inFiles.push_back("../data/en_25_10_2/root_files/epic_craterlake_100_1.eicrecon.tree.edm4eic.root");
-
-    return inFiles;
-}
-
-vector<std::string> AnaManager::GetLowQInputNames()
-{
-    std::vector<std::string> inFiles;
-
-    for ( int r = 0; r <= 1709; r ++ )
-    {
-        std::string fname = Form("epic:/RECO/25.05.0/epic_craterlake/SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run9.ab.%04d.eicrecon.edm4eic.root", r);
-        fname.erase(0, 5);
-        std::cout << "File " << r << " : " << fname << std::endl;
-        inFiles.push_back(address+fname);
-    }
-
-    return inFiles;
 }
 
 vector<std::string> AnaManager::GetInputNames()
@@ -114,14 +83,12 @@ vector<std::string> AnaManager::GetInputNames()
     std::vector<std::string> inFiles;
 
     int n_set = beam_type ? 4 : 3;
-    if ( beam_type == EP_DVMP || beam_type == PI_BG)
+    if ( beam_type == PI_BG )
         n_set = 1;
     
     int total_file = 0;
 
-    // std::string file_name = "data/" + campaign + "_manifest.txt";
     std::string file_name = "../data/" + campaign + "_manifest.txt";
-    // std::string file_name = "../data/test.txt";
     
     std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
     if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG || beam_type == EP) || beam_type == EHE3) 
@@ -142,7 +109,7 @@ vector<std::string> AnaManager::GetInputNames()
         std::string target;
         if ( beam_type == EHE3 )
         {
-            std::string gen_group = Eh == 166 ? "DIS/BeAGLE1.03.02-3.0/" : "DIS/BeAGLE1.03.02-1.2/"; 
+            std::string gen_group = Eh == 166 ? "DIS/BeAGLE1.03.02-3.1/" : "DIS/BeAGLE1.03.02-1.2/"; 
             std::string beam_group = Form("eHe3/%dx%d/", (int)Ee, (int)Eh);
             std::string sample_group;
             if ( r == 0 )
@@ -201,13 +168,6 @@ vector<std::string> AnaManager::GetInputNames()
             }
                 
 
-            target = gen_group + beam_group + sample_group;
-        }
-        else if ( beam_type == EP_DVMP )
-        {
-            std::string gen_group = "EXCLUSIVE/DVMP/EpIC1.1.6-1.1/unpolarised/"; 
-            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = Form("q2_1_1000/");
             target = gen_group + beam_group + sample_group;
         }
         else

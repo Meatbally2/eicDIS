@@ -15,7 +15,6 @@
 // using ROOT::Math::LorentzRotation;
 
 void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1);
-// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int analyse_p);
 void CreateOutputTree(TString outFileName);
 void ResetVariables();
 
@@ -96,8 +95,20 @@ TH1D* h_PIDh_pi;
 TH1D* h_PIDh_else;
 
 TEfficiency* h_pID_pur; // if identify, how many are correct
-TEfficiency* h_pID_fal; // if identify, how many are scatter e
+TEfficiency* h_pID_suc; // In general, how many are correct
 TEfficiency* h_pID_eff; // efficiency in using it as veto for scattered electron
+
+TEfficiency* h_e_eID_pur_eta;
+TEfficiency* h_pi_eID_pur_eta;
+TEfficiency* h_K_eID_pur_eta;
+TEfficiency* h_p_eID_pur_eta;
+TEfficiency* h_eVeto_eID_pur_eta;
+
+TEfficiency* h_e_pID_pur_eta;
+TEfficiency* h_pi_pID_pur_eta;
+TEfficiency* h_K_pID_pur_eta;
+TEfficiency* h_p_pID_pur_eta;
+TEfficiency* h_eVeto_pID_pur_eta;
 
 TH1D* h_TrackEminusPz;
 TH1D* h_CalEminusPz;

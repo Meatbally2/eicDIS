@@ -4,7 +4,6 @@
 #include "eIDana.h"
 
 void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1)
-// void eIDana(int Ee, int Eh, std::string ev_type, int is_truth_eID, int beam_type)
 {
     std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
 
@@ -12,9 +11,8 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     AnaManager* ana_manager = new AnaManager("eid");
     ana_manager->SetBeamEnergy(Ee, Eh);
     ana_manager->Initialize(select_region, sr, file0, beam_type);
-    // ana_manager->InitializeForLocal(ev_type);
 
-    std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep DVMP"};
+    std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
     DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, ana_manager->campaign);
     draw_manager->SetEPIC();
@@ -30,8 +28,6 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     // .. input setup
     podio::ROOTReader* reader = new podio::ROOTReader();
     reader->openFiles(ana_manager->GetInputNames());
-    // reader->openFiles(ana_manager->GetLocalInputNames());
-    // reader->openFiles(ana_manager->GetLowQInputNames());
 
     std::cout << "** Input files loaded. Setting up analysis... " << std::endl;
 
@@ -181,17 +177,38 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                 vREC_hfs.push_back(hf);
             }
 
-            bool is_electron = ( mc_PDG == 0 || mc_PDG == 11 );
-            if (e_rec.getPDG() != 11 && e_rec.getPDG() != 0)
-                h_pID_eff->Fill(!is_electron, 0);
-            if (e_rec.getPDG() == 11)
-                h_pID_eff->Fill(is_electron, 1);
-            if (e_rec.getPDG() == -211)
-                h_pID_eff->Fill(!is_electron, 2);
-            if (e_rec.getPDG() == -321)
-                h_pID_eff->Fill(!is_electron, 3);
-            if (e_rec.getPDG() == -2212)
-                h_pID_eff->Fill(!is_electron, 4);
+            if ( e_rec.getPDG() != 0 )
+            {
+                bool is_mc_electron = ( mc_PDG == 0 || mc_PDG == 11 );
+                bool is_pid_electron = (abs(e_rec.getPDG()) == 11);
+                
+                // how often the PID is correct for the scattered electron candidate
+                if ( !is_pid_electron )
+                {
+                    h_pID_eff->Fill(!is_mc_electron, 0);
+                    h_eVeto_eID_pur_eta->Fill(!is_mc_electron, edm4hep::utils::eta(recoMC.getMomentum()));
+                }
+                if (abs(e_rec.getPDG()) == 11)
+                {
+                    h_pID_eff->Fill(is_mc_electron, 1);
+                    h_e_eID_pur_eta->Fill(is_mc_electron, edm4hep::utils::eta(recoMC.getMomentum()));
+                }
+                if (abs(e_rec.getPDG()) == 211)
+                {
+                    h_pID_eff->Fill(abs(mc_PDG) == 211, 2);
+                    h_pi_eID_pur_eta->Fill(abs(mc_PDG) == 211, edm4hep::utils::eta(recoMC.getMomentum()));
+                }
+                if (abs(e_rec.getPDG()) == 321)
+                {
+                    h_pID_eff->Fill(abs(mc_PDG) == 321, 3);
+                    h_K_eID_pur_eta->Fill(abs(mc_PDG) == 321, edm4hep::utils::eta(recoMC.getMomentum()));
+                }
+                if (abs(e_rec.getPDG()) == 2212)
+                {
+                    h_pID_eff->Fill(abs(mc_PDG) == 2212, 4);
+                    h_p_eID_pur_eta->Fill(abs(mc_PDG) == 2212, edm4hep::utils::eta(recoMC.getMomentum()));
+                }
+            }
         }
 
         // Fill histograms
@@ -267,33 +284,49 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
                     h_PIDh_else->Fill(d.recon_Lh);
                 }
 
-                bool is_electron = (d.parType == 0 || abs(d.parType) == 11);
-                if ( d.recon_pID != 11 && d.recon_pID != 0)
+                bool is_mc_electron = (d.parType == 0 || abs(d.parType) == 11);
+
+                // How well is PID matching true particle overall if PID is reporting a particle
+                if ( d.recon_pID != 0 )
                 {
-                    h_pID_pur->Fill(!is_electron, 0);
-                    h_pID_fal->Fill(d.parType == 0, 0);
+                    if ( d.recon_pID != 11 )
+                    {
+                        h_pID_pur->Fill(!is_mc_electron, 0);
+                        h_eVeto_pID_pur_eta->Fill(!is_mc_electron, d.eta);
+                    }
+                    if ( d.recon_pID == 11)
+                    {
+                        h_pID_pur->Fill(is_mc_electron, 1);
+                        h_e_pID_pur_eta->Fill(is_mc_electron, d.eta);
+                    }
+                    if ( d.recon_pID == 211 )
+                    {
+                        h_pID_pur->Fill(d.parType == 211, 2);
+                        h_pi_pID_pur_eta->Fill(d.parType == 211, d.eta);
+                    }
+                    if ( d.recon_pID == 321 )
+                    {
+                        h_pID_pur->Fill(d.parType == 321, 3);
+                        h_K_pID_pur_eta->Fill(d.parType == 321, d.eta);
+                    }
+                    if ( d.recon_pID == 2212 )
+                    {
+                        h_pID_pur->Fill(d.parType == 2212, 4);
+                        h_p_pID_pur_eta->Fill(d.parType == 2212, d.eta);
+                    }
                 }
-                    
-                if ( d.recon_pID == 11)
-                {
-                    h_pID_pur->Fill(is_electron, 1);
-                    h_pID_fal->Fill(d.parType == 0, 1);
-                }
-                else if ( d.recon_pID == -211 )
-                {
-                    h_pID_pur->Fill(d.parType == -211, 2);
-                    h_pID_fal->Fill(d.parType == 0, 2);
-                }
-                else if ( d.recon_pID == -321 )
-                {
-                    h_pID_pur->Fill(d.parType == -321, 3);
-                    h_pID_fal->Fill(d.parType == 0, 3);
-                }
-                else if ( d.recon_pID == -2212 )
-                {
-                    h_pID_pur->Fill(d.parType == -2212, 4);
-                    h_pID_fal->Fill(d.parType == 0, 4);
-                }
+
+                // how often is PID reporting true particle in general
+                if ( !is_mc_electron )
+                    h_pID_suc->Fill(d.recon_pID != 11, 0);
+                if ( is_mc_electron )
+                    h_pID_suc->Fill(d.recon_pID == 11, 1);
+                if ( d.parType == 211 )
+                    h_pID_suc->Fill(d.recon_pID == 211, 2);
+                if ( d.parType == 321 )
+                    h_pID_suc->Fill(d.recon_pID == 321, 3);
+                if ( d.parType == 2212 )
+                    h_pID_suc->Fill(d.recon_pID == 2212, 4);
             }
         // }
         
@@ -427,19 +460,83 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     // draw_manager->LableAndCollect(c_n_cluster_in_cone,2);
 
     TCanvas* c_pID_eff = new TCanvas("c_pID_eff", "c_pID_eff", 1000, 600);
-    h_pID_pur->Draw();
 
+    TH1D* h_eff_bar = (TH1D*)h_pID_eff->GetCopyPassedHisto();
+    TH1D* h_eff_tot = (TH1D*)h_pID_eff->GetCopyTotalHisto();
+    h_eff_bar->Divide(h_eff_bar, h_eff_tot, 1.0, 1.0, "B");  // binomial errors
+    h_eff_bar->SetFillColor(kP8Green);
+    h_eff_bar->SetFillStyle(3003);
+    h_eff_bar->SetLineColor(kP8Green);
+    h_eff_bar->SetMarkerColor(kP8Green);
+    h_eff_bar->Draw("HIST SAME");
+
+    h_eff_bar->GetYaxis()->SetRangeUser(0.0, 1.5);
     gPad->Update();
-    h_pID_pur->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.05);
 
-    h_pID_fal->Draw("SAME");
+    h_pID_pur->Draw("SAME");
+    h_pID_suc->Draw("SAME");
     h_pID_eff->Draw("SAME");
 
+    TLegend* leg_pID = new TLegend(0.6, 0.72, 0.8, 0.92);
+    leg_pID->SetBorderSize(0);
+    leg_pID->SetFillStyle(0);
+    leg_pID->AddEntry(h_pID_suc, "Purity in general", "LP");
+    leg_pID->AddEntry(h_pID_pur, "Purity if pID exists", "LP");
+    leg_pID->AddEntry(h_pID_eff, "Purity for e candidates", "LP");
+    leg_pID->Draw();
+
     draw_manager->LableAndCollect(c_pID_eff);
+
+    TCanvas* c_pID_pur_eta = new TCanvas("c_pID_pur_eta", "c_pID_pur_eta", 1000, 600);
+    h_eVeto_pID_pur_eta->Draw();
+    gPad->Update();
+    h_eVeto_pID_pur_eta->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.5);
+
+    h_e_pID_pur_eta->Draw("SAME");
+    h_pi_pID_pur_eta->Draw("SAME");
+    h_K_pID_pur_eta->Draw("SAME");
+    h_p_pID_pur_eta->Draw("SAME");
+
+    TLegend* leg_pID_eta = new TLegend(0.6, 0.7, 0.8, 0.92);
+    leg_pID_eta->SetBorderSize(0);
+    leg_pID_eta->SetFillStyle(0);
+    leg_pID_eta->AddEntry(h_eVeto_pID_pur_eta, "electron veto", "LP");
+    leg_pID_eta->AddEntry(h_e_pID_pur_eta, "electron", "LP");
+    leg_pID_eta->AddEntry(h_pi_pID_pur_eta, "pion", "LP");
+    leg_pID_eta->AddEntry(h_K_pID_pur_eta, "kaon", "LP");
+    leg_pID_eta->AddEntry(h_p_pID_pur_eta, "proton", "LP");
+    leg_pID_eta->Draw();
+
+    draw_manager->LableAndCollect(c_pID_pur_eta);
+
+    TCanvas* c_eID_pur_eta = new TCanvas("c_eID_pur_eta", "c_eID_pur_eta", 1000, 600);
+    h_eVeto_eID_pur_eta->Draw();
+    gPad->Update();
+    h_eVeto_eID_pur_eta->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.5);
+
+    h_e_eID_pur_eta->Draw("SAME");
+    h_pi_eID_pur_eta->Draw("SAME");
+    h_K_eID_pur_eta->Draw("SAME");
+    h_p_eID_pur_eta->Draw("SAME");
+
+    TLegend* leg_eID_eta = new TLegend(0.6, 0.7, 0.8, 0.92);
+    leg_eID_eta->SetBorderSize(0);
+    leg_eID_eta->SetFillStyle(0);
+    leg_eID_eta->AddEntry(h_eVeto_eID_pur_eta, "electron veto", "LP");
+    leg_eID_eta->AddEntry(h_e_eID_pur_eta, "electron", "LP");
+    leg_eID_eta->AddEntry(h_pi_eID_pur_eta, "pion", "LP");
+    leg_eID_eta->AddEntry(h_K_eID_pur_eta, "kaon", "LP");
+    leg_eID_eta->AddEntry(h_p_eID_pur_eta, "proton", "LP");
+    leg_eID_eta->Draw();
+
+    draw_manager->LableAndCollect(c_eID_pur_eta);
 
     TCanvas* c_pt_theta = new TCanvas("c_pt_theta", "c_pt_theta", 1000, 600);
     h_pt_theta->Draw("COLZ");
     draw_manager->LableAndCollect(c_pt_theta);
+
+    TCanvas* c_pid_score = eFinder->MakePlots();
+    draw_manager->LableAndCollect(c_pid_score);
 
     // Save
 
@@ -516,14 +613,77 @@ void DefineHistograms() {
     h_total->GetXaxis()->SetBinLabel(4, "K");
     h_total->GetXaxis()->SetBinLabel(5, "p");
     h_total->LabelsOption("h", "X");
+    h_pID_pur->SetMarkerColor(kP8Blue);
+    h_pID_pur->SetLineColor(kP8Blue);
+    h_pID_pur->SetLineWidth(2);
+    h_pID_pur->SetMarkerStyle(21);
 
-    h_pID_fal = new TEfficiency("h_pID_fal", ";PDG;Fake Rate", 5, -0.5, 4.5);
-    h_pID_fal->SetMarkerColor(kRed+1);
-    h_pID_fal->SetLineColor(kRed+1);
+    h_pID_suc = new TEfficiency("h_pID_suc", ";PDG;Success Rate", 5, -0.5, 4.5);
+    h_pID_suc->SetMarkerColor(kP8Red);
+    h_pID_suc->SetLineColor(kP8Red);
+    h_pID_suc->SetLineWidth(2);
+    h_pID_suc->SetMarkerStyle(20);
 
     h_pID_eff = new TEfficiency("h_pID_eff", ";PDG;Efficiency", 5, -0.5, 4.5);
-    h_pID_eff->SetMarkerColor(kBlue+1);
-    h_pID_eff->SetLineColor(kBlue+1);
+    h_pID_eff->SetMarkerColor(kP8Green);
+    h_pID_eff->SetLineColor(kP8Green);
+    h_pID_eff->SetMarkerStyle(29);
+
+    //
+
+    int color[5] = {kP10Blue, kP10Brown, kP10Green, kP10Ash, kP10Red};
+    int marker[5] = { 20, 21, 22, 23, 29};
+    h_e_eID_pur_eta = new TEfficiency("h_e_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_e_eID_pur_eta->SetMarkerColor(color[0]);
+    h_e_eID_pur_eta->SetLineColor(color[0]);
+    h_e_eID_pur_eta->SetMarkerStyle(marker[0]);
+
+    h_pi_eID_pur_eta = new TEfficiency("h_pi_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_pi_eID_pur_eta->SetMarkerColor(color[1]);
+    h_pi_eID_pur_eta->SetLineColor(color[1]);
+    h_pi_eID_pur_eta->SetMarkerStyle(marker[1]);
+
+    h_K_eID_pur_eta = new TEfficiency("h_K_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_K_eID_pur_eta->SetMarkerColor(color[2]);
+    h_K_eID_pur_eta->SetLineColor(color[2]);
+    h_K_eID_pur_eta->SetMarkerStyle(marker[2]);
+
+    h_p_eID_pur_eta = new TEfficiency("h_p_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_p_eID_pur_eta->SetMarkerColor(color[3]);
+    h_p_eID_pur_eta->SetLineColor(color[3]);
+    h_p_eID_pur_eta->SetMarkerStyle(marker[3]);
+
+    h_eVeto_eID_pur_eta = new TEfficiency("h_eVeto_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_eVeto_eID_pur_eta->SetMarkerColor(color[4]);
+    h_eVeto_eID_pur_eta->SetLineColor(color[4]);
+    h_eVeto_eID_pur_eta->SetMarkerStyle(marker[4]);
+
+    //
+
+    h_e_pID_pur_eta = new TEfficiency("h_e_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_e_pID_pur_eta->SetMarkerColor(color[0]);
+    h_e_pID_pur_eta->SetLineColor(color[0]);
+    h_e_pID_pur_eta->SetMarkerStyle(marker[0]);
+
+    h_pi_pID_pur_eta = new TEfficiency("h_pi_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_pi_pID_pur_eta->SetMarkerColor(color[1]);
+    h_pi_pID_pur_eta->SetLineColor(color[1]);
+    h_pi_pID_pur_eta->SetMarkerStyle(marker[1]);
+
+    h_K_pID_pur_eta = new TEfficiency("h_K_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_K_pID_pur_eta->SetMarkerColor(color[2]);
+    h_K_pID_pur_eta->SetLineColor(color[2]);
+    h_K_pID_pur_eta->SetMarkerStyle(marker[2]);
+
+    h_p_pID_pur_eta = new TEfficiency("h_p_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_p_pID_pur_eta->SetMarkerColor(color[3]);
+    h_p_pID_pur_eta->SetLineColor(color[3]);
+    h_p_pID_pur_eta->SetMarkerStyle(marker[3]);
+
+    h_eVeto_pID_pur_eta = new TEfficiency("h_eVeto_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
+    h_eVeto_pID_pur_eta->SetMarkerColor(color[4]);
+    h_eVeto_pID_pur_eta->SetLineColor(color[4]);
+    h_eVeto_pID_pur_eta->SetMarkerStyle(marker[4]);
 
     return;
 }

@@ -7,6 +7,9 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 {
     std::cout << "** Analysing far-forwards, energy is set to: " << Ee << "x" << Eh << std::endl;
 
+    constexpr double nucleon_mass = 0.9382720813; // GeV
+    ion_momentum_per_nucleon =std::sqrt(Eh * Eh - nucleon_mass * nucleon_mass);
+
     // Standard setup
 
     AnaManager* ana_manager = new AnaManager("tag");
@@ -39,9 +42,9 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     setup_rp();
     setup_zdc();
 
-    h_xq2_pt = new TH1F(Form("h_xq2_pt"), ";p_{T} (GeV/c);Counts", 100, 0, 10);
-    h_xq2_pt_tag = new TH1F(Form("h_xq2_pt_tag"), ";p_{T} (GeV/c);Counts", 100, 0, 10);
-    h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 200, 15, 35, 100, 0, 10);
+    h_xq2_pt = new TH1F(Form("h_xq2_pt"), ";p_{T} (GeV/c);Counts", 50, 0, 0.2);
+    h_xq2_pt_tag = new TH1F(Form("h_xq2_pt_tag"), ";p_{T} (GeV/c);Counts", 50, 0, 0.2);
+    h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 50, 0, 1, 80, 0, 0.16);
     h_tag_mul[0] = new TH1F(Form("h_tag_mul_p"), ";Tag multiplicity;Counts", 10, 0, 10);
     h_tag_mul[1] = new TH1F(Form("h_tag_mul_n"), ";Tag multiplicity;Counts", 10, 0, 10);
 
@@ -150,7 +153,7 @@ void setup_omd()
     double rotate = 1./cos(-0.047);
     // double xShift[4] = {-780.0, -780.0, -870.0, -870.0};
     // double zRange[4][2] = {{22490, 22512}, {22512, 22528}, {24490, 24510},{24510, 24530}};
-    double xShift[4] = {-941.0, -941.0, -1032.0, -1032.0};
+    double xShift[4] = {-941.0+20, -941.0+20, -1032.0+20, -1032.0+20};
     double zRange[4][2] = {{25500, 25512}, {25515, 25528}, {26950, 27010}, {27015, 27030}};
 
     omdFinder->set_rotation(rotate);
@@ -235,7 +238,8 @@ void process_ff(const podio::Frame* event)
         int n_omd_mc = *std::min_element(spec[s]->det_hits[0], spec[s]->det_hits[0] + 4); // omd first
         int n_rp_mc = *std::min_element(spec[s]->det_hits[1], spec[s]->det_hits[1] + 4);
         
-        h_tag_mul[struck_type]->Fill(n_rp_mc + n_omd_mc);
+        if (struck_type == 0 || struck_type == 1)
+            h_tag_mul[struck_type]->Fill(n_rp_mc + n_omd_mc);
 
         // cout << "Struck type " << struck_type << " Spec " << s << " MC hits in RP: " << n_rp_mc << ", OMD: " << n_omd_mc << std::endl;
 
@@ -331,8 +335,15 @@ void CreateOutputTree(TString outFileName) {
     return;
 }
 
+// The simulation files does not have good notation for spectators. 
+// Seems to have to do some kinematic selection unless we update eic-smear ..
+// Made some sorting code with Codex 5.6 Sol Light, should work a bit better than before
 void find_spectators(const podio::Frame* event)
 {
+    struck_type = -1;
+
+    for (auto* p : spec)
+        delete p;
     spec.clear();
 
     SpecPBG.clear();
@@ -341,141 +352,203 @@ void find_spectators(const podio::Frame* event)
     OtherVec.clear();
     SpecTag.clear();
 
-    // cout << "** Finding spectators... " << std::endl;
+    const auto& mcHeadon = static_cast<const edm4hep::MCParticleCollection&>(*(event->get("MCParticlesHeadOnFrameNoBeamFX")));
+    const auto& mc = static_cast<const edm4hep::MCParticleCollection&>(*(event->get("MCParticles")));
 
-    const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(event->get("MCParticles")));
+    // Fixed BEAGLE layout for this production.
+    if (mcHeadon.size() <= 12)
+        return;
 
-    int struck_pdg = -1;
-    std::vector<spectator_info*> candidates;
+    const int struckPDG = mcHeadon[12].getPDG();
 
-    for (const auto& mcp : mcparts)
-    {
-        if (mcp.getGeneratorStatus() == 4 && mcp.getPDG() != ID_ELECTRON)
-        {
-            struck_pdg = mcp.getPDG();
-            cout << "\nStruck particle PDG: " << struck_pdg << endl;
-            break;
+    if (struckPDG == 2212)
+        struck_type = 0; // ep: spectator pair is p+n
+    else if (struckPDG == 2112)
+        struck_type = 1; // en: spectator pair is p+p
+    else
+        return;
+
+    // Ion per-nucleon beam momentum.
+    const double pzBeam = std::abs(mcHeadon[2].getMomentum().z);
+
+    struct Candidate {
+        int index;
+        double score;
+    };
+
+    std::vector<Candidate> protons;
+    std::vector<Candidate> neutrons;
+
+    for (std::size_t i = 0; i < mcHeadon.size(); ++i) {
+        const auto particle = mcHeadon[i];
+
+        if (particle.getGeneratorStatus() != 1)
+            continue;
+
+        const int pdg = particle.getPDG();
+
+        // Do not use abs(PDG): exclude antinucleons.
+        if (pdg != 2212 && pdg != 2112)
+            continue;
+
+        const auto& p = particle.getMomentum();
+
+        // Ion-going and reasonably close to beam momentum.
+        // if (p.z < 0.4 * pzBeam)
+        //     continue;
+
+        const double pt = std::hypot(p.x, p.y);
+        const double dpzScale = std::max(0.30 * pzBeam, 1.0);
+
+        const double score = std::pow((p.z - pzBeam) / dpzScale, 2) + std::pow(pt / 0.5, 2);
+
+        Candidate candidate{
+            static_cast<int>(i),
+            score
+        };
+
+        if (pdg == 2212)
+            protons.push_back(candidate);
+        else
+            neutrons.push_back(candidate);
+    }
+
+    const auto byScore = [](const Candidate& a, const Candidate& b) { return a.score < b.score; };
+
+    std::sort(protons.begin(), protons.end(), byScore);
+    std::sort(neutrons.begin(), neutrons.end(), byScore);
+
+    std::vector<int> selected;
+
+    if (struck_type == 1) {
+        // en -> two proton spectators
+        if (protons.size() >= 2) {
+            selected.push_back(protons[0].index);
+            selected.push_back(protons[1].index);
+        }
+    } 
+
+    if (struck_type == 0) {
+        // ep: save the initial proton spectator from original He-3
+        // nucleons 6,7,8 (zero-based indices 5,6,7).
+        for (int i : {5, 6, 7}) {
+            if (i >= static_cast<int>(mcHeadon.size()))
+                continue;
+
+            const auto particle = mcHeadon[i];
+
+            if (particle.getPDG() != 2212 || particle.getGeneratorStatus() != 14)
+                continue;
+
+            auto* spec_info = new spectator_info{};
+            spec_info->pbg = particle.getPDG();
+            // No final transported MCParticle is available for hit matching.
+            spec_info->mc_index = -1;
+            spec_info->tagged = false;
+            // Initial BeAGLE spectator/Fermi kinematics.
+            const TLorentzVector lab = boost_beagle_spectator(particle, mcHeadon);
+            spec_info->vec.SetPxPyPzE(lab.Px(), lab.Py(), lab.Pz(), lab.E());
+            spec.push_back(spec_info);
+
+            h_xq2_pt->Fill(spec_info->vec.Pt());
+            h_xq2_pt_theta->Fill(spec_info->vec.Theta() * 1000.0, spec_info->vec.Pt());
+
+            break; // exactly one initial proton spectator for ep
+        }
+
+        return;
+    }
+
+    for (const int index : selected) {
+        if (index < 0 || static_cast<std::size_t>(index) >= mc.size())
+            continue;
+
+        const auto headOnParticle = mcHeadon[index];
+        const auto transportedParticle = mc[index];
+
+        // Check the same-index mapping.
+        if (headOnParticle.getPDG() != transportedParticle.getPDG() || headOnParticle.getGeneratorStatus() != transportedParticle.getGeneratorStatus()) {
+            std::cerr << "Head-on/MC mapping failed at index " << index << '\n';
+            continue;
+        }
+
+        auto* spec_info = new spectator_info{};
+
+        spec_info->pbg = headOnParticle.getPDG();
+        spec_info->mc_index = index;
+        spec_info->tagged = false;
+        spec_info->vec.SetPxPyPzE(headOnParticle.getMomentum().x, headOnParticle.getMomentum().y, headOnParticle.getMomentum().z, headOnParticle.getEnergy());
+        spec.push_back(spec_info);
+
+        h_xq2_pt->Fill(spec_info->vec.Pt());
+        h_xq2_pt_theta->Fill(spec_info->vec.Theta() * 1000.0, spec_info->vec.Pt());
+    }
+}
+
+TLorentzVector boost_beagle_spectator( const edm4hep::MCParticle& spectator, const edm4hep::MCParticleCollection& mcHeadon) {
+    
+    // Incoming electron in the head-on frame.
+    const auto beamElectron = mcHeadon[0];
+    TLorentzVector k(beamElectron.getMomentum().x, beamElectron.getMomentum().y, beamElectron.getMomentum().z, beamElectron.getEnergy());
+
+    // Find the primary final-state scattered electron.
+    int scatteredIndex = -1;
+    double largestElectronEnergy = -1.0;
+
+    for (std::size_t i = 0; i < mcHeadon.size(); ++i) {
+        const auto particle = mcHeadon[i];
+
+        if (particle.getPDG() != 11 ||
+            particle.getGeneratorStatus() != 1)
+            continue;
+
+        if (particle.getEnergy() > largestElectronEnergy) {
+            largestElectronEnergy = particle.getEnergy();
+            scatteredIndex = static_cast<int>(i);
         }
     }
 
-    struck_type = struck_pdg == ID_PROTON ? 0 : 1;
+    if (scatteredIndex < 0)
+        return {};
 
-    if ( struck_pdg == ID_NEUTRON ) // more or less working fine with some selection cuts
-    {
-        for ( auto mcp : mcparts )
-        {
-            if ( mcp.getPDG() == ID_PROTON &&mcp.getGeneratorStatus() == 1 && !mcp.isCreatedInSimulation() && !mcp.isBackscatter() )
-            {
-                // cout << mcp << endl;
+    const auto scatteredElectron = mcHeadon[scatteredIndex];
+    TLorentzVector kPrime(scatteredElectron.getMomentum().x, scatteredElectron.getMomentum().y, scatteredElectron.getMomentum().z, scatteredElectron.getEnergy());
 
-                if ( mcp.daughters_size() != 0 )
-                    continue;
+    // Virtual photon in the head-on collider frame.
+    TLorentzVector qLab = k - kPrime;
 
-                int count_id = 0;
-                int collect_id[2] = {0,0};
-                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
-                {
-                    if ( count_id < 2)
-                        collect_id[count_id] = it->getObjectID().index;
+    const double nucleonMass = spectator.getMass();
+    const double ionEnergyPerNucleon = std::sqrt(ion_momentum_per_nucleon * ion_momentum_per_nucleon + nucleonMass * nucleonMass);
+    const double beta = ion_momentum_per_nucleon / ionEnergyPerNucleon;
 
-                    count_id ++;
-                }
+    // Transform q and incoming electron into the nuclear rest frame.
+    TLorentzVector qRest = qLab;
+    TLorentzVector kRest = k;
 
-                // std::cout << "Proton parent IDs: " << collect_id[0] << ", " << collect_id[1] << std::endl;
+    qRest.Boost(0.0, 0.0, -beta);
+    kRest.Boost(0.0, 0.0, -beta);
 
-                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
-                {
-                    spectator_info* spec_info = new spectator_info;
-                    spec_info->pbg = mcp.getPDG();
-                    spec_info->mc_index = mcp.getObjectID().index;
-                    spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
-                    candidates.push_back(spec_info);
-                }
+    // BeAGLE local z-axis is along q in the nuclear rest frame.
+    const TVector3 zAxis = qRest.Vect().Unit();
 
-                // edm4hep::Vector3d has x/y/z components, not ROOT TVector methods.
-                const auto& p = mcp.getMomentum();
-                const double pt = std::sqrt(p.x * p.x + p.y * p.y);
-                const double theta_mrad = std::atan2(pt, p.z) * 1000.0;
-                cout << "angle: " << theta_mrad << " mrad, pT: " << pt << " GeV/c" << std::endl;
-            }
-        } 
+    // BeAGLE x-axis convention: opposite the component of the incoming
+    // electron perpendicular to q. This convention reproduced the
+    // known en spectator transverse momenta.
+    TVector3 xAxis = kRest.Vect() - kRest.Vect().Dot(zAxis) * zAxis;
+    xAxis = -xAxis.Unit();
 
-        int pair_start = -1;
-        for (size_t i = 0; i + 1 < candidates.size(); ++i)
-        {
-            if (candidates[i + 1]->mc_index == candidates[i]->mc_index + 1)
-            {
-                pair_start = static_cast<int>(i);
-                break;
-            }
-        }
+    // Right-handed coordinate system.
+    const TVector3 yAxis = zAxis.Cross(xAxis).Unit();
 
-        if (pair_start >= 0)
-        {
-            for (int k = 0; k < 2; ++k)
-            {
-                spec.push_back(candidates[pair_start + k]);
+    const auto& p = spectator.getMomentum();
 
-                if (candidates[pair_start + k]->pbg == ID_PROTON)
-                {
-                    h_xq2_pt->Fill(candidates[pair_start + k]->vec.Pt());
-                    h_xq2_pt_theta->Fill(candidates[pair_start + k]->vec.Theta() * 1000, candidates[pair_start + k]->vec.Pt());
-                }
-            }
-        }
-    }
+    // Convert BeAGLE local components into nuclear-rest-frame
+    // collider coordinates.
+    const TVector3 pRest = p.x * xAxis + p.y * yAxis + p.z * zAxis;
+    TLorentzVector result(pRest.X(), pRest.Y(), pRest.Z(), spectator.getEnergy());
 
-    if ( struck_pdg == ID_PROTON ) // spectators dispear quite a lot? potentially an issue going from BeAGLE output to hepmc3
-    {
-        for ( auto mcp : mcparts )
-        {
-            // if (mcp.getGeneratorStatus() == 4 )
-            // {
-            //     struck_pdg = mcp.getPDG();
-            //     cout << "Struck particle PDG: " << struck_pdg << endl;
-            //     // break;
-            // }
-            
-            if ( mcp.getGeneratorStatus() == 1 && !mcp.isCreatedInSimulation() && !mcp.isBackscatter() )
-            {
-                // if ( mcp.getPDG() == ID_PROTON || mcp.getPDG() == ID_NEUTRON || mcp.getPDG() == ID_DEUTERON )
-                //     cout << mcp << endl;
+    // Nuclear rest frame -> head-on collider frame.
+    result.Boost(0.0, 0.0, beta);
 
-                if ( mcp.daughters_size() != 0 )
-                    continue;
-
-                int count_id = 0;
-                int collect_id[2] = {0,0};
-                for (auto it = mcp.parents_begin(), end = mcp.parents_end(); it != end; ++it) 
-                {
-                    if ( count_id < 2)
-                        collect_id[count_id] = it->getObjectID().index;
-
-                    count_id ++;
-                }
-
-                if( collect_id[0] == 3 && collect_id[1] == 4 ) // spectators from He3
-                {
-                    spectator_info* spec_info = new spectator_info;
-                    spec_info->pbg = mcp.getPDG();
-                    spec_info->mc_index = mcp.getObjectID().index;
-                    spec_info->vec.SetPxPyPzE(mcp.getMomentum().x, mcp.getMomentum().y, mcp.getMomentum().z, mcp.getEnergy());
-                    candidates.push_back(spec_info);
-                }
-            }
-        }
-
-        for (int k = 0; k < candidates.size(); ++k)
-        {
-            spec.push_back(candidates[k]);
-
-            if (candidates[k]->pbg == ID_PROTON)
-            {
-                h_xq2_pt->Fill(candidates[k]->vec.Pt());
-                h_xq2_pt_theta->Fill(candidates[k]->vec.Theta() * 1000, candidates[k]->vec.Pt());
-            }
-        }
-    }
-
-    return;
+    return result;
 }

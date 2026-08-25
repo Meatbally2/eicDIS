@@ -2,6 +2,7 @@
 
 #include "edm4hep/utils/vector_utils.h"
 #include "edm4eic/ClusterCollection.h"
+#include <DD4hep/Detector.h>
 
 #include <iostream>
 #include <queue>
@@ -11,6 +12,26 @@
 
 #include <Math/LorentzVector.h>
 using ROOT::Math::PxPyPzEVector;
+
+namespace {
+
+const std::string& GetPidSystemName(std::int32_t type) {
+	static const auto pidSystemNames = []() {
+		const auto& detector = dd4hep::Detector::getInstance();
+		return std::unordered_map<std::int32_t, std::string>{
+			{detector.constant<std::int32_t>("BackwardRICH_ID"), "pfRICH"},
+			{detector.constant<std::int32_t>("BarrelDIRC_ID"),   "hpDIRC"},
+			{detector.constant<std::int32_t>("BarrelTOF_ID"),    "TOF"},
+			{detector.constant<std::int32_t>("ForwardRICH_ID"),  "dRICH"},
+		};
+	}();
+
+	static const std::string unknownName = "Unknown PID system";
+	const auto it = pidSystemNames.find(type);
+	return it != pidSystemNames.end() ? it->second : unknownName;
+}
+
+} // namespace
 
 ElectronID::ElectronID() {
 
@@ -60,9 +81,65 @@ ElectronID::ElectronID(double Ee, double Eh) {
 	mPID_veto = 0.62;
 
 	boost = LorentzRotation(); // Initialize to identity
+
+	int color[4] = { kRed, kBlue, kBlack, kGreen+2};
+	for ( int m = 0; m < 4; m ++ ) {
+		for ( int d = 0; d < 4; d ++ ) {
+			for ( int p = 0; p < 4; p ++ ) {
+				h_pid_score[m][d][p] = new TH1F(Form("h_MC%s_%s_PID%s", pdg_map[m].name.c_str(), pid_map[d].name.c_str(), pdg_map[p].name.c_str()), Form("PID score for %s;PID score;Counts", pid_map[d].name.c_str()), 102, -0.01, 1.01);
+				h_pid_score[m][d][p]->SetLineColor(color[p]);
+
+				if ( m == p )
+				{
+					h_pid_score[m][d][p]->SetFillStyle(3003);
+					h_pid_score[m][d][p]->SetFillColor(color[p]);
+				}
+				else
+				{
+					h_pid_score[m][d][p]->SetLineStyle(3);
+				}
+			}
+		}
+	}
 }
 
 ElectronID::~ElectronID() {
+}
+
+TCanvas* ElectronID::MakePlots() {
+
+	c_pid_score = new TCanvas("c_pid_score", "c_pid_score", 1600, 1200);
+	c_pid_score->Divide(4, 4);
+
+	
+	for ( int m = 0; m < 4; m ++ )
+	{
+		for ( int d = 0; d < 4; d ++ )
+		{
+			c_pid_score->cd(m*4 + d + 1);
+			gPad->SetLogy();
+
+			TLegend* leg = new TLegend(0.55, 0.6, 0.88, 0.88);
+			leg->SetHeader(Form("MC %s, %s", pdg_map[m].name.c_str(), pid_map[d].name.c_str()));
+			leg->SetBorderSize(0);
+			leg->SetFillStyle(0);
+
+			for ( int p = 0; p < 4; p ++ )
+			{
+				h_pid_score[m][d][p]->Draw("HIST SAME");
+				leg->AddEntry(h_pid_score[m][d][p], pdg_map[p].name.c_str(), "l");
+			}
+
+			double max_y = 0;
+			for ( int p = 0; p < 4; p ++ )
+				max_y = std::max(max_y, h_pid_score[m][d][p]->GetMaximum());
+			h_pid_score[m][d][0]->GetYaxis()->SetRangeUser(0.9, max_y*1.5);
+
+			leg->Draw();
+		}
+	}
+
+	return c_pid_score;
 }
 
 void ElectronID::SetEvent(const podio::Frame* event) {
@@ -177,6 +254,54 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 		// std::cout << "Found candidate with " << reconPart.getTracks().size() << " tracks and " << reconPart.getClusters().size() << " clusters." << std::endl;
 
+		// find real PDG of the particle
+		int mc_PDG = Check_eID(reconPart);
+		auto recoMC = GetMC(reconPart);
+
+		if ( reconPart.getTracks().size() > 0 ) {
+
+			if(reconPart.getCharge() >= 0) 
+				continue;
+
+			// pID detector look up
+			// to do: try adding likelihood instead of the max
+			double Le = 0.0, Lpi = 0.0, Lk = 0.0, Lp = 0.0;
+			for (const auto& pid : reconPart.getParticleIDs()) 
+			{
+				const double L = pid.getLikelihood();
+
+				for ( int m = 0; m < 5; m ++ ) {
+					if ( abs(mc_PDG) == abs(pdg_map[m].pdg) ) {
+						for ( int d = 0; d < 4; d ++ ) {
+							if ( pid.getType() == pid_map[d].detID ) {
+								for ( int p = 0; p < 4; p ++ ){
+									if ( abs(pid.getPDG()) == abs(pdg_map[p].pdg) )
+										h_pid_score[pdg_map[m].index][d][p]->Fill(L);
+								}
+							}
+						}
+					}
+				}
+
+				if (abs(pid.getPDG()) == 11) 
+					Le = std::max(Le, L);
+				else if (abs(pid.getPDG()) == 211) 
+					Lpi = std::max(Lpi, L);
+				else if (abs(pid.getPDG()) == 321) 
+					Lk = std::max(Lk, L);
+				else if (abs(pid.getPDG()) == 2212) 
+					Lp = std::max(Lp, L);
+
+				// if ( abs(pid.getPDG()) == 11 && pid.getType() == 120 )
+				// 	std::cout << "PID type: " << pid.getType() << ", PDG: " << pid.getPDG() << ", likelihood: " << L << std::endl;
+			}
+
+		int recon_pID = reconPart.getPDG();
+		double Lhad = std::max({Lpi, Lk, Lp});
+		double Lhadsum = Lpi + Lk + Lp;
+		double eFrac = (Le + Lhadsum > 0.0) ? Le / (Le + Lhadsum) : 0.0;
+		double hFrac = (Le + Lhad > 0.0) ? Lhad / (Le + Lhad) : 0.0;
+
 		// Require at least one track and one cluster
 		if(reconPart.getClusters().size() > 0 && reconPart.getTracks().size() > 0) 
 		{
@@ -210,40 +335,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			// Calculate E/E+H for this event
 			double recon_EoEH = rcpart_sum_cluster_E / (rcpart_sum_cluster_E + rcpart_sum_cluster_H);
 
-			// pID detector look up
-			int recon_pID = reconPart.getPDG();
-			double pIDgoodness = reconPart.getGoodnessOfPID();
-
-			double Le = 0.0, Lpi = 0.0, Lk = 0.0, Lp = 0.0;
-
-			for (const auto& pid : reconPart.getParticleIDs()) 
-			{
-				const int apdg = std::abs(pid.getPDG());
-				const double L = pid.getLikelihood();
-				if (apdg == 11) Le = std::max(Le, L);
-				else if (apdg == 211) Lpi = std::max(Lpi, L);
-				else if (apdg == 321) Lk = std::max(Lk, L);
-				else if (apdg == 2212) Lp = std::max(Lp, L);
-			}
-
-			double Lhad = std::max({Lpi, Lk, Lp});
-			double Lhadsum = Lpi + Lk + Lp;
-			double eFrac = (Le + Lhadsum > 0.0) ? Le / (Le + Lhadsum) : 0.0;
-			double hFrac = (Le + Lhad > 0.0) ? Lhad / (Le + Lhad) : 0.0;
-
-			// find real PDG of the particle
-			int mc_PDG = Check_eID(reconPart);
-
-			// if ( mc_PDG == 11 || mc_PDG == 0 )
-			// 	std::cout << "eFrac: " << eFrac << std::endl;
-			// else if ( mc_PDG == -211 )
-			// 	std::cout << "Lhad pi: " << Lhad << std::endl;
-			// else if ( mc_PDG == -321 )
-			// 	std::cout << "Lhad K: " << Lhad << std::endl;
-			// else if ( mc_PDG == -2212 )
-			// 	std::cout << "Lhad p: " << Lhad << std::endl;
-
-			det_val.push_back({mc_PDG, n_track_points, recon_EoP, recon_isoE, recon_EoEH, recon_pID, eFrac, hFrac});
+			det_val.push_back({abs(mc_PDG), n_track_points, recon_EoP, recon_isoE, recon_EoEH, abs(recon_pID), eFrac, hFrac, edm4hep::utils::eta(recoMC.getMomentum())});
 
 			if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
 			{
@@ -251,7 +343,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 				// std::cout << "recon_EoP before modification: " << recon_EoP << ", recon_EoEH before modification: " << recon_EoEH << std::endl;
 				double mod_EoP = rcpart_sum_cluster_E_wider / edm4hep::utils::magnitude(reconPart.getMomentum());
 				double mod_EoEH = rcpart_sum_cluster_E_wider / (rcpart_sum_cluster_E_wider + rcpart_sum_cluster_H_wider);
-				mod_val.push_back({mc_PDG, n_track_points, mod_EoP, recon_isoE, mod_EoEH, recon_pID, eFrac, hFrac});
+				mod_val.push_back({abs(mc_PDG), n_track_points, mod_EoP, recon_isoE, mod_EoEH, abs(recon_pID), eFrac, hFrac, edm4hep::utils::eta(recoMC.getMomentum())});
 				// std::cout << "recon_EoP after modification: " << recon_EoP << ", recon_EoEH after modification: " << recon_EoEH << std::endl;
 			}
 
@@ -264,8 +356,8 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 			if (recon_isoE < mIsoE) 
 				continue;
 			
-			if (hFrac > mPID_veto) 
-				continue;
+			// if (hFrac > mPID_veto) 
+			// 	continue;
 
 			// if (recon_EoEH < mEoEH_min) 
 			// 	continue;
@@ -344,6 +436,7 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 
 		// 	scatteredElectronCandidates.push_back(reconPart);
 		// }
+	}
 	}	
 
 	// If EoP is found use that, otherwise loosen cuts 
@@ -360,7 +453,7 @@ edm4hep::MCParticleCollection ElectronID::GetMCHadronicFinalState() {
 
 	const auto& mcparts = static_cast<const edm4hep::MCParticleCollection&>(*(mEvent->get("MCParticles")));
 
-	std::vector<edm4hep::MCParticle> mc_hadronic;
+	// std::vector<edm4hep::MCParticle> mc_hadronic;
 	const auto& meMC = GetMCElectron();
 
 	bool found_scattered_e = false; 

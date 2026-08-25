@@ -14,13 +14,11 @@ public:
 
     std::string GetOutputName();
     vector<std::string> GetInputNames();
-    vector<std::string> GetLocalInputNames();
-    vector<std::string> GetLowQInputNames();
     vector<std::string> ValidateFiles(std::vector<std::string>& fileNames);
 
     std::string campaign;
 
-    enum{EHE3,EP,PI_BG,BEAM_BG,EP_PYTHIA6,EP_DVMP,EP_CC};
+    enum{EHE3,EP,PI_BG,BEAM_BG,EP_PYTHIA6,EP_CC};
     
 private:
     int Ee;

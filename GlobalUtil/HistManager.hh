@@ -32,8 +32,10 @@ public:
 
     HistGroup1D MakeHistograms(std::string name, std::string title, int n_bins, double x_min, double x_max);
     HistGroup1D BookHistograms(std::string name, std::string title, int n_bins, double x_min, double x_max);
-    HistGroup2D MakeHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bins_y, double y_min, double y_max);
-    HistGroup2D BookHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bins_y, double y_min, double y_max);
+    HistGroup2D MakeHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bin_y, double y_min, double y_max);
+    HistGroup2D BookHistograms(std::string name, std::string title, double n_bin_x, double x_min, double x_max, double n_bin_y, double y_min, double y_max);
+    HistGroup2D BookMixedTH2(std::string name, std::string title, int n_bin_x, double x_min, double x_max, bool x_log, int n_bin_y, double y_min, double y_max, bool y_log);
+    
     void SumHistograms(int group_index, double n_scale, double p_scale);
 };
 

@@ -36,6 +36,7 @@ void setup_zdc();
 void process_ff(const podio::Frame* event);
 void plot_ff();
 void find_spectators(const podio::Frame* event);
+TLorentzVector boost_beagle_spectator( const edm4hep::MCParticle& spectator, const edm4hep::MCParticleCollection& mcHeadon);
 
 TFile* outFile;
 TTree* outTree;
@@ -71,5 +72,6 @@ TH2F* h_xq2_pt_theta;
 TH1F* h_tag_mul[2];
 
 int struck_type;
+double ion_momentum_per_nucleon;
 
 #endif

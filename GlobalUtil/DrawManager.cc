@@ -89,6 +89,7 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
     // 4: A1 coverage plots
     // 5: bottom-left
     // 6: bottom-left, tighter text
+    // 7: top-left, tighter text
     // Not working very well for canvas with multiple pads yet
 
     std::string lumi_unit = type == "ep" ? "fb^{-1}" : "fb^{-1}/A";
@@ -141,6 +142,9 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
 
         if ( draw_position == 1 ) 
             scale_factor = TMath::Sqrt(scale_factor)*0.9;
+
+        if ( draw_position == 7 )
+            scale_factor = TMath::Sqrt(scale_factor)*0.7;
 
         Double_t left_margin = 0.19;
         Double_t top_margin = 0.93;
