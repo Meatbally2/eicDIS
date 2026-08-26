@@ -25,7 +25,16 @@ struct spectator_info
     PxPyPzEVector vec;
     int det_hits[2][4];
     bool tagged;
-};  
+};
+
+enum SpectatorStatus {
+    SPECTATOR_UNCLASSIFIED = 0,
+    SPECTATOR_EN_ANCESTRY = 1,
+    SPECTATOR_EP_INITIAL = 2,
+    SPECTATOR_INCOMPLETE = 3,
+    SPECTATOR_MAPPING_FAILED = 4,
+    SPECTATOR_EN_KINEMATIC = 5
+};
 std::vector<spectator_info*> spec;
 
 void tagAna(int Ee, int Eh, int analyse_p, int select_region, int sr, int file0);
@@ -70,8 +79,10 @@ TH1F* h_xq2_pt;
 TH1F* h_xq2_pt_tag;
 TH2F* h_xq2_pt_theta;
 TH1F* h_tag_mul[2];
+TH1F* h_spectator_status;
 
 int struck_type;
+int spectator_status;
 double ion_momentum_per_nucleon;
 
 #endif

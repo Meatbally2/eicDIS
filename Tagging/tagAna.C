@@ -47,6 +47,13 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 50, 0, 1, 80, 0, 0.16);
     h_tag_mul[0] = new TH1F(Form("h_tag_mul_p"), ";Tag multiplicity;Counts", 10, 0, 10);
     h_tag_mul[1] = new TH1F(Form("h_tag_mul_n"), ";Tag multiplicity;Counts", 10, 0, 10);
+    h_spectator_status = new TH1F("h_spectator_status", ";Spectator status;Events", 6, -0.5, 5.5);
+    h_spectator_status->GetXaxis()->SetBinLabel(1, "Unclassified");
+    h_spectator_status->GetXaxis()->SetBinLabel(2, "en ancestry");
+    h_spectator_status->GetXaxis()->SetBinLabel(3, "ep initial");
+    h_spectator_status->GetXaxis()->SetBinLabel(4, "Incomplete");
+    h_spectator_status->GetXaxis()->SetBinLabel(5, "Mapping failed");
+    h_spectator_status->GetXaxis()->SetBinLabel(6, "en kinematic");
 
     // Analysis loop
 
@@ -64,7 +71,8 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
         if(ev%100==0) 
             cout << "Analysing event " << ev << "/" << reader.getEntries("events") << std::endl;
 
-        find_spectators(&event);        
+        find_spectators(&event);
+        h_spectator_status->Fill(spectator_status);
         process_ff(&event);
         outTree->Fill();
             
@@ -94,13 +102,14 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     h_xq2_pt_theta->Draw("COLZ");
 
     c_pt->cd(3);
-    h_tag_mul[0]->Draw("HIST SAME");
+    const double tag_mul_max = std::max(h_tag_mul[0]->GetMaximum(), h_tag_mul[1]->GetMaximum());
+    h_tag_mul[0]->SetMinimum(0.0);
+    h_tag_mul[0]->SetMaximum(tag_mul_max > 0.0 ? 1.5 * tag_mul_max : 1.0);
+    h_tag_mul[0]->Draw("HIST");
     h_tag_mul[0]->SetLineColor(kRed);
 
     h_tag_mul[1]->Draw("HIST SAME");
     h_tag_mul[1]->SetLineColor(kBlue);
-
-    h_tag_mul[0]->GetYaxis()->SetRangeUser(1, std::max(h_tag_mul[0]->GetMaximum(), h_tag_mul[1]->GetMaximum())*1.5);
 
     TLegend* leg_mul = new TLegend(0.6, 0.7, 0.88, 0.88);
     leg_mul->SetTextSize(0.05);
@@ -118,6 +127,14 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
     outFile->cd();
     outTree->Write(outTree->GetName(), 2);
+    h_spectator_status->Write();
+
+    std::cout << "Spectator status counts: unclassified=" << h_spectator_status->GetBinContent(1)
+              << ", en ancestry=" << h_spectator_status->GetBinContent(2)
+              << ", ep initial=" << h_spectator_status->GetBinContent(3)
+              << ", incomplete=" << h_spectator_status->GetBinContent(4)
+              << ", mapping failed=" << h_spectator_status->GetBinContent(5)
+              << ", en kinematic=" << h_spectator_status->GetBinContent(6) << '\n';
 
     // outFile->Close();
 
@@ -221,6 +238,11 @@ void process_ff(const podio::Frame* event)
     // tagging
     n_proton_tracks = rpFinder->get_n_tracks() + omdFinder->get_n_tracks();
 
+    // Reconstructed event-level multiplicity is independent of whether the
+    // truth spectators could be identified.
+    if (struck_type == 0 || struck_type == 1)
+        h_tag_mul[struck_type]->Fill(n_proton_tracks);
+
     if (n_proton_tracks >= 2)
         is_tagged = true;
 
@@ -238,9 +260,6 @@ void process_ff(const podio::Frame* event)
         int n_omd_mc = *std::min_element(spec[s]->det_hits[0], spec[s]->det_hits[0] + 4); // omd first
         int n_rp_mc = *std::min_element(spec[s]->det_hits[1], spec[s]->det_hits[1] + 4);
         
-        if (struck_type == 0 || struck_type == 1)
-            h_tag_mul[struck_type]->Fill(n_rp_mc + n_omd_mc);
-
         // cout << "Struck type " << struck_type << " Spec " << s << " MC hits in RP: " << n_rp_mc << ", OMD: " << n_omd_mc << std::endl;
 
         if ( n_rp_mc + n_omd_mc > 0)
@@ -319,6 +338,7 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("nTracks", &n_proton_tracks);
     outTree->Branch("E_ZDC", &zdc_energy);
     outTree->Branch("fZDCn", &fZDCn);
+    outTree->Branch("SpectatorStatus", &spectator_status);
 
     outTree->Branch("Spec1_omdHits", Spec1_omdHits, "Spec1_omdHits[4]/I");
     outTree->Branch("Spec1_rpHits", Spec1_rpHits, "Spec1_rpHits[4]/I");
@@ -335,12 +355,13 @@ void CreateOutputTree(TString outFileName) {
     return;
 }
 
-// The simulation files does not have good notation for spectators. 
-// Seems to have to do some kinematic selection unless we update eic-smear ..
-// Made some sorting code with Codex 5.6 Sol Light, should work a bit better than before
+// Some issues with BeAGLE/eic-smear ..
+// They are not properly handling the spectator particles in the simulation.
+// Made codes with ChatGPT 5.6 Sol Light for some workarounds for now
 void find_spectators(const podio::Frame* event)
 {
     struck_type = -1;
+    spectator_status = SPECTATOR_UNCLASSIFIED;
 
     for (auto* p : spec)
         delete p;
@@ -368,112 +389,119 @@ void find_spectators(const podio::Frame* event)
     else
         return;
 
-    // Ion per-nucleon beam momentum.
-    const double pzBeam = std::abs(mcHeadon[2].getMomentum().z);
-
-    struct Candidate {
-        int index;
-        double score;
-    };
-
-    std::vector<Candidate> protons;
-    std::vector<Candidate> neutrons;
-
-    for (std::size_t i = 0; i < mcHeadon.size(); ++i) {
-        const auto particle = mcHeadon[i];
-
-        if (particle.getGeneratorStatus() != 1)
-            continue;
-
-        const int pdg = particle.getPDG();
-
-        // Do not use abs(PDG): exclude antinucleons.
-        if (pdg != 2212 && pdg != 2112)
-            continue;
-
-        const auto& p = particle.getMomentum();
-
-        // Ion-going and reasonably close to beam momentum.
-        // if (p.z < 0.4 * pzBeam)
-        //     continue;
-
-        const double pt = std::hypot(p.x, p.y);
-        const double dpzScale = std::max(0.30 * pzBeam, 1.0);
-
-        const double score = std::pow((p.z - pzBeam) / dpzScale, 2) + std::pow(pt / 0.5, 2);
-
-        Candidate candidate{
-            static_cast<int>(i),
-            score
-        };
-
-        if (pdg == 2212)
-            protons.push_back(candidate);
-        else
-            neutrons.push_back(candidate);
-    }
-
-    const auto byScore = [](const Candidate& a, const Candidate& b) { return a.score < b.score; };
-
-    std::sort(protons.begin(), protons.end(), byScore);
-    std::sort(neutrons.begin(), neutrons.end(), byScore);
-
     std::vector<int> selected;
+    bool usedKinematicFallback = false;
 
     if (struck_type == 1) {
-        // en -> two proton spectators
-        if (protons.size() >= 2) {
+        // en: trace each of the two original He-3 protons to its unique
+        // final-state proton daughter. This avoids selecting hard protons.
+        int initialProtons = 0;
+        for (int i : {5, 6, 7}) {
+            if (i >= static_cast<int>(mcHeadon.size()))
+                continue;
+
+            const auto initialNucleon = mcHeadon[i];
+            if (initialNucleon.getPDG() != ID_PROTON)
+                continue;
+
+            ++initialProtons;
+            std::vector<int> finalProtonDaughters;
+            for (const auto daughter : initialNucleon.getDaughters()) {
+                if (daughter.getPDG() == ID_PROTON && daughter.getGeneratorStatus() == 1)
+                    finalProtonDaughters.push_back(daughter.getObjectID().index);
+            }
+
+            if (finalProtonDaughters.size() != 1)
+                continue;
+            selected.push_back(finalProtonDaughters[0]);
+        }
+
+        if (initialProtons != 2 || selected.size() != 2 || selected[0] == selected[1]) {
+            // eic-smear can flatten generator ancestry. Use the kinematic
+            // selection only as an explicitly labeled fallback.
+            selected.clear();
+            struct Candidate { int index; double score; };
+            std::vector<Candidate> protons;
+            const double pzBeam = std::abs(mcHeadon[2].getMomentum().z);
+            const double dpzScale = std::max(0.30 * pzBeam, 1.0);
+
+            for (std::size_t i = 0; i < mcHeadon.size(); ++i) {
+                const auto particle = mcHeadon[i];
+                if (particle.getPDG() != ID_PROTON || particle.getGeneratorStatus() != 1)
+                    continue;
+                const auto& p = particle.getMomentum();
+                const double pt = std::hypot(p.x, p.y);
+                const double score = std::pow((p.z - pzBeam) / dpzScale, 2) + std::pow(pt / 0.5, 2);
+                protons.push_back({static_cast<int>(i), score});
+            }
+
+            std::sort(protons.begin(), protons.end(), [](const Candidate& a, const Candidate& b) { return a.score < b.score; });
+            if (protons.size() < 2) {
+                spectator_status = SPECTATOR_INCOMPLETE;
+                return;
+            }
             selected.push_back(protons[0].index);
             selected.push_back(protons[1].index);
+            usedKinematicFallback = true;
         }
-    } 
+    }
 
     if (struck_type == 0) {
         // ep: save the initial proton spectator from original He-3
         // nucleons 6,7,8 (zero-based indices 5,6,7).
+        std::vector<int> initialProtons;
         for (int i : {5, 6, 7}) {
             if (i >= static_cast<int>(mcHeadon.size()))
                 continue;
 
             const auto particle = mcHeadon[i];
-
             if (particle.getPDG() != 2212 || particle.getGeneratorStatus() != 14)
                 continue;
 
-            auto* spec_info = new spectator_info{};
-            spec_info->pbg = particle.getPDG();
-            // No final transported MCParticle is available for hit matching.
-            spec_info->mc_index = -1;
-            spec_info->tagged = false;
-            // Initial BeAGLE spectator/Fermi kinematics.
-            const TLorentzVector lab = boost_beagle_spectator(particle, mcHeadon);
-            spec_info->vec.SetPxPyPzE(lab.Px(), lab.Py(), lab.Pz(), lab.E());
-            spec.push_back(spec_info);
-
-            h_xq2_pt->Fill(spec_info->vec.Pt());
-            h_xq2_pt_theta->Fill(spec_info->vec.Theta() * 1000.0, spec_info->vec.Pt());
-
-            break; // exactly one initial proton spectator for ep
+            initialProtons.push_back(i);
         }
 
+        if (initialProtons.size() != 1) {
+            spectator_status = SPECTATOR_INCOMPLETE;
+            return;
+        }
+
+        const auto particle = mcHeadon[initialProtons[0]];
+
+        auto* spec_info = new spectator_info{};
+        spec_info->pbg = particle.getPDG();
+        spec_info->mc_index = -1; // No transported MCParticle is available.
+        spec_info->tagged = false;
+        const TLorentzVector lab = boost_beagle_spectator(particle, mcHeadon);
+        spec_info->vec.SetPxPyPzE(lab.Px(), lab.Py(), lab.Pz(), lab.E());
+        spec.push_back(spec_info);
+
+        h_xq2_pt->Fill(spec_info->vec.Pt());
+        h_xq2_pt_theta->Fill(spec_info->vec.Theta() * 1000.0, spec_info->vec.Pt());
+
+        spectator_status = SPECTATOR_EP_INITIAL;
         return;
     }
 
+    // Validate the same-index mapping before saving either en spectator.
     for (const int index : selected) {
-        if (index < 0 || static_cast<std::size_t>(index) >= mc.size())
-            continue;
+        if (index < 0 || static_cast<std::size_t>(index) >= mcHeadon.size() || static_cast<std::size_t>(index) >= mc.size()) {
+            spectator_status = SPECTATOR_MAPPING_FAILED;
+            return;
+        }
 
         const auto headOnParticle = mcHeadon[index];
         const auto transportedParticle = mc[index];
-
-        // Check the same-index mapping.
         if (headOnParticle.getPDG() != transportedParticle.getPDG() || headOnParticle.getGeneratorStatus() != transportedParticle.getGeneratorStatus()) {
             std::cerr << "Head-on/MC mapping failed at index " << index << '\n';
-            continue;
+            spectator_status = SPECTATOR_MAPPING_FAILED;
+            return;
         }
+    }
 
+    for (const int index : selected) {
+        const auto headOnParticle = mcHeadon[index];
         auto* spec_info = new spectator_info{};
-
         spec_info->pbg = headOnParticle.getPDG();
         spec_info->mc_index = index;
         spec_info->tagged = false;
@@ -483,6 +511,8 @@ void find_spectators(const podio::Frame* event)
         h_xq2_pt->Fill(spec_info->vec.Pt());
         h_xq2_pt_theta->Fill(spec_info->vec.Theta() * 1000.0, spec_info->vec.Pt());
     }
+
+    spectator_status = usedKinematicFallback ? SPECTATOR_EN_KINEMATIC : SPECTATOR_EN_ANCESTRY;
 }
 
 TLorentzVector boost_beagle_spectator( const edm4hep::MCParticle& spectator, const edm4hep::MCParticleCollection& mcHeadon) {
