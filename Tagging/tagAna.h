@@ -33,7 +33,8 @@ enum SpectatorStatus {
     SPECTATOR_EP_INITIAL = 2,
     SPECTATOR_INCOMPLETE = 3,
     SPECTATOR_MAPPING_FAILED = 4,
-    SPECTATOR_EN_KINEMATIC = 5
+    SPECTATOR_EN_KINEMATIC_CLEAN = 5,
+    SPECTATOR_EN_KINEMATIC_AMBIGUOUS = 6
 };
 std::vector<spectator_info*> spec;
 
@@ -83,6 +84,7 @@ TH1F* h_spectator_status;
 
 int struck_type;
 int spectator_status;
+int n_final_protons;
 double ion_momentum_per_nucleon;
 
 #endif

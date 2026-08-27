@@ -47,13 +47,14 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     h_xq2_pt_theta = new TH2F(Form("h_xq2_pt_theta"), ";#theta (mrad);p_{T} (GeV/c)", 50, 0, 1, 80, 0, 0.16);
     h_tag_mul[0] = new TH1F(Form("h_tag_mul_p"), ";Tag multiplicity;Counts", 10, 0, 10);
     h_tag_mul[1] = new TH1F(Form("h_tag_mul_n"), ";Tag multiplicity;Counts", 10, 0, 10);
-    h_spectator_status = new TH1F("h_spectator_status", ";Spectator status;Events", 6, -0.5, 5.5);
+    h_spectator_status = new TH1F("h_spectator_status", ";Spectator status;Events", 7, -0.5, 6.5);
     h_spectator_status->GetXaxis()->SetBinLabel(1, "Unclassified");
     h_spectator_status->GetXaxis()->SetBinLabel(2, "en ancestry");
     h_spectator_status->GetXaxis()->SetBinLabel(3, "ep initial");
     h_spectator_status->GetXaxis()->SetBinLabel(4, "Incomplete");
     h_spectator_status->GetXaxis()->SetBinLabel(5, "Mapping failed");
-    h_spectator_status->GetXaxis()->SetBinLabel(6, "en kinematic");
+    h_spectator_status->GetXaxis()->SetBinLabel(6, "en kin clean");
+    h_spectator_status->GetXaxis()->SetBinLabel(7, "en kin ambiguous");
 
     // Analysis loop
 
@@ -134,7 +135,8 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
               << ", ep initial=" << h_spectator_status->GetBinContent(3)
               << ", incomplete=" << h_spectator_status->GetBinContent(4)
               << ", mapping failed=" << h_spectator_status->GetBinContent(5)
-              << ", en kinematic=" << h_spectator_status->GetBinContent(6) << '\n';
+              << ", en kin clean=" << h_spectator_status->GetBinContent(6)
+              << ", en kin ambiguous=" << h_spectator_status->GetBinContent(7) << '\n';
 
     // outFile->Close();
 
@@ -339,6 +341,7 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("E_ZDC", &zdc_energy);
     outTree->Branch("fZDCn", &fZDCn);
     outTree->Branch("SpectatorStatus", &spectator_status);
+    outTree->Branch("NFinalProtons", &n_final_protons);
 
     outTree->Branch("Spec1_omdHits", Spec1_omdHits, "Spec1_omdHits[4]/I");
     outTree->Branch("Spec1_rpHits", Spec1_rpHits, "Spec1_rpHits[4]/I");
@@ -362,6 +365,7 @@ void find_spectators(const podio::Frame* event)
 {
     struck_type = -1;
     spectator_status = SPECTATOR_UNCLASSIFIED;
+    n_final_protons = -1;
 
     for (auto* p : spec)
         delete p;
@@ -436,6 +440,7 @@ void find_spectators(const podio::Frame* event)
             }
 
             std::sort(protons.begin(), protons.end(), [](const Candidate& a, const Candidate& b) { return a.score < b.score; });
+            n_final_protons = static_cast<int>(protons.size());
             if (protons.size() < 2) {
                 spectator_status = SPECTATOR_INCOMPLETE;
                 return;
@@ -512,7 +517,12 @@ void find_spectators(const podio::Frame* event)
         h_xq2_pt_theta->Fill(spec_info->vec.Theta() * 1000.0, spec_info->vec.Pt());
     }
 
-    spectator_status = usedKinematicFallback ? SPECTATOR_EN_KINEMATIC : SPECTATOR_EN_ANCESTRY;
+    if (!usedKinematicFallback)
+        spectator_status = SPECTATOR_EN_ANCESTRY;
+    else if (n_final_protons == 2)
+        spectator_status = SPECTATOR_EN_KINEMATIC_CLEAN;
+    else
+        spectator_status = SPECTATOR_EN_KINEMATIC_AMBIGUOUS;
 }
 
 TLorentzVector boost_beagle_spectator( const edm4hep::MCParticle& spectator, const edm4hep::MCParticleCollection& mcHeadon) {
