@@ -25,6 +25,17 @@ AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 AnaManager::~AnaManager() {
 }
 
+void AnaManager::UpdateCampaign()
+{
+    campaign = "26.07.1";
+
+    if (beam_type == EHE3 && Ee == 9 && Eh == 166)
+        campaign = "26.07.2";
+
+    if (beam_type == PI_BG)
+        campaign = "26.03.0";
+}
+
 void AnaManager::Initialize(bool is_select_region_, int region_index_, int starting_file_index_, int beam_type_) 
 {
     is_select_region = is_select_region_;
@@ -34,21 +45,7 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
     // starting_file = 1000;
     beam_type = beam_type_;
 
-    campaign = "26.07.1";
-
-    if ( beam_type == EHE3 && Ee == 9 && Eh == 166 )
-        campaign = "26.07.2";
-
-    // if ( beam_type == EP )
-    //     campaign = "26.04.1";
-        // campaign = "26.06.0";
-
-    // if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
-    //     campaign = "26.04.1";
-
-    if ( beam_type == PI_BG )
-        campaign = "26.03.0";
-
+    UpdateCampaign();
     return;
 }
 
@@ -56,6 +53,7 @@ void AnaManager::SetBeamEnergy(int Ee_, int Eh_)
 {
     Ee = Ee_;
     Eh = Eh_;
+    UpdateCampaign();
     return;
 }
 

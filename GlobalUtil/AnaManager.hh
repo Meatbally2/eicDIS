@@ -21,6 +21,8 @@ public:
     enum{EHE3,EP,PI_BG,BEAM_BG,EP_PYTHIA6,EP_CC};
     
 private:
+    void UpdateCampaign();
+
     int Ee;
     int Eh;
     bool is_select_region;
