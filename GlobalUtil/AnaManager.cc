@@ -4,10 +4,20 @@
 const std::string n_group[3] = {"1to10", "10to100", "100to1000"};
 const std::string p_group[4] = {"minQ2=1", "minQ2=10", "minQ2=100", "minQ2=1000"};
 
-std::string address =  "root://epicxrd1.sdcc.bnl.gov:1095/";
+const std::vector<std::string> kDefaultXrdHosts = {
+    "root://epicxrd1.sdcc.bnl.gov:1095",
+    "root://xcache.jlab.org:1095",
+    "root://se01.af.uchicago.edu:1095"
+};
 
 const int step = 200; // number of files to process in one batch
 // const int step = 2;
+
+namespace {
+std::string BuildTargetForRegion(int beam_type, int Ee, int Eh, int r);
+std::vector<std::string> ResolveRemoteFilesForTarget(const std::string& campaign, int Ee, int Eh, int beam_type, const std::string& target, std::string* selectedHost, std::string* selectedPrefix);
+
+} // namespace
 
 AnaManager::AnaManager(std::string ana_name_) : ana_name(ana_name_) {
 }
@@ -26,15 +36,15 @@ void AnaManager::Initialize(bool is_select_region_, int region_index_, int start
 
     campaign = "26.07.1";
 
-    if ( beam_type == EHE3 )
+    if ( beam_type == EHE3 && Ee == 9 && Eh == 166 )
         campaign = "26.07.2";
 
-    if ( beam_type == EP )
-        campaign = "26.04.1";
+    // if ( beam_type == EP )
+    //     campaign = "26.04.1";
         // campaign = "26.06.0";
 
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
-        campaign = "26.04.1";
+    // if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == BEAM_BG) )
+    //     campaign = "26.04.1";
 
     if ( beam_type == PI_BG )
         campaign = "26.03.0";
@@ -87,15 +97,7 @@ vector<std::string> AnaManager::GetInputNames()
         n_set = 1;
     
     int total_file = 0;
-
-    std::string file_name = "../data/" + campaign + "_manifest.txt";
     
-    std::string prefix = "/volatile/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
-    if ( Ee == 10 && Eh == 100 && (beam_type == EP_PYTHIA6 || beam_type == PI_BG || beam_type == BEAM_BG || beam_type == EP) || beam_type == EHE3) 
-        prefix = "/eic/EPIC//RECO/" + campaign + "/epic_craterlake/";
-
-    std::string scope = "epic:/RECO/" + campaign + "/epic_craterlake/";
-
     std::cout << "n_set: " << n_set << std::endl;
 
     for ( int r = 0; r < n_set; r ++ )
@@ -104,137 +106,50 @@ vector<std::string> AnaManager::GetInputNames()
             if ( r != region_index )
                 continue;
 
-        // std::cout << " r " << r << std::endl;
-        
-        std::string target;
-        if ( beam_type == EHE3 )
-        {
-            std::string gen_group = Eh == 166 ? "DIS/BeAGLE1.03.02-3.1/" : "DIS/BeAGLE1.03.02-1.2/"; 
-            std::string beam_group = Form("eHe3/%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group;
-            if ( r == 0 )
-                sample_group = Form("q2_1to10/");
-            else if ( r == 1 )
-                sample_group = Form("q2_10to100/");
-            else
-                sample_group = Form("q2_100to10000/");
-
-            target = gen_group + beam_group + sample_group;
-            // std::cout << "sample_group: " << sample_group << std::endl;        
-        }
-        else if ( beam_type == EP || beam_type == EP_CC )
-        {
-            std::string gen_group = beam_type == EP ? "DIS/NC/" : "DIS/CC/";
-            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
-            target = gen_group + beam_group + sample_group;
-            
-            // std::string gen_group = beam_type == EP ? "DIS/pythia8.316-1.0/NC/noRad/ep/" : "DIS/pythia8.316-1.0/CC/noRad/ep/"; 
-            // std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            // std::string sample_group = Form("q2_%.0fto%.0f/",pow(10,r), pow(10,r+1));
-        
-            // if ( r == 3 )
-            //     sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+2));
-            
-            // target = gen_group + beam_group + sample_group;
-        }
-        else if ( beam_type == PI_BG )
-        {
-            std::string gen_group = "SIDIS/pythia6-eic/1.0.0/"; 
-            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = "q2_0to1/";
-            target = gen_group + beam_group + sample_group;
-        }
-        else if ( beam_type == BEAM_BG )
-        {
-            // std::string gen_group = "Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_50s_Egas_18GeV_Hgas_275GeV/DIS/NC/"; 
-            std::string gen_group = "Bkg_Exact1S_2us/GoldCt/10um/DIS/NC/"; 
-            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = Form("minQ2=%.0f/",pow(10,r));
-            target = gen_group + beam_group + sample_group;
-        }
-        else if ( beam_type == EP_PYTHIA6 )
-        {
-            std::string gen_group = "DIS/pythia6.428-1.0/NC/noRad/ep/"; 
-            std::string beam_group = Form("%dx%d/", (int)Ee, (int)Eh);
-            std::string sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+1));
-
-            if ( Ee == 10 && Eh == 100 )
-            {
-                gen_group = "SIDIS/pythia6-eic/1.2.0/ep_noradcor/";
-
-                if ( r == 3 )
-                    sample_group = Form("q2_%dto%d/",(int)pow(10,r), (int)pow(10,r+2));
-            }
-                
-
-            target = gen_group + beam_group + sample_group;
-        }
-        else
-        {
+        const std::string target = BuildTargetForRegion(beam_type, Ee, Eh, r);
+        if (target.empty()) {
             std::cerr << "o.O Error: invalid beam type specified." << std::endl;
             return {};
         }
 
-        // std::cout << "prefix: " << prefix << std::endl;
-        // std::cout << "prefix size: " << prefix.size() << " target size: " << target.size() << std::endl; 
-        std::cout << "searching: " << campaign << " .. " << target << std::endl;    
+        std::cout << "searching: " << campaign << " .. " << target << std::endl;
 
-   
-        std::ifstream data_file(file_name);
-        if (!data_file.is_open()) {
-            std::cerr << "!!! Error: Unable to open manifest file: " << file_name << std::endl;
-            return {};
+        std::string selectedHost;
+        std::string usedPrefix;
+        std::vector<std::string> remoteFiles = ResolveRemoteFilesForTarget(campaign, Ee, Eh, beam_type, target, &selectedHost, &usedPrefix);
+
+        if (remoteFiles.empty()) {
+            std::cout << "No remote ROOT files found for target: " << target << " (tried both /volatile and /eic namespaces)." << std::endl;
+            continue;
         }
 
+        std::cout << "Resolved host: " << selectedHost << std::endl;
+        std::cout << "Resolved prefix: " << usedPrefix << std::endl;
+
         int line_c = 0;
-        int line0 = 0;
-        std::string line;
-        while ( getline(data_file, line) )
+        for (const auto& file : remoteFiles)
         {
-            line0 ++;
-
-            std::string fname;
-            std::stringstream ss(line);
-            ss >> fname;
-            // fname.erase(0, 5);
-
-            int compare = line.compare(address.size()+prefix.size(), target.size(), target);
-
-            // std::cout << line.substr(address.size()+prefix.size(), target.size()) << " vs " << target << " .. compare: " << compare << std::endl;
-            
-            if ( compare != 0 )
-                continue;
-
-            // std::cout << "file index: " << file_index << " line_c: " << line_c << std::endl;
             if ( file_index == -1 )
                 if ( line_c >= 1 )
                     break;
 
-            // if ( starting_file >= 0 && beam_type != BEAM_BG )
             if ( starting_file >= 0 )
             {
                 if ( line_c < starting_file )
                 {
                     line_c ++;
                     continue;
-                } 
+                }
                 else if ( line_c >= starting_file + step )
                     break;
             }
-                
-            inFiles.push_back(line);
 
-            // std::cout << "File " << total_file << ": " << fname << std::endl;
-            //  std::cout << "File " << total_file << ": " << address+line << std::endl;
-
+            inFiles.push_back(file);
             line_c ++;
             total_file ++;
         }
 
-        // data_file.close();
-
-        cout << "collected files at line: " << line0 - 1 << endl;
+        std::cout << "collected files in region set: " << line_c << std::endl;
     }
 
     cout << "total of " << total_file << " files are found" << endl;
@@ -296,3 +211,197 @@ vector<std::string> AnaManager::ValidateFiles(std::vector<std::string>& fileName
     
     return validFiles;
 }
+
+namespace {
+
+std::vector<std::string> ResolveRemoteFilesForTarget(const std::string& campaign, int Ee, int Eh, int beam_type, const std::string& target, std::string* selectedHost, std::string* selectedPrefix)
+{
+    std::vector<std::string> hosts;
+
+    // Highest precedence: explicit ordered list from EICDIS_XRD_HOSTS.
+    const char* envHosts = gSystem->Getenv("EICDIS_XRD_HOSTS");
+    if (envHosts && envHosts[0] != '\0') {
+        std::string token;
+        std::string rawHosts(envHosts);
+        for (size_t i = 0; i <= rawHosts.size(); ++i) {
+            char c = (i < rawHosts.size()) ? rawHosts[i] : ',';
+            if (c == ',') {
+                if (!token.empty()) {
+                    while (!token.empty() && token.back() == '/') {
+                        token.pop_back();
+                    }
+                    bool exists = false;
+                    for (const auto& host : hosts) {
+                        if (host == token) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        hosts.push_back(token);
+                    }
+                    token.clear();
+                }
+            } else if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+                token.push_back(c);
+            }
+        }
+    }
+
+    // Optional single preferred host from EICDIS_XRD_HOST.
+    const char* envHost = gSystem->Getenv("EICDIS_XRD_HOST");
+    if (envHost && envHost[0] != '\0') {
+        std::string preferred(envHost);
+        while (!preferred.empty() && preferred.back() == '/') {
+            preferred.pop_back();
+        }
+        if (!preferred.empty()) {
+            std::vector<std::string> reordered;
+            reordered.push_back(preferred);
+            for (const auto& h : hosts) {
+                if (h != preferred) {
+                    reordered.push_back(h);
+                }
+            }
+            hosts = reordered;
+        }
+    }
+
+    // Fallback defaults.
+    for (const auto& h : kDefaultXrdHosts) {
+        bool exists = false;
+        for (const auto& host : hosts) {
+            if (host == h) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            hosts.push_back(h);
+        }
+    }
+
+    const std::string volatilePrefix = "/volatile/eic/EPIC/RECO/" + campaign + "/epic_craterlake/";
+    const std::string eicPrefix = "/eic/EPIC/RECO/" + campaign + "/epic_craterlake/";
+    // Newer campaigns are generally under /eic; keep /volatile as fallback.
+    const std::vector<std::string> prefixes = {eicPrefix, volatilePrefix};
+
+    for (const auto& prefix : prefixes) {
+        const std::string remoteDir = prefix + target;
+        for (const auto& host : hosts) {
+            const std::string command = "xrdfs " + host + " ls -R " + remoteDir + " 2>/dev/null || true";
+            TString cmdOut = gSystem->GetFromPipe(command.c_str());
+            if (cmdOut.Length() == 0) {
+                continue;
+            }
+
+            std::vector<std::string> files;
+            TObjArray* lines = cmdOut.Tokenize("\n");
+            if (!lines) {
+                continue;
+            }
+
+            for (int i = 0; i < lines->GetEntriesFast(); ++i) {
+                TObject* obj = lines->At(i);
+                if (!obj) {
+                    continue;
+                }
+
+                std::string line = obj->GetName();
+                if (line.empty()) {
+                    continue;
+                }
+
+                const std::string rootSuffix = ".root";
+                if (line.size() < rootSuffix.size() || line.compare(line.size() - rootSuffix.size(), rootSuffix.size(), rootSuffix) != 0) {
+                    continue;
+                }
+                files.push_back(host + "/" + line);
+            }
+
+            delete lines;
+            if (!files.empty()) {
+                if (selectedHost) {
+                    *selectedHost = host;
+                }
+                if (selectedPrefix) {
+                    *selectedPrefix = prefix;
+                }
+                return files;
+            }
+        }
+    }
+
+    if (selectedHost) {
+        *selectedHost = "";
+    }
+    if (selectedPrefix) {
+        *selectedPrefix = "";
+    }
+    return {};
+}
+
+std::string BuildTargetForRegion(int beam_type, int Ee, int Eh, int r)
+{
+    if (beam_type == AnaManager::EHE3)
+    {
+        std::string gen_group = Eh == 166 ? "DIS/BeAGLE1.03.02-3.1/" : "DIS/BeAGLE1.03.02-1.2/";
+        std::string beam_group = Form("eHe3/%dx%d/", Ee, Eh);
+        std::string sample_group;
+        if (r == 0)
+        {
+            sample_group = Eh == 166 ? "q2_1to10/" : "q2_2to10/";
+        }     
+        else if (r == 1)
+            sample_group = "q2_10to100/";
+        else
+            sample_group = "q2_100to10000/";
+
+        return gen_group + beam_group + sample_group;
+    }
+
+    if (beam_type == AnaManager::EP || beam_type == AnaManager::EP_CC)
+    {
+        std::string gen_group = beam_type == AnaManager::EP ? "DIS/NC/" : "DIS/CC/";
+        std::string beam_group = Form("%dx%d/", Ee, Eh);
+        std::string sample_group = Form("minQ2=%.0f/", pow(10, r));
+        return gen_group + beam_group + sample_group;
+    }
+
+    if (beam_type == AnaManager::PI_BG)
+    {
+        std::string gen_group = "SIDIS/pythia6-eic/1.0.0/";
+        std::string beam_group = Form("%dx%d/", Ee, Eh);
+        std::string sample_group = "q2_0to1/";
+        return gen_group + beam_group + sample_group;
+    }
+
+    if (beam_type == AnaManager::BEAM_BG)
+    {
+        std::string gen_group = "Bkg_Exact1S_2us/GoldCt/10um/DIS/NC/";
+        std::string beam_group = Form("%dx%d/", Ee, Eh);
+        std::string sample_group = Form("minQ2=%.0f/", pow(10, r));
+        return gen_group + beam_group + sample_group;
+    }
+
+    if (beam_type == AnaManager::EP_PYTHIA6)
+    {
+        std::string gen_group = "DIS/pythia6.428-1.0/NC/noRad/ep/";
+        std::string beam_group = Form("%dx%d/", Ee, Eh);
+        std::string sample_group = Form("q2_%dto%d/", (int)pow(10, r), (int)pow(10, r + 1));
+
+        if (Ee == 10 && Eh == 100)
+        {
+            gen_group = "SIDIS/pythia6-eic/1.2.0/ep_noradcor/";
+
+            if (r == 3)
+                sample_group = Form("q2_%dto%d/", (int)pow(10, r), (int)pow(10, r + 2));
+        }
+
+        return gen_group + beam_group + sample_group;
+    }
+
+    return "";
+}
+
+} // namespace

@@ -112,6 +112,7 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             
         // Find scattered electrons (reconID)
         auto e_candidates = eFinder->FindScatteredElectron();
+        const auto& summaries = eFinder->GetCandidateSummary();
         edm4eic::ReconstructedParticle e_rec;
 
         double TrackEminusPzSum = 0;
@@ -135,6 +136,9 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
             // vCLUSTER_e = boost(vCLUSTER_e);
 
             mc_PDG = eFinder->Check_eID(e_rec);
+
+            h_cur_pur_eta->Fill(mc_PDG == 0, edm4hep::utils::eta(e_rec.getMomentum()));
+            h_cur_pur_p->Fill(mc_PDG == 0, edm4hep::utils::magnitude(e_rec.getMomentum()));
 
             if ( mc_PDG == 0 )
                 eID_status = FOUND_E;
@@ -179,156 +183,104 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
             if ( e_rec.getPDG() != 0 )
             {
-                bool is_mc_electron = ( mc_PDG == 0 || mc_PDG == 11 );
-                bool is_pid_electron = (abs(e_rec.getPDG()) == 11);
-                
-                // how often the PID is correct for the scattered electron candidate
-                if ( !is_pid_electron )
+                int reco_pid = abs(e_rec.getPDG());
+                double reco_eta = edm4hep::utils::eta(recoMC.getMomentum());
+                double reco_p = edm4hep::utils::magnitude(recoMC.getMomentum());
+                FillEidPurity(reco_pid, mc_PDG, reco_eta, reco_p);
+            }
+        }
+
+        // Additional purity set: all particles with negative tracks (no cluster/E/p requirement).
+        for (const auto& s : summaries)
+        {
+            if (s.n_tracks <= 0 || s.charge >= 0)
+                continue;
+
+            FillNegTrackPurity(abs(s.reco_pdg), s.mc_pdg, s.det.eta, s.det.p);
+        }
+
+        // Fill histograms
+        for ( const auto& s : summaries )
+        {
+            const auto& d = s.mod;
+            if ( d.parType == 0 )
+            {
+                if ( s.track_theta > 158 && s.track_theta < 162 )
                 {
-                    h_pID_eff->Fill(!is_mc_electron, 0);
-                    h_eVeto_eID_pur_eta->Fill(!is_mc_electron, edm4hep::utils::eta(recoMC.getMomentum()));
+                    h_EoP_gapF_mod->Fill(d.recon_EoP);
+                    h_EoEH_gapF_mod->Fill(d.recon_EoEH);
                 }
-                if (abs(e_rec.getPDG()) == 11)
+                    
+                if ( s.cluster_theta > 22 && s.cluster_theta < 33 )
                 {
-                    h_pID_eff->Fill(is_mc_electron, 1);
-                    h_e_eID_pur_eta->Fill(is_mc_electron, edm4hep::utils::eta(recoMC.getMomentum()));
-                }
-                if (abs(e_rec.getPDG()) == 211)
-                {
-                    h_pID_eff->Fill(abs(mc_PDG) == 211, 2);
-                    h_pi_eID_pur_eta->Fill(abs(mc_PDG) == 211, edm4hep::utils::eta(recoMC.getMomentum()));
-                }
-                if (abs(e_rec.getPDG()) == 321)
-                {
-                    h_pID_eff->Fill(abs(mc_PDG) == 321, 3);
-                    h_K_eID_pur_eta->Fill(abs(mc_PDG) == 321, edm4hep::utils::eta(recoMC.getMomentum()));
-                }
-                if (abs(e_rec.getPDG()) == 2212)
-                {
-                    h_pID_eff->Fill(abs(mc_PDG) == 2212, 4);
-                    h_p_eID_pur_eta->Fill(abs(mc_PDG) == 2212, edm4hep::utils::eta(recoMC.getMomentum()));
+                    h_EoP_gapB_mod->Fill(d.recon_EoP);
+                    h_EoEH_gapB_mod->Fill(d.recon_EoEH);
                 }
             }
         }
 
-        // Fill histograms
-        // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
-        // if (e_mc[0].getEnergy() > 5 )
-        // {
-            for ( const auto& d : eFinder->mod_val )
+        for ( const auto& s : summaries )
+        {
+            if ( s.n_tracks <= 0 || s.charge >= 0 )
+                continue;
+                
+            const auto& d = s.det;
+            if ( d.parType == 0 )
             {
-                if ( d.parType == 0 )
+                h_nTPts_e->Fill(d.nTrackPoints);
+                h_EoP_e->Fill(d.recon_EoP);
+                h_isoE_e->Fill(d.recon_isoE);
+                h_EoEH_e->Fill(d.recon_EoEH);
+                h_PIDe_e->Fill(d.recon_Le);
+                h_PIDh_e->Fill(d.recon_Lh);
+
+                if ( vMC_e.Theta()*(180./M_PI) > 158 && vMC_e.Theta()*(180./M_PI) < 162 ) 
                 {
-                    if ( vMC_e.Theta()*(180./M_PI) > 158 && vMC_e.Theta()*(180./M_PI) < 162 ) 
-                    {
-                        h_EoP_gapF_mod->Fill(d.recon_EoP);
-                        h_EoEH_gapF_mod->Fill(d.recon_EoEH);
-                    }
-                        
-                    if ( vMC_e.Theta()*(180./M_PI) > 22 && vMC_e.Theta()*(180./M_PI) < 33 )
-                    {
-                        h_EoP_gapB_mod->Fill(d.recon_EoP);
-                        h_EoEH_gapB_mod->Fill(d.recon_EoEH);
-                    }
+                    h_EoP_gapF->Fill(d.recon_EoP);
+                    h_EoEH_gapF->Fill(d.recon_EoEH);
+                }
+                    
+                if ( vMC_e.Theta()*(180./M_PI) > 22 && vMC_e.Theta()*(180./M_PI) < 33 )
+                {
+                    h_EoP_gapB->Fill(d.recon_EoP);
+                    h_EoEH_gapB->Fill(d.recon_EoEH);
                 }
             }
-
-            for ( const auto& d : eFinder->det_val )
+            else if ( d.parType == -211 )
             {
-                if ( d.parType == 0 )
-                {
-                    h_nTPts_e->Fill(d.nTrackPoints);
-                    h_EoP_e->Fill(d.recon_EoP);
-                    h_isoE_e->Fill(d.recon_isoE);
-                    h_EoEH_e->Fill(d.recon_EoEH);
-                    h_PIDe_e->Fill(d.recon_Le);
-                    h_PIDh_e->Fill(d.recon_Lh);
-
-                    if ( vMC_e.Theta()*(180./M_PI) > 158 && vMC_e.Theta()*(180./M_PI) < 162 ) 
-                    {
-                        h_EoP_gapF->Fill(d.recon_EoP);
-                        h_EoEH_gapF->Fill(d.recon_EoEH);
-                    }
-                        
-                    if ( vMC_e.Theta()*(180./M_PI) > 22 && vMC_e.Theta()*(180./M_PI) < 33 )
-                    {
-                        h_EoP_gapB->Fill(d.recon_EoP);
-                        h_EoEH_gapB->Fill(d.recon_EoEH);
-                    }
-                }
-                else if ( d.parType == -211 )
-                {
-                    h_nTPts_pi->Fill(d.nTrackPoints);
-                    h_EoP_pi->Fill(d.recon_EoP);
-                    h_isoE_pi->Fill(d.recon_isoE);
-                    h_EoEH_pi->Fill(d.recon_EoEH);
-                    h_PIDe_pi->Fill(d.recon_Le);
-                    h_PIDh_pi->Fill(d.recon_Lh);
-                }
-                else if ( abs(d.parType) == 11 )
-                {
-                    h_nTPts_jet_e->Fill(d.nTrackPoints);
-                    h_EoP_jet_e->Fill(d.recon_EoP);
-                    h_isoE_jet_e->Fill(d.recon_isoE);
-                    h_EoEH_jet_e->Fill(d.recon_EoEH);
-                    h_PIDe_jet_e->Fill(d.recon_Le);
-                    h_PIDh_jet_e->Fill(d.recon_Lh);
-                }
-                else
-                {
-                    h_nTPts_else->Fill(d.nTrackPoints);
-                    h_EoP_else->Fill(d.recon_EoP);
-                    h_isoE_else->Fill(d.recon_isoE);
-                    h_EoEH_else->Fill(d.recon_EoEH);
-                    h_PIDe_else->Fill(d.recon_Le);
-                    h_PIDh_else->Fill(d.recon_Lh);
-                }
-
-                bool is_mc_electron = (d.parType == 0 || abs(d.parType) == 11);
-
-                // How well is PID matching true particle overall if PID is reporting a particle
-                if ( d.recon_pID != 0 )
-                {
-                    if ( d.recon_pID != 11 )
-                    {
-                        h_pID_pur->Fill(!is_mc_electron, 0);
-                        h_eVeto_pID_pur_eta->Fill(!is_mc_electron, d.eta);
-                    }
-                    if ( d.recon_pID == 11)
-                    {
-                        h_pID_pur->Fill(is_mc_electron, 1);
-                        h_e_pID_pur_eta->Fill(is_mc_electron, d.eta);
-                    }
-                    if ( d.recon_pID == 211 )
-                    {
-                        h_pID_pur->Fill(d.parType == 211, 2);
-                        h_pi_pID_pur_eta->Fill(d.parType == 211, d.eta);
-                    }
-                    if ( d.recon_pID == 321 )
-                    {
-                        h_pID_pur->Fill(d.parType == 321, 3);
-                        h_K_pID_pur_eta->Fill(d.parType == 321, d.eta);
-                    }
-                    if ( d.recon_pID == 2212 )
-                    {
-                        h_pID_pur->Fill(d.parType == 2212, 4);
-                        h_p_pID_pur_eta->Fill(d.parType == 2212, d.eta);
-                    }
-                }
-
-                // how often is PID reporting true particle in general
-                if ( !is_mc_electron )
-                    h_pID_suc->Fill(d.recon_pID != 11, 0);
-                if ( is_mc_electron )
-                    h_pID_suc->Fill(d.recon_pID == 11, 1);
-                if ( d.parType == 211 )
-                    h_pID_suc->Fill(d.recon_pID == 211, 2);
-                if ( d.parType == 321 )
-                    h_pID_suc->Fill(d.recon_pID == 321, 3);
-                if ( d.parType == 2212 )
-                    h_pID_suc->Fill(d.recon_pID == 2212, 4);
+                h_nTPts_pi->Fill(d.nTrackPoints);
+                h_EoP_pi->Fill(d.recon_EoP);
+                h_isoE_pi->Fill(d.recon_isoE);
+                h_EoEH_pi->Fill(d.recon_EoEH);
+                h_PIDe_pi->Fill(d.recon_Le);
+                h_PIDh_pi->Fill(d.recon_Lh);
             }
-        // }
+            else if ( abs(d.parType) == 11 )
+            {
+                h_nTPts_jet_e->Fill(d.nTrackPoints);
+                h_EoP_jet_e->Fill(d.recon_EoP);
+                h_isoE_jet_e->Fill(d.recon_isoE);
+                h_EoEH_jet_e->Fill(d.recon_EoEH);
+                h_PIDe_jet_e->Fill(d.recon_Le);
+                h_PIDh_jet_e->Fill(d.recon_Lh);
+            }
+            else
+            {
+                h_nTPts_else->Fill(d.nTrackPoints);
+                h_EoP_else->Fill(d.recon_EoP);
+                h_isoE_else->Fill(d.recon_isoE);
+                h_EoEH_else->Fill(d.recon_EoEH);
+                h_PIDe_else->Fill(d.recon_Le);
+                h_PIDh_else->Fill(d.recon_Lh);
+            }
+
+            // How well is PID matching true particle overall if PID is reporting a particle
+            FillPidPurity(d.recon_pID, d.parType, d.eta, d.p);
+
+            // how often is PID reporting true particle in general
+            FillPidSuccess(d.recon_pID, d.parType);
+        }
+  
         
         outTree->Fill();
         ResetVariables();
@@ -487,63 +439,38 @@ void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
 
     draw_manager->LableAndCollect(c_pID_eff);
 
-    TCanvas* c_pID_pur_eta = new TCanvas("c_pID_pur_eta", "c_pID_pur_eta", 1000, 600);
-    h_eVeto_pID_pur_eta->Draw();
-    gPad->Update();
-    h_eVeto_pID_pur_eta->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.5);
+    TCanvas* c_pID_pur_eta;
+    DrawPurityCanvas(c_pID_pur_eta, "c_pID_pur_eta", h_cur_pur_eta, h_eVeto_pID_pur_eta, h_e_pID_pur_eta, h_pi_pID_pur_eta, h_K_pID_pur_eta, h_p_pID_pur_eta, draw_manager);
 
-    h_e_pID_pur_eta->Draw("SAME");
-    h_pi_pID_pur_eta->Draw("SAME");
-    h_K_pID_pur_eta->Draw("SAME");
-    h_p_pID_pur_eta->Draw("SAME");
+    TCanvas* c_pID_pur_p;
+    DrawPurityCanvas(c_pID_pur_p, "c_pID_pur_p", h_cur_pur_p, h_eVeto_pID_pur_p, h_e_pID_pur_p, h_pi_pID_pur_p, h_K_pID_pur_p, h_p_pID_pur_p, draw_manager);
 
-    TLegend* leg_pID_eta = new TLegend(0.6, 0.7, 0.8, 0.92);
-    leg_pID_eta->SetBorderSize(0);
-    leg_pID_eta->SetFillStyle(0);
-    leg_pID_eta->AddEntry(h_eVeto_pID_pur_eta, "electron veto", "LP");
-    leg_pID_eta->AddEntry(h_e_pID_pur_eta, "electron", "LP");
-    leg_pID_eta->AddEntry(h_pi_pID_pur_eta, "pion", "LP");
-    leg_pID_eta->AddEntry(h_K_pID_pur_eta, "kaon", "LP");
-    leg_pID_eta->AddEntry(h_p_pID_pur_eta, "proton", "LP");
-    leg_pID_eta->Draw();
+    TCanvas* c_eID_pur_eta;
+    DrawPurityCanvas(c_eID_pur_eta, "c_eID_pur_eta", h_cur_pur_eta, h_eVeto_eID_pur_eta, h_e_eID_pur_eta, h_pi_eID_pur_eta, h_K_eID_pur_eta, h_p_eID_pur_eta, draw_manager);
 
-    draw_manager->LableAndCollect(c_pID_pur_eta);
+    TCanvas* c_eID_pur_p;
+    DrawPurityCanvas(c_eID_pur_p, "c_eID_pur_p", h_cur_pur_p, h_eVeto_eID_pur_p, h_e_eID_pur_p, h_pi_eID_pur_p, h_K_eID_pur_p, h_p_eID_pur_p, draw_manager);
 
-    TCanvas* c_eID_pur_eta = new TCanvas("c_eID_pur_eta", "c_eID_pur_eta", 1000, 600);
-    h_eVeto_eID_pur_eta->Draw();
-    gPad->Update();
-    h_eVeto_eID_pur_eta->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.5);
+    TCanvas* c_trk_pur_eta;
+    DrawPurityCanvas(c_trk_pur_eta, "c_trk_pur_eta", h_cur_pur_eta, h_eVeto_trk_pur_eta, h_e_trk_pur_eta, h_pi_trk_pur_eta, h_K_trk_pur_eta, h_p_trk_pur_eta, draw_manager);
 
-    h_e_eID_pur_eta->Draw("SAME");
-    h_pi_eID_pur_eta->Draw("SAME");
-    h_K_eID_pur_eta->Draw("SAME");
-    h_p_eID_pur_eta->Draw("SAME");
-
-    TLegend* leg_eID_eta = new TLegend(0.6, 0.7, 0.8, 0.92);
-    leg_eID_eta->SetBorderSize(0);
-    leg_eID_eta->SetFillStyle(0);
-    leg_eID_eta->AddEntry(h_eVeto_eID_pur_eta, "electron veto", "LP");
-    leg_eID_eta->AddEntry(h_e_eID_pur_eta, "electron", "LP");
-    leg_eID_eta->AddEntry(h_pi_eID_pur_eta, "pion", "LP");
-    leg_eID_eta->AddEntry(h_K_eID_pur_eta, "kaon", "LP");
-    leg_eID_eta->AddEntry(h_p_eID_pur_eta, "proton", "LP");
-    leg_eID_eta->Draw();
-
-    draw_manager->LableAndCollect(c_eID_pur_eta);
+    TCanvas* c_trk_pur_p;
+    DrawPurityCanvas(c_trk_pur_p, "c_trk_pur_p", h_cur_pur_p, h_eVeto_trk_pur_p, h_e_trk_pur_p, h_pi_trk_pur_p, h_K_trk_pur_p, h_p_trk_pur_p, draw_manager);
 
     TCanvas* c_pt_theta = new TCanvas("c_pt_theta", "c_pt_theta", 1000, 600);
     h_pt_theta->Draw("COLZ");
     draw_manager->LableAndCollect(c_pt_theta);
 
-    TCanvas* c_pid_score = eFinder->MakePlots();
-    draw_manager->LableAndCollect(c_pid_score);
+    // TCanvas* c_pid_score = eFinder->MakePlots();
+    // draw_manager->LableAndCollect(c_pid_score);
 
     // Save
 
     outFile->cd();
     outTree->Write(outTree->GetName(), 2);
 
-    draw_manager->SaveToTree(outFile);
+    if ( file0 == 0 )
+        draw_manager->SaveToTree(outFile);
 
     return;
 }
@@ -632,58 +559,38 @@ void DefineHistograms() {
     //
 
     int color[5] = {kP10Blue, kP10Brown, kP10Green, kP10Ash, kP10Red};
-    int marker[5] = { 20, 21, 22, 23, 29};
-    h_e_eID_pur_eta = new TEfficiency("h_e_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_e_eID_pur_eta->SetMarkerColor(color[0]);
-    h_e_eID_pur_eta->SetLineColor(color[0]);
-    h_e_eID_pur_eta->SetMarkerStyle(marker[0]);
+    int marker[5] = {20, 21, 22, 23, 29};
 
-    h_pi_eID_pur_eta = new TEfficiency("h_pi_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_pi_eID_pur_eta->SetMarkerColor(color[1]);
-    h_pi_eID_pur_eta->SetLineColor(color[1]);
-    h_pi_eID_pur_eta->SetMarkerStyle(marker[1]);
+    TEfficiency** eID_eta[5] = {&h_e_eID_pur_eta, &h_pi_eID_pur_eta, &h_K_eID_pur_eta, &h_p_eID_pur_eta, &h_eVeto_eID_pur_eta};
+    TEfficiency** pID_eta[5] = {&h_e_pID_pur_eta, &h_pi_pID_pur_eta, &h_K_pID_pur_eta, &h_p_pID_pur_eta, &h_eVeto_pID_pur_eta};
+    TEfficiency** eID_p[5] = {&h_e_eID_pur_p, &h_pi_eID_pur_p, &h_K_eID_pur_p, &h_p_eID_pur_p, &h_eVeto_eID_pur_p};
+    TEfficiency** pID_p[5] = {&h_e_pID_pur_p, &h_pi_pID_pur_p, &h_K_pID_pur_p, &h_p_pID_pur_p, &h_eVeto_pID_pur_p};
+    TEfficiency** trk_eta[5] = {&h_e_trk_pur_eta, &h_pi_trk_pur_eta, &h_K_trk_pur_eta, &h_p_trk_pur_eta, &h_eVeto_trk_pur_eta};
+    TEfficiency** trk_p[5] = {&h_e_trk_pur_p, &h_pi_trk_pur_p, &h_K_trk_pur_p, &h_p_trk_pur_p, &h_eVeto_trk_pur_p};
 
-    h_K_eID_pur_eta = new TEfficiency("h_K_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_K_eID_pur_eta->SetMarkerColor(color[2]);
-    h_K_eID_pur_eta->SetLineColor(color[2]);
-    h_K_eID_pur_eta->SetMarkerStyle(marker[2]);
+    const char* eID_eta_names[5] = {"h_e_eID_pur_eta", "h_pi_eID_pur_eta", "h_K_eID_pur_eta", "h_p_eID_pur_eta", "h_eVeto_eID_pur_eta"};
+    const char* pID_eta_names[5] = {"h_e_pID_pur_eta", "h_pi_pID_pur_eta", "h_K_pID_pur_eta", "h_p_pID_pur_eta", "h_eVeto_pID_pur_eta"};
+    const char* eID_p_names[5] = {"h_e_eID_pur_p", "h_pi_eID_pur_p", "h_K_eID_pur_p", "h_p_eID_pur_p", "h_eVeto_eID_pur_p"};
+    const char* pID_p_names[5] = {"h_e_pID_pur_p", "h_pi_pID_pur_p", "h_K_pID_pur_p", "h_p_pID_pur_p", "h_eVeto_pID_pur_p"};
+    const char* trk_eta_names[5] = {"h_e_trk_pur_eta", "h_pi_trk_pur_eta", "h_K_trk_pur_eta", "h_p_trk_pur_eta", "h_eVeto_trk_pur_eta"};
+    const char* trk_p_names[5] = {"h_e_trk_pur_p", "h_pi_trk_pur_p", "h_K_trk_pur_p", "h_p_trk_pur_p", "h_eVeto_trk_pur_p"};
 
-    h_p_eID_pur_eta = new TEfficiency("h_p_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_p_eID_pur_eta->SetMarkerColor(color[3]);
-    h_p_eID_pur_eta->SetLineColor(color[3]);
-    h_p_eID_pur_eta->SetMarkerStyle(marker[3]);
+    for (int i = 0; i < 5; ++i) {
+        SetupPurityEff(*eID_eta[i], eID_eta_names[i], "#eta", 20, -5., 5., color[i], marker[i]);
+        SetupPurityEff(*pID_eta[i], pID_eta_names[i], "#eta", 20, -5., 5., color[i], marker[i]);
+        SetupPurityEff(*eID_p[i], eID_p_names[i], "p [GeV/c]", 150, 0., 150., color[i], marker[i]);
+        SetupPurityEff(*pID_p[i], pID_p_names[i], "p [GeV/c]", 150, 0., 150., color[i], marker[i]);
+        SetupPurityEff(*trk_eta[i], trk_eta_names[i], "#eta", 20, -5., 5., color[i], marker[i]);
+        SetupPurityEff(*trk_p[i], trk_p_names[i], "p [GeV/c]", 150, 0., 150., color[i], marker[i]);
+    }
 
-    h_eVeto_eID_pur_eta = new TEfficiency("h_eVeto_eID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_eVeto_eID_pur_eta->SetMarkerColor(color[4]);
-    h_eVeto_eID_pur_eta->SetLineColor(color[4]);
-    h_eVeto_eID_pur_eta->SetMarkerStyle(marker[4]);
+    SetupPurityEff(h_cur_pur_eta, "h_cur_pur_eta", "#eta", 20, -5., 5., kP10Yellow, 20);
+    h_cur_pur_eta->SetLineStyle(1);
+    h_cur_pur_eta->SetLineWidth(2);
 
-    //
-
-    h_e_pID_pur_eta = new TEfficiency("h_e_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_e_pID_pur_eta->SetMarkerColor(color[0]);
-    h_e_pID_pur_eta->SetLineColor(color[0]);
-    h_e_pID_pur_eta->SetMarkerStyle(marker[0]);
-
-    h_pi_pID_pur_eta = new TEfficiency("h_pi_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_pi_pID_pur_eta->SetMarkerColor(color[1]);
-    h_pi_pID_pur_eta->SetLineColor(color[1]);
-    h_pi_pID_pur_eta->SetMarkerStyle(marker[1]);
-
-    h_K_pID_pur_eta = new TEfficiency("h_K_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_K_pID_pur_eta->SetMarkerColor(color[2]);
-    h_K_pID_pur_eta->SetLineColor(color[2]);
-    h_K_pID_pur_eta->SetMarkerStyle(marker[2]);
-
-    h_p_pID_pur_eta = new TEfficiency("h_p_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_p_pID_pur_eta->SetMarkerColor(color[3]);
-    h_p_pID_pur_eta->SetLineColor(color[3]);
-    h_p_pID_pur_eta->SetMarkerStyle(marker[3]);
-
-    h_eVeto_pID_pur_eta = new TEfficiency("h_eVeto_pID_pur_eta", ";#eta;Purity", 20, -5., 5.);
-    h_eVeto_pID_pur_eta->SetMarkerColor(color[4]);
-    h_eVeto_pID_pur_eta->SetLineColor(color[4]);
-    h_eVeto_pID_pur_eta->SetMarkerStyle(marker[4]);
+    SetupPurityEff(h_cur_pur_p, "h_cur_pur_p", "p [GeV/c]", 150, 0., 150., kP10Yellow, 20);
+    h_cur_pur_p->SetLineStyle(1);
+    h_cur_pur_p->SetLineWidth(2);
 
     return;
 }
@@ -853,4 +760,184 @@ TLorentzVector GetHadronBeam(double fEh) {
 	hadron_beam.SetE(std::hypot(fEh, MASS_PROTON));
 	return hadron_beam;
 
+}
+
+void SetupPurityEff(TEfficiency* &h, const char* name, const char* xAxisTitle, int nBins, double xMin, double xMax, int color, int marker)
+{
+    h = new TEfficiency(name, Form(";%s;Purity", xAxisTitle), nBins, xMin, xMax);
+    h->SetMarkerColor(color);
+    h->SetLineColor(color);
+    h->SetMarkerStyle(marker);
+}
+
+void DrawPurityCanvas(TCanvas* &c, const char* canvasName,
+    TEfficiency* h_base, TEfficiency* h_veto, TEfficiency* h_e, TEfficiency* h_pi, TEfficiency* h_K, TEfficiency* h_p,
+    DrawManager* draw_manager)
+{
+    c = new TCanvas(canvasName, canvasName, 1000, 600);
+    TH1D* h_base_line = nullptr;
+
+    if (h_base) {
+        h_base_line = (TH1D*)h_base->GetCopyPassedHisto();
+        TH1D* h_base_total = (TH1D*)h_base->GetCopyTotalHisto();
+        h_base_line->SetName(Form("%s_base_line", canvasName));
+        h_base_line->SetDirectory(nullptr);
+        h_base_line->Divide(h_base_line, h_base_total, 1.0, 1.0, "B");
+        h_base_line->SetLineColor(h_base->GetLineColor());
+        h_base_line->SetLineStyle(1);
+        h_base_line->SetLineWidth(2);
+        h_base_line->SetFillStyle(3003);
+        h_base_line->SetFillColor(h_base->GetLineColor());
+        h_base_line->SetMarkerSize(0.0);
+        h_base_line->GetYaxis()->SetRangeUser(0.0, 1.5);
+        h_base_line->Draw("HIST");
+    }
+
+    h_veto->Draw(h_base_line ? "SAME" : "");
+    gPad->Update();
+    h_veto->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.5);
+
+    h_e->Draw("SAME");
+    h_pi->Draw("SAME");
+    h_K->Draw("SAME");
+    h_p->Draw("SAME");
+
+    TLegend* leg = new TLegend(0.6, 0.7, 0.8, 0.92);
+    leg->SetBorderSize(0);
+    leg->SetFillStyle(0);
+    if (h_base_line)
+        leg->AddEntry(h_base_line, "baseline", "L");
+    leg->AddEntry(h_veto, "electron veto", "LP");
+    leg->AddEntry(h_e, "electron", "LP");
+    leg->AddEntry(h_pi, "pion", "LP");
+    leg->AddEntry(h_K, "kaon", "LP");
+    leg->AddEntry(h_p, "proton", "LP");
+    leg->Draw();
+
+    draw_manager->LableAndCollect(c);
+}
+
+void FillEidPurity(int reco_pid, int mc_pdg, double eta, double momentum)
+{
+    const bool is_mc_electron = (mc_pdg == 0 || std::abs(mc_pdg) == 11);
+    const bool is_mc_pion = (std::abs(mc_pdg) == 211);
+    const bool is_mc_kaon = (std::abs(mc_pdg) == 321);
+    const bool is_mc_proton = (std::abs(mc_pdg) == 2212);
+
+    if (reco_pid != 11) {
+        h_pID_eff->Fill(!is_mc_electron, 0);
+        h_eVeto_eID_pur_eta->Fill(!is_mc_electron, eta);
+        h_eVeto_eID_pur_p->Fill(!is_mc_electron, momentum);
+    }
+    if (reco_pid == 11) {
+        h_pID_eff->Fill(is_mc_electron, 1);
+        h_e_eID_pur_eta->Fill(is_mc_electron, eta);
+        h_e_eID_pur_p->Fill(is_mc_electron, momentum);
+    }
+    if (reco_pid == 211) {
+        h_pID_eff->Fill(is_mc_pion, 2);
+        h_pi_eID_pur_eta->Fill(is_mc_pion, eta);
+        h_pi_eID_pur_p->Fill(is_mc_pion, momentum);
+    }
+    if (reco_pid == 321) {
+        h_pID_eff->Fill(is_mc_kaon, 3);
+        h_K_eID_pur_eta->Fill(is_mc_kaon, eta);
+        h_K_eID_pur_p->Fill(is_mc_kaon, momentum);
+    }
+    if (reco_pid == 2212) {
+        h_pID_eff->Fill(is_mc_proton, 4);
+        h_p_eID_pur_eta->Fill(is_mc_proton, eta);
+        h_p_eID_pur_p->Fill(is_mc_proton, momentum);
+    }
+}
+
+void FillNegTrackPurity(int reco_pid, int mc_pdg, double eta, double momentum)
+{
+    const bool is_mc_electron = (mc_pdg == 0 || std::abs(mc_pdg) == 11);
+    const bool is_mc_pion = (std::abs(mc_pdg) == 211);
+    const bool is_mc_kaon = (std::abs(mc_pdg) == 321);
+    const bool is_mc_proton = (std::abs(mc_pdg) == 2212);
+
+    if (reco_pid != 11) {
+        h_eVeto_trk_pur_eta->Fill(!is_mc_electron, eta);
+        h_eVeto_trk_pur_p->Fill(!is_mc_electron, momentum);
+    }
+    if (reco_pid == 11) {
+        h_e_trk_pur_eta->Fill(is_mc_electron, eta);
+        h_e_trk_pur_p->Fill(is_mc_electron, momentum);
+    }
+    if (reco_pid == 211) {
+        h_pi_trk_pur_eta->Fill(is_mc_pion, eta);
+        h_pi_trk_pur_p->Fill(is_mc_pion, momentum);
+    }
+    if (reco_pid == 321) {
+        h_K_trk_pur_eta->Fill(is_mc_kaon, eta);
+        h_K_trk_pur_p->Fill(is_mc_kaon, momentum);
+    }
+    if (reco_pid == 2212) {
+        h_p_trk_pur_eta->Fill(is_mc_proton, eta);
+        h_p_trk_pur_p->Fill(is_mc_proton, momentum);
+    }
+}
+
+void FillPidPurity(int reco_pid, int par_type, double eta, double momentum)
+{
+    if (reco_pid == 0) {
+        return;
+    }
+
+    const bool is_mc_electron = (par_type == 0 || std::abs(par_type) == 11);
+    const bool is_mc_pion = (std::abs(par_type) == 211);
+    const bool is_mc_kaon = (std::abs(par_type) == 321);
+    const bool is_mc_proton = (std::abs(par_type) == 2212);
+
+    if (reco_pid != 11) {
+        h_pID_pur->Fill(!is_mc_electron, 0);
+        h_eVeto_pID_pur_eta->Fill(!is_mc_electron, eta);
+        h_eVeto_pID_pur_p->Fill(!is_mc_electron, momentum);
+    }
+    if (reco_pid == 11) {
+        h_pID_pur->Fill(is_mc_electron, 1);
+        h_e_pID_pur_eta->Fill(is_mc_electron, eta);
+        h_e_pID_pur_p->Fill(is_mc_electron, momentum);
+    }
+    if (reco_pid == 211) {
+        h_pID_pur->Fill(is_mc_pion, 2);
+        h_pi_pID_pur_eta->Fill(is_mc_pion, eta);
+        h_pi_pID_pur_p->Fill(is_mc_pion, momentum);
+    }
+    if (reco_pid == 321) {
+        h_pID_pur->Fill(is_mc_kaon, 3);
+        h_K_pID_pur_eta->Fill(is_mc_kaon, eta);
+        h_K_pID_pur_p->Fill(is_mc_kaon, momentum);
+    }
+    if (reco_pid == 2212) {
+        h_pID_pur->Fill(is_mc_proton, 4);
+        h_p_pID_pur_eta->Fill(is_mc_proton, eta);
+        h_p_pID_pur_p->Fill(is_mc_proton, momentum);
+    }
+}
+
+void FillPidSuccess(int reco_pid, int par_type)
+{
+    const bool is_mc_electron = (par_type == 0 || std::abs(par_type) == 11);
+    const bool is_mc_pion = (std::abs(par_type) == 211);
+    const bool is_mc_kaon = (std::abs(par_type) == 321);
+    const bool is_mc_proton = (std::abs(par_type) == 2212);
+
+    if (!is_mc_electron) {
+        h_pID_suc->Fill(reco_pid != 11, 0);
+    }
+    if (is_mc_electron) {
+        h_pID_suc->Fill(reco_pid == 11, 1);
+    }
+    if (is_mc_pion) {
+        h_pID_suc->Fill(reco_pid == 211, 2);
+    }
+    if (is_mc_kaon) {
+        h_pID_suc->Fill(reco_pid == 321, 3);
+    }
+    if (is_mc_proton) {
+        h_pID_suc->Fill(reco_pid == 2212, 4);
+    }
 }

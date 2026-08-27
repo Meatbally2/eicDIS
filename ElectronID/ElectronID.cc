@@ -153,6 +153,7 @@ void ElectronID::SetEvent(const podio::Frame* event) {
 	hfs_theta.clear();
 	det_val.clear();
 	mod_val.clear();
+	candidate_summary.clear();
 	// std::cout << "** Event set in ElectronID. " << std::endl;
 
 	meMCValid = false;
@@ -243,201 +244,122 @@ edm4eic::ReconstructedParticleCollection ElectronID::FindScatteredElectron() {
 	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_lessCuts;
 	scatteredElectronCandidates_lessCuts.setSubsetCollection();
 
-	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_trackOnly;
-	scatteredElectronCandidates_trackOnly.setSubsetCollection();
+	std::vector<edm4eic::ReconstructedParticle> summary_particles;
+	summary_particles.reserve(rcparts.size());
+	candidate_summary.reserve(rcparts.size());
 
-	edm4eic::ReconstructedParticleCollection scatteredElectronCandidates_clusterOnly;
-	scatteredElectronCandidates_clusterOnly.setSubsetCollection();
-
-	// Loop over all ReconstructedParticles for this event
+	// Stage 1: build per-particle features for all particles.
 	for (const auto& reconPart : rcparts) {
+		CandidateSummary summary{};
+		summary.object_index = reconPart.getObjectID().index;
+		summary.mc_pdg = Check_eID(reconPart);
+		summary.reco_pdg = reconPart.getPDG();
+		summary.charge = static_cast<int>(reconPart.getCharge());
+		summary.n_tracks = static_cast<int>(reconPart.getTracks().size());
+		summary.n_clusters = static_cast<int>(reconPart.getClusters().size());
+		summary.track_theta = -999.0;
+		summary.cluster_theta = -999.0;
+		summary.det = {std::abs(summary.mc_pdg), 0, -1.0, -1.0, -1.0, std::abs(summary.reco_pdg), 0.0, 0.0, edm4hep::utils::eta(reconPart.getMomentum()), edm4hep::utils::magnitude(reconPart.getMomentum())};
+		summary.mod = summary.det;
 
-		// std::cout << "Found candidate with " << reconPart.getTracks().size() << " tracks and " << reconPart.getClusters().size() << " clusters." << std::endl;
+		double Le = 0.0, Lpi = 0.0, Lk = 0.0, Lp = 0.0;
+		for (const auto& pid : reconPart.getParticleIDs()) {
+			const double L = pid.getLikelihood();
 
-		// find real PDG of the particle
-		int mc_PDG = Check_eID(reconPart);
-		auto recoMC = GetMC(reconPart);
-
-		if ( reconPart.getTracks().size() > 0 ) {
-
-			if(reconPart.getCharge() >= 0) 
-				continue;
-
-			// pID detector look up
-			// to do: try adding likelihood instead of the max
-			double Le = 0.0, Lpi = 0.0, Lk = 0.0, Lp = 0.0;
-			for (const auto& pid : reconPart.getParticleIDs()) 
-			{
-				const double L = pid.getLikelihood();
-
-				for ( int m = 0; m < 5; m ++ ) {
-					if ( abs(mc_PDG) == abs(pdg_map[m].pdg) ) {
-						for ( int d = 0; d < 4; d ++ ) {
-							if ( pid.getType() == pid_map[d].detID ) {
-								for ( int p = 0; p < 4; p ++ ){
-									if ( abs(pid.getPDG()) == abs(pdg_map[p].pdg) )
-										h_pid_score[pdg_map[m].index][d][p]->Fill(L);
-								}
+			for (int m = 0; m < 5; m++) {
+				if (std::abs(summary.mc_pdg) == std::abs(pdg_map[m].pdg)) {
+					for (int d = 0; d < 4; d++) {
+						if (pid.getType() == pid_map[d].detID) {
+							for (int p = 0; p < 4; p++) {
+								if (std::abs(pid.getPDG()) == std::abs(pdg_map[p].pdg))
+									h_pid_score[pdg_map[m].index][d][p]->Fill(L);
 							}
 						}
 					}
 				}
-
-				if (abs(pid.getPDG()) == 11) 
-					Le = std::max(Le, L);
-				else if (abs(pid.getPDG()) == 211) 
-					Lpi = std::max(Lpi, L);
-				else if (abs(pid.getPDG()) == 321) 
-					Lk = std::max(Lk, L);
-				else if (abs(pid.getPDG()) == 2212) 
-					Lp = std::max(Lp, L);
-
-				// if ( abs(pid.getPDG()) == 11 && pid.getType() == 120 )
-				// 	std::cout << "PID type: " << pid.getType() << ", PDG: " << pid.getPDG() << ", likelihood: " << L << std::endl;
 			}
 
-		int recon_pID = reconPart.getPDG();
-		double Lhad = std::max({Lpi, Lk, Lp});
-		double Lhadsum = Lpi + Lk + Lp;
-		double eFrac = (Le + Lhadsum > 0.0) ? Le / (Le + Lhadsum) : 0.0;
-		double hFrac = (Le + Lhad > 0.0) ? Lhad / (Le + Lhad) : 0.0;
+			if (std::abs(pid.getPDG()) == 11)
+				Le = std::max(Le, L);
+			else if (std::abs(pid.getPDG()) == 211)
+				Lpi = std::max(Lpi, L);
+			else if (std::abs(pid.getPDG()) == 321)
+				Lk = std::max(Lk, L);
+			else if (std::abs(pid.getPDG()) == 2212)
+				Lp = std::max(Lp, L);
+		}
 
-		// Require at least one track and one cluster
-		if(reconPart.getClusters().size() > 0 && reconPart.getTracks().size() > 0) 
-		{
-			// Require negative particle
-			if(reconPart.getCharge() >= 0) 
-				continue;
+		const double Lhad = std::max({Lpi, Lk, Lp});
+		const double Lhadsum = Lpi + Lk + Lp;
+		summary.det.recon_Le = (Le + Lhadsum > 0.0) ? Le / (Le + Lhadsum) : 0.0;
+		summary.det.recon_Lh = (Le + Lhad > 0.0) ? Lhad / (Le + Lhad) : 0.0;
+		summary.mod.recon_Le = summary.det.recon_Le;
+		summary.mod.recon_Lh = summary.det.recon_Lh;
 
-			// if ( reconPart.getStartVertex().isAvailable() )
-			// {
-			// 	std::cout << "vertex position: " << reconPart.getStartVertex().getPosition() << std::endl;
-			// 	std::cout << "Start vertex type: " << reconPart.getStartVertex().getType() << std::endl;
+		if (summary.n_tracks > 0) {
+			summary.det.nTrackPoints = reconPart.getTracks()[0].measurements_size();
+			summary.mod.nTrackPoints = summary.det.nTrackPoints;
+		}
 
-			// 	if ( reconPart.getStartVertex().getType() != 0 )
-			// 		continue;
-			// }
-			
-			int n_track_points = reconPart.getTracks()[0].measurements_size();
-
-			// Calculate rcpart_ member variables for this event
+		const bool has_track_cluster = (summary.n_tracks > 0 && summary.n_clusters > 0);
+		if (has_track_cluster) {
 			CalculateParticleValues(reconPart, rcparts);
 
-			double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
-			double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
+			summary.track_theta = edm4hep::utils::anglePolar(reconPart.getMomentum()) * (180. / M_PI);
+			summary.cluster_theta = GetMomentumVectorFromCluster(reconPart, 0).Theta() * (180. / M_PI);
 
-			// Calculate isolation fraction for this event (ECal only)
-			double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
+			const double track_p = edm4hep::utils::magnitude(reconPart.getMomentum());
+			summary.det.recon_EoP = (track_p > 0.0) ? rcpart_sum_cluster_E / track_p : -1.0;
+			summary.det.recon_isoE = (rcpart_isolation_E > 0.0) ? rcpart_sum_cluster_E / rcpart_isolation_E : 0.0;
+			const double eh_sum = rcpart_sum_cluster_E + rcpart_sum_cluster_H;
+			summary.det.recon_EoEH = (eh_sum > 0.0) ? rcpart_sum_cluster_E / eh_sum : 0.0;
 
-			// Calculate E/p for this event
-			double recon_EoP = rcpart_sum_cluster_E / edm4hep::utils::magnitude(reconPart.getMomentum());
-			
-			// Calculate E/E+H for this event
-			double recon_EoEH = rcpart_sum_cluster_E / (rcpart_sum_cluster_E + rcpart_sum_cluster_H);
+			summary.mod.recon_isoE = summary.det.recon_isoE;
+			summary.mod.recon_EoP = summary.det.recon_EoP;
+			summary.mod.recon_EoEH = summary.det.recon_EoEH;
 
-			det_val.push_back({abs(mc_PDG), n_track_points, recon_EoP, recon_isoE, recon_EoEH, abs(recon_pID), eFrac, hFrac, edm4hep::utils::eta(recoMC.getMomentum())});
-
-			if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
-			{
-				// std::cout << "trackTheta: " << trackTheta << ", clusterTheta: " << clusterTheta << std::endl;
-				// std::cout << "recon_EoP before modification: " << recon_EoP << ", recon_EoEH before modification: " << recon_EoEH << std::endl;
-				double mod_EoP = rcpart_sum_cluster_E_wider / edm4hep::utils::magnitude(reconPart.getMomentum());
-				double mod_EoEH = rcpart_sum_cluster_E_wider / (rcpart_sum_cluster_E_wider + rcpart_sum_cluster_H_wider);
-				mod_val.push_back({abs(mc_PDG), n_track_points, mod_EoP, recon_isoE, mod_EoEH, abs(recon_pID), eFrac, hFrac, edm4hep::utils::eta(recoMC.getMomentum())});
-				// std::cout << "recon_EoP after modification: " << recon_EoP << ", recon_EoEH after modification: " << recon_EoEH << std::endl;
+			const auto recoMC = GetMC(reconPart);
+			if (recoMC.isAvailable()) {
+				summary.det.eta = edm4hep::utils::eta(recoMC.getMomentum());
+				summary.det.p = edm4hep::utils::magnitude(recoMC.getMomentum());
+				summary.mod.eta = summary.det.eta;
+				summary.mod.p = summary.det.p;
 			}
 
-			// if ( recon_pID == -321 )
-			// 	std::cout << "Reconstructed particle PDG: " << recon_pID << ", goodness of PID: " << pIDgoodness << ", real PDG: " << Check_eID(reconPart) << std::endl;
+			det_val.push_back(summary.det);
 
-			if ( n_track_points < minTrackPoints ) 
-				continue;
-
-			if (recon_isoE < mIsoE) 
-				continue;
-			
-			// if (hFrac > mPID_veto) 
-			// 	continue;
-
-			// if (recon_EoEH < mEoEH_min) 
-			// 	continue;
-			
-			// scatteredElectronCandidates.push_back(reconPart);
-
-			// if ( recon_EoP > mEoP_min && recon_EoP < mEoP_max )
-			// {
-			// 	scatteredElectronCandidates.push_back(reconPart);
-			// 	continue;
-			// }
-			// else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
-			// {
-			// 	double pt = edm4hep::utils::magnitudeTransverse(reconPart.getMomentum());
-			// 	if ( pt > 1 )
-			// 	{
-			// 		scatteredElectronCandidates_lessCuts.push_back(reconPart);
-			// 		continue;
-			// 	}
-			// }
-
-			if ( recon_EoEH > mEoEH_min )
-			{
-				scatteredElectronCandidates.push_back(reconPart);
-				continue;
+			const bool in_gap = (summary.track_theta > 158 && summary.track_theta < 162) || (summary.cluster_theta > 22 && summary.cluster_theta < 33);
+			if (in_gap) {
+				summary.mod.recon_EoP = (track_p > 0.0) ? rcpart_sum_cluster_E_wider / track_p : -1.0;
+				const double mod_eh_sum = rcpart_sum_cluster_E_wider + rcpart_sum_cluster_H_wider;
+				summary.mod.recon_EoEH = (mod_eh_sum > 0.0) ? rcpart_sum_cluster_E_wider / mod_eh_sum : 0.0;
+				mod_val.push_back(summary.mod);
 			}
-			else if ( (trackTheta > 158 && trackTheta < 162) || (clusterTheta > 22 && clusterTheta < 33) )
-			{
-				// double pt = edm4hep::utils::magnitudeTransverse(reconPart.getMomentum());
-				// if ( pt > 1 )
-				// {
-					scatteredElectronCandidates_lessCuts.push_back(reconPart);
-					continue;
-				// }
-			}
-
-			// scatteredElectronCandidates_lessCuts.push_back(reconPart);
-
-			// resolution of tracks and clusters is not perfect, so loosen cuts for particles that fail EoP requirement but pass other cuts
-			// double trackTheta = edm4hep::utils::anglePolar(reconPart.getMomentum())*(180./M_PI);
-			// if ( trackTheta < 60 || trackTheta > 120 )
-			// {
-			//  	scatteredElectronCandidates_noEoP.push_back(reconPart);
-			//  	continue;
-			// }
-
-			// double clusterTheta = GetMomentumVectorFromCluster(reconPart, 0).Theta()*(180./M_PI);
-			// if (clusterTheta < 60 || clusterTheta > 120 )
-			// {
-			//  	scatteredElectronCandidates_noEoP.push_back(reconPart);
-			//  	continue;
-			// }
 		}
-		// else if (reconPart.getClusters().size() > 0)
-		// {
-		// 	// Calculate rcpart_ member variables for this event
-		// 	CalculateParticleValues(reconPart, rcparts);
 
-		// 	// Calculate isolation fraction for this event (ECal only)
-		// 	double recon_isoE = rcpart_sum_cluster_E / rcpart_isolation_E;
-
-		// 	// Calculate E/E+H for this event
-		// 	double recon_EoEH = rcpart_sum_cluster_E / (rcpart_sum_cluster_E + rcpart_sum_cluster_H);
-
-		// 	// pID detector look up
-		// 	int recon_pID = reconPart.getPDG();
-		// 	double pIDgoodness = reconPart.getGoodnessOfPID();
-
-		// 	det_val.push_back({Check_eID(reconPart), 0, -1, recon_isoE, recon_EoEH, recon_pID});
-
-		// 	if(recon_isoE < mIsoE) 
-		// 		continue;
-
-		// 	if (recon_EoEH < mEoEH_min) 
-		// 		continue;
-
-		// 	scatteredElectronCandidates.push_back(reconPart);
-		// }
+		candidate_summary.push_back(summary);
+		summary_particles.push_back(reconPart);
 	}
-	}	
+
+	// Stage 2: produce suggested candidate collections from precomputed feature values.
+	for (size_t i = 0; i < candidate_summary.size(); ++i) {
+		const auto& s = candidate_summary[i];
+		const bool has_track_cluster = (s.n_tracks > 0 && s.n_clusters > 0);
+		const bool pass_negative_charge = (s.charge < 0);
+		const bool pass_track_points = (s.det.nTrackPoints >= minTrackPoints);
+		const bool pass_isolation = (s.det.recon_isoE >= mIsoE);
+		const bool in_gap = (s.track_theta > 158 && s.track_theta < 162) || (s.cluster_theta > 22 && s.cluster_theta < 33);
+		const bool pass_tight = has_track_cluster && pass_negative_charge && pass_track_points && pass_isolation && (s.det.recon_EoEH > mEoEH_min);
+		const bool pass_gap_relaxed = has_track_cluster && pass_negative_charge && pass_track_points && pass_isolation && !pass_tight && in_gap;
+
+		if (pass_tight) {
+			scatteredElectronCandidates.push_back(summary_particles[i]);
+			continue;
+		}
+		if (pass_gap_relaxed) {
+			scatteredElectronCandidates_lessCuts.push_back(summary_particles[i]);
+		}
+	}
 
 	// If EoP is found use that, otherwise loosen cuts 
 	if (scatteredElectronCandidates.size() > 0)

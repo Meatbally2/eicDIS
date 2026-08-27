@@ -71,9 +71,25 @@ public:
 		double recon_Le; // likelihood of being an electron
 		double recon_Lh; // likelihood of being a hadron
 		double eta;
+		double p;
 	};
 	vector<DetValues> det_val;
 	vector<DetValues> mod_val;
+
+	struct CandidateSummary {
+		int object_index;
+		int mc_pdg;
+		int reco_pdg;
+		int charge;
+		int n_tracks;
+		int n_clusters;
+		double track_theta;
+		double cluster_theta;
+		DetValues det;
+		DetValues mod;
+	};
+	vector<CandidateSummary> candidate_summary;
+	const std::vector<CandidateSummary>& GetCandidateSummary() const { return candidate_summary; }
 
 	struct PIDMap {
 		int index;
