@@ -64,11 +64,13 @@ void FarForward::GetHits(std::vector<int> mc_index)
     }
 
 	const auto& detHits = static_cast<const edm4eic::TrackerHitCollection&>(*(mEvent->get(branch_name+"RecHits")));
+    const auto& rawAssoc = static_cast<const edm4eic::MCRecoTrackerHitAssociationCollection&>(*(mEvent->get(branch_name + "RawHitAssociations")));
 
     for ( int p = 0; p < 4; p ++ )
     {
         det[p] = new edm4eic::TrackerHitCollection();
         det[p]->setSubsetCollection();
+        det_mc_index[p].clear();
     }
         
 	for(const auto& rp : detHits) 
@@ -78,12 +80,22 @@ void FarForward::GetHits(std::vector<int> mc_index)
             // hx_raw->Fill(rp.getPosition().x);
             // hz_raw->Fill(rp.getPosition().z);
 
-            if (rp.getPosition().z > zRange[pos][0] && rp.getPosition().z < zRange[pos][1])
+            if (rp.getPosition().z > zRange[pos][0] && rp.getPosition().z < zRange[pos][1]) {
                 det[pos]->push_back(rp);
+                int mc_index_for_hit = -1;
+                const auto raw_id = rp.getRawHit().getObjectID();
+                for (const auto& assoc : rawAssoc) {
+                    const auto assoc_raw_id = assoc.getRawHit().getObjectID();
+                    if (assoc_raw_id.index == raw_id.index && assoc_raw_id.collectionID == raw_id.collectionID) {
+                        mc_index_for_hit = assoc.getSimHit().getParticle().getObjectID().index;
+                        break;
+                    }
+                }
+                det_mc_index[pos].push_back(mc_index_for_hit);
+            }
         }
 	}
 
-    const auto& rawAssoc = static_cast<const edm4eic::MCRecoTrackerHitAssociationCollection&>(*(mEvent->get(branch_name + "RawHitAssociations")));
     for (const auto& assoc : rawAssoc) 
     {
         // cout << " ** tag ** " << endl;
@@ -128,6 +140,13 @@ int FarForward::GetMCHits(int s, int d)
         return 0;
         
     return spec_hit[d][s];
+}
+
+int FarForward::GetHitMCIndex(int plane, int hit) const
+{
+    if (plane < 0 || plane >= 4 || hit < 0 || hit >= static_cast<int>(det_mc_index[plane].size()))
+        return -1;
+    return det_mc_index[plane][hit];
 }
 
 double FarForward::GetEnergy() 

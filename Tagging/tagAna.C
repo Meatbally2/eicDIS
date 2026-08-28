@@ -13,8 +13,8 @@ void tagAna(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int fi
     // Standard setup
 
     AnaManager* ana_manager = new AnaManager("tag");
-    ana_manager->Initialize(select_region, sr, file0, beam_type);
     ana_manager->SetBeamEnergy(Ee, Eh);
+    ana_manager->Initialize(select_region, sr, file0, beam_type);
 
     std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep DVMP"};
     std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
@@ -202,6 +202,13 @@ void process_ff(const podio::Frame* event)
     zdc_energy = 0.0;
     fZDCn = false;
 
+    RPHitPos.clear();
+    RPHitPlane.clear();
+    RPHitMCIndex.clear();
+    OMDHitPos.clear();
+    OMDHitPlane.clear();
+    OMDHitMCIndex.clear();
+
     for (int s = 0; s < 2; s ++ )
     {
         if (spec.size() > s)
@@ -222,6 +229,19 @@ void process_ff(const podio::Frame* event)
     
         ffFinder[i]->SetEvent(event);
         ffFinder[i]->GetHits(index);
+
+        auto& hit_pos = i == 0 ? OMDHitPos : RPHitPos;
+        auto& hit_plane = i == 0 ? OMDHitPlane : RPHitPlane;
+        auto& hit_mc_index = i == 0 ? OMDHitMCIndex : RPHitMCIndex;
+        for (int plane = 0; plane < 4; ++plane) {
+            for (int hit_index = 0; hit_index < static_cast<int>(ffFinder[i]->det[plane]->size()); ++hit_index) {
+                const auto hit = (*ffFinder[i]->det[plane])[hit_index];
+                const auto& p = hit.getPosition();
+                hit_pos.emplace_back(p.x, p.y, p.z);
+                hit_plane.push_back(plane);
+                hit_mc_index.push_back(ffFinder[i]->GetHitMCIndex(plane, hit_index));
+            }
+        }
 
         for ( int s = 0; s < spec.size(); s ++ )
         {
@@ -347,6 +367,13 @@ void CreateOutputTree(TString outFileName) {
     outTree->Branch("Spec1_rpHits", Spec1_rpHits, "Spec1_rpHits[4]/I");
     outTree->Branch("Spec2_omdHits", Spec2_omdHits, "Spec2_omdHits[4]/I");
     outTree->Branch("Spec2_rpHits", Spec2_rpHits, "Spec2_rpHits[4]/I");
+
+    outTree->Branch("RPHitPos", &RPHitPos);
+    outTree->Branch("RPHitPlane", &RPHitPlane);
+    outTree->Branch("RPHitMCIndex", &RPHitMCIndex);
+    outTree->Branch("OMDHitPos", &OMDHitPos);
+    outTree->Branch("OMDHitPlane", &OMDHitPlane);
+    outTree->Branch("OMDHitMCIndex", &OMDHitMCIndex);
 
     outTree->Branch("SpecPBG", &SpecPBG);
     outTree->Branch("SpecVec", &SpecVec);

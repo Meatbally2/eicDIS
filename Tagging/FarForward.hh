@@ -30,6 +30,7 @@ public:
     void set_xShift(int p, double xs);
     void set_zRange(int p, double min, double max);
     int GetMCHits(int s, int d);
+    int GetHitMCIndex(int plane, int hit) const;
     void ClearHits();
 
     int get_n_tracks();
@@ -62,6 +63,7 @@ private:
     double xShift[4];
     double zRange[4][2];
     std::vector<int> spec_hit[4]; // [detector_index][spec_index]
+    std::vector<int> det_mc_index[4]; // aligned with det[plane]
 };
 
 #endif

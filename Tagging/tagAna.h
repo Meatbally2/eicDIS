@@ -14,7 +14,9 @@
 #include "FarForward.cc"
 
 #include <Math/LorentzVector.h>
+#include <Math/Vector3D.h>
 using ROOT::Math::PxPyPzEVector;
+using ROOT::Math::XYZVector;
 
 using namespace std;
 
@@ -67,6 +69,13 @@ int Spec1_rpHits[4];
 int Spec1_omdHits[4];
 int Spec2_rpHits[4];
 int Spec2_omdHits[4];
+
+std::vector<XYZVector> RPHitPos;
+std::vector<int> RPHitPlane;
+std::vector<int> RPHitMCIndex;
+std::vector<XYZVector> OMDHitPos;
+std::vector<int> OMDHitPlane;
+std::vector<int> OMDHitMCIndex;
 
 std::vector<int> SpecPBG;
 std::vector<PxPyPzEVector> SpecVec;
