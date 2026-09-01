@@ -29,6 +29,9 @@ void AnaManager::UpdateCampaign()
 {
     campaign = "26.07.1";
 
+    if (beam_type == EP && Ee == 18 && Eh == 275)
+        campaign = "26.07.0";
+
     if (beam_type == EHE3 && Ee == 9 && Eh == 166)
         campaign = "26.07.2";
 
@@ -360,10 +363,28 @@ std::string BuildTargetForRegion(int beam_type, int Ee, int Eh, int r)
 
     if (beam_type == AnaManager::EP || beam_type == AnaManager::EP_CC)
     {
-        std::string gen_group = beam_type == AnaManager::EP ? "DIS/NC/" : "DIS/CC/";
-        std::string beam_group = Form("%dx%d/", Ee, Eh);
-        std::string sample_group = Form("minQ2=%.0f/", pow(10, r));
-        return gen_group + beam_group + sample_group;
+        if ( Ee == 9 )
+        {
+            std::string gen_group = "DIS/pythia8.316-1.0/NC/noRad/ep/";
+            std::string beam_group = Form("%dx%d/", Ee, Eh);
+            std::string sample_group;
+            if (r == 0)
+                sample_group = "q2_1to10/";
+            else if (r == 1)
+                sample_group = "q2_10to100/";
+            else if (r == 2)
+                sample_group = "q2_100to1000/";
+            else
+                sample_group = "q2_1000toINF/";
+            return gen_group + beam_group + sample_group;
+        }
+        else
+        {
+            std::string gen_group = beam_type == AnaManager::EP ? "DIS/NC/" : "DIS/CC/";
+            std::string beam_group = Form("%dx%d/", Ee, Eh);
+            std::string sample_group = Form("minQ2=%.0f/", pow(10, r));
+            return gen_group + beam_group + sample_group;
+        }
     }
 
     if (beam_type == AnaManager::PI_BG)
