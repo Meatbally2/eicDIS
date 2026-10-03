@@ -1,943 +1,609 @@
-// Find inclusive scattered electrons
+// Cut-independent eID inspection ntuple.
+// Run from ElectronID/ with eic-shell, for example:
+//   root -b -q 'eIDana.C(10,100,1,0,0,-1,500,"../data/sample/your_10x100_sample.root")'
 
-#include "../GlobalUtil/preLoadLib.hh" // load lib first otherwise the newest eicshell will not work with the code
-#include "eIDana.h"
+#include "../GlobalUtil/preLoadLib.hh"
+#include <TFile.h>
+#include <TList.h>
+#include <TNamed.h>
+#include <TStyle.h>
+#include <TSystem.h>
+#include <TTree.h>
+#include <TString.h>
+#include <cmath>
 
-void eIDana(int Ee, int Eh, int beam_type, int select_region=0, int sr=0, int file0=-1)
-{
-    std::cout << "** Analysing inclusive electrons, energy is set to: " << Ee << "x" << Eh << std::endl;
+#include "../GlobalUtil/Constants.hh"
+#include "../GlobalUtil/AnaManager.cc"
 
-    // Standard setup
-    AnaManager* ana_manager = new AnaManager("eid");
-    ana_manager->SetBeamEnergy(Ee, Eh);
-    ana_manager->Initialize(select_region, sr, file0, beam_type);
+#include "edm4eic/ClusterCollection.h"
+#include "edm4eic/MCRecoParticleAssociationCollection.h"
+#include "edm4eic/ReconstructedParticleCollection.h"
+#include "edm4hep/EventHeaderCollection.h"
+#include "edm4hep/MCParticleCollection.h"
+#include "edm4hep/utils/vector_utils.h"
+#include "podio/Frame.h"
+#include "podio/ROOTReader.h"
 
-    std::string type_title[6] = {"e^{3}He", "ep", "#gammap", "ep w. BeamBG", "ep", "ep"};
-    std::string energy_title = beam_type ? Form("%dx%d GeV", Ee, Eh) : Form("%dx%d GeV/A", Ee, Eh);
-    DrawManager* draw_manager = new DrawManager(type_title[beam_type], energy_title, ana_manager->campaign);
-    draw_manager->SetEPIC();
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <queue>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
-    if (select_region) // no sr for pi_bg runs
-    {
-        if ( beam_type )
-            draw_manager->SetQ2min(pow(10,sr));
-        else
-            draw_manager->SetQ2range(pow(10,sr), pow(10,sr+1));
+namespace {
+
+constexpr unsigned int kEIDStudySchemaVersion = 7;
+constexpr Long64_t kIsolationReferenceCheckLimit = 100;
+const std::vector<double> kEIDStudyIsolationRadii = {0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
+
+std::uint64_t EIDStudyEventKey(const std::string& source, Long64_t entry) {
+    // Canonicalize XRootD aliases to the path below EPIC/RECO so changing
+    // mirrors does not change event identity. Keep local paths as supplied.
+    const std::size_t reco_marker = source.find("/EPIC/RECO/");
+    const std::string identity = reco_marker == std::string::npos ? source : source.substr(reco_marker);
+
+    // FNV-1a over the source identity and local entry. The source string and
+    // entry are also persisted, so the composite identity remains auditable.
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (unsigned char c : identity) {
+        hash ^= c;
+        hash *= 1099511628211ULL;
     }
+    for (int i = 0; i < 8; ++i) {
+        hash ^= static_cast<unsigned char>((static_cast<std::uint64_t>(entry) >> (8 * i)) & 0xff);
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
 
-    // .. input setup
-    podio::ROOTReader* reader = new podio::ROOTReader();
-    reader->openFiles(ana_manager->GetInputNames());
+double EIDStudyDeltaPhi(double a, double b) {
+    double dphi = a - b;
+    while (dphi > M_PI) dphi -= 2.0 * M_PI;
+    while (dphi < -M_PI) dphi += 2.0 * M_PI;
+    return dphi;
+}
 
-    std::cout << "** Input files loaded. Setting up analysis... " << std::endl;
+std::string EIDStudyOutputName(int Ee, int Eh, int beam_type,
+                               int select_region, int sr, int file0) {
+    static const char* sample_names[] = {"eHe3", "ep", "piBG", "beamBG", "ep", "ep"};
+    std::string name = Form("tmp/%s_%dx%d", sample_names[beam_type], Ee, Eh);
+    if (select_region) {
+        const double q2_min = (beam_type == AnaManager::PI_BG) ? 0.0 : std::pow(10.0, sr);
+        name += Form("_minQ2=%.0f", q2_min);
+    }
+    name += "_eid_ana";
+    if (file0 >= 0)
+        name += Form("_f%d", file0);
+    return name + ".root";
+}
 
-    // .. output setup;
-    CreateOutputTree(ana_manager->GetOutputName()); 
+double EIDStudyQ2Minimum(const std::string& source) {
+    const std::string marker = "minQ2=";
+    const auto position = source.find(marker);
+    if (position == std::string::npos)
+        return -1.0;
+    try {
+        return std::stod(source.substr(position + marker.size()));
+    } catch (...) {
+        return -1.0;
+    }
+}
 
-    // .. ElectronID setup
-    ElectronID* eFinder = new ElectronID(Ee, Eh);
-    eFinder->SetMinTrackPoints(4);
-    // techinically need to add a check for types of nucleon, but good enough for a quick check of x Q2. precise recon will be done in kin recon.
-    LorentzRotation boost = beam_type ? getBoost( Ee, Eh, MASS_ELECTRON, MASS_PROTON) : getBoost( Ee, Eh, MASS_ELECTRON, MASS_NEUTRON); 
-    eFinder->SetBoost(boost);
+std::vector<edm4hep::MCParticle> EIDStudyTruthElectrons(
+        const edm4hep::MCParticleCollection& particles) {
+    std::vector<int> beam_indices;
+    for (const auto& particle : particles) {
+        if (particle.getPDG() == 11 && particle.getGeneratorStatus() == 4)
+            beam_indices.push_back(particle.getObjectID().index);
+    }
+    std::sort(beam_indices.begin(), beam_indices.end());
 
-    DefineHistograms();
+    struct ClosestCandidates {
+        int depth = std::numeric_limits<int>::max();
+        std::vector<int> indices;
+    };
+    std::unordered_map<int, ClosestCandidates> per_beam;
+    for (int beam_index : beam_indices)
+        per_beam.emplace(beam_index, ClosestCandidates{});
 
-    // Analysis loop
+    for (const auto& candidate : particles) {
+        if (candidate.getPDG() != 11 || candidate.getGeneratorStatus() != 1)
+            continue;
 
-    std::cout << "** Starting analysis loop... " << std::endl;
+        std::queue<std::pair<edm4hep::MCParticle, int>> frontier;
+        std::unordered_set<int> visited;
+        visited.insert(candidate.getObjectID().index);
+        frontier.emplace(candidate, 0);
 
-    int countMCe = 0;
-    int countReconE = 0;
+        while (!frontier.empty()) {
+            const auto current = frontier.front().first;
+            const int depth = frontier.front().second;
+            frontier.pop();
+            const int current_index = current.getObjectID().index;
 
-    for( size_t ev = 0; ev < reader->getEntries("events"); ev++ )
-    {
-        // std::cout << "** Processing event " << ev << " ... " << std::endl;
-        // auto raw = reader->readNextEntry("events");
-        auto raw = reader->readEntry("events", ev);  // Use readEntry with index instead
-            
-        if(!raw) 
-        {
-            std::cerr << "readNextEntry returned null at event " << ev << "\n";
-            break;
-        }
-        // else
-        //     std::cout << "** Event " << ev << " read. " << std::endl;
-        podio::Frame event(std::move(raw));
-        eFinder->SetEvent(&event);
-
-        if(ev%100==0) 
-            cout << "Analysing event " << ev << "/" << reader->getEntries("events") << endl;
-
-        // Generator information (mcID)
-        // eFinder->GetMCElectron();
-        const auto& e_mc = eFinder->GetMCElectron();
-        // if (e_mc.size() != 1)
-        //     continue;
-        
-        h_n_scat_elec->Fill(e_mc.size());
-        if(e_mc.size() > 0) 
-        {
-            eID_status = FOUND_MC;
-            // Calculate kinematic variables using MC electron
-            TLorentzVector kprime;
-            kprime.SetXYZM(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, MASS_ELECTRON);
-            CalculateElectronKinematics(Ee, Eh, kprime, mc_xB, mc_Q2, mc_W2, mc_y, mc_nu);
-            vMC_e.SetPxPyPzE(e_mc[0].getMomentum().x, e_mc[0].getMomentum().y, e_mc[0].getMomentum().z, e_mc[0].getEnergy());
-            // vMC_e = boost(vMC_e);
-            // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
-            countMCe += e_mc.size();
-
-            h_pt_theta->Fill(vMC_e.Theta()*(180./M_PI), abs(vMC_e.Pt()));
-        }
-
-        // Use MC to find reconstructed electron (TruthID)
-        auto e_truth = eFinder->GetTruthReconElectron();
-        if(e_truth.size() > 0) 
-        {
-            eID_status = FOUND_TRUTH;
-            h_n_clusters_n_tracks->Fill( e_truth[0].getTracks().size(), e_truth[0].getClusters().size());
-
-            h_n_cluster_in_cone->Fill(eFinder->rcpart_n_clusters);
-            if ( e_truth[0].getClusters().size() > 0 )
-                h_n_cluster_in_cone_found->Fill(eFinder->rcpart_n_clusters);
-
-            if ( e_truth[0].getTracks().size() > 0 && e_truth[0].getClusters().size() > 0 )
-                eRecon_status = FOUND_BOTH;
-            else if ( e_truth[0].getTracks().size() > 0 )
-                eRecon_status = FOUND_TRACK_ONLY;
-            else if ( e_truth[0].getClusters().size() > 0 )
-                eRecon_status = FOUND_CLUSTER_ONLY;
-        }
-            
-        // Find scattered electrons (reconID)
-        auto e_candidates = eFinder->FindScatteredElectron();
-        const auto& summaries = eFinder->GetCandidateSummary();
-        edm4eic::ReconstructedParticle e_rec;
-
-        double TrackEminusPzSum = 0;
-        double CalEminusPzSum = 0;
-        eFinder->GetEminusPzSum(TrackEminusPzSum, CalEminusPzSum);
-        EminusPz = TrackEminusPzSum;
-
-        // If there are multiple candidates, select one with highest pT
-        if(e_candidates.size() > 0) 
-        {			
-            h_TrackEminusPz->Fill(TrackEminusPzSum);
-            h_CalEminusPz->Fill(CalEminusPzSum);
-
-            e_rec = eFinder->SelectHighestPT(e_candidates);
-            EoP = eFinder->GetCalorimeterEnergy(e_rec) / edm4hep::utils::magnitude(e_rec.getMomentum());
-
-            vTRACK_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, e_rec.getEnergy());
-            vCLUSTER_e = eFinder->GetMomentumVectorFromCluster(e_rec, MASS_ELECTRON);
-            // vCLUSTER_e.SetPxPyPzE(e_rec.getMomentum().x, e_rec.getMomentum().y, e_rec.getMomentum().z, eFinder->GetCalorimeterEnergy(e_rec));
-            // vTRACK_e = boost(vTRACK_e);
-            // vCLUSTER_e = boost(vCLUSTER_e);
-
-            mc_PDG = eFinder->Check_eID(e_rec);
-
-            h_cur_pur_eta->Fill(mc_PDG == 0, edm4hep::utils::eta(e_rec.getMomentum()));
-            h_cur_pur_p->Fill(mc_PDG == 0, edm4hep::utils::magnitude(e_rec.getMomentum()));
-
-            if ( mc_PDG == 0 )
-                eID_status = FOUND_E;
-            else if ( mc_PDG == -211 )
-                eID_status = FOUND_PI;
-            else
-                eID_status = FOUND_OTHERS;
-
-            // if ( (vMC_e.Theta()*(180./M_PI) > 150) && (vMC_e.Theta()*(180./M_PI) < 155) )
-            if (eID_status == FOUND_E)
-                countReconE++;
-
-            auto recoMC = eFinder->GetMC(e_rec);
-            if ( recoMC.isAvailable() )
-            {
-                TLorentzVector recokprime;
-                recokprime.SetXYZM(recoMC.getMomentum().x, recoMC.getMomentum().y, recoMC.getMomentum().z, MASS_ELECTRON);
-                CalculateElectronKinematics(Ee, Eh, recokprime, rec_xB, rec_Q2, rec_W2, rec_y, rec_nu);
-                vMC_rec.SetPxPyPzE(recoMC.getMomentum().x, recoMC.getMomentum().y, recoMC.getMomentum().z, recoMC.getEnergy());
-            }
-
-            h_cand_mul->Fill(e_candidates.size());
-            if ( mc_PDG == 0 )
-                h_cand_mul_eHighPt->Fill(e_candidates.size());
-            else
-                h_cand_mul_oHighPt->Fill(e_candidates.size());
-
-            // Reconstruct HFS
-            auto mc_hfsCollection = eFinder->GetMCHadronicFinalState();
-            for (const auto p : mc_hfsCollection) {
-                PxPyPzEVector hf(p.getMomentum().x, p.getMomentum().y, p.getMomentum().z, p.getEnergy());
-                // hf = boost(hf);
-                vMC_hfs.push_back(hf);
-            }
-
-            auto hfsCollection = eFinder->FindHadronicFinalState(e_rec.getObjectID().index);
-            for (const auto p : hfsCollection) {;
-                PxPyPzEVector hf(p.getMomentum().x, p.getMomentum().y, p.getMomentum().z, p.getEnergy());
-                // hf = boost(hf);
-                vREC_hfs.push_back(hf);
-            }
-
-            if ( e_rec.getPDG() != 0 )
-            {
-                int reco_pid = abs(e_rec.getPDG());
-                double reco_eta = edm4hep::utils::eta(recoMC.getMomentum());
-                double reco_p = edm4hep::utils::magnitude(recoMC.getMomentum());
-                FillEidPurity(reco_pid, mc_PDG, reco_eta, reco_p);
-            }
-        }
-
-        // Additional purity set: all particles with negative tracks (no cluster/E/p requirement).
-        for (const auto& s : summaries)
-        {
-            if (s.n_tracks <= 0 || s.charge >= 0)
-                continue;
-
-            FillNegTrackPurity(abs(s.reco_pdg), s.mc_pdg, s.det.eta, s.det.p);
-        }
-
-        // Fill histograms
-        for ( const auto& s : summaries )
-        {
-            const auto& d = s.mod;
-            if ( d.parType == 0 )
-            {
-                if ( s.track_theta > 158 && s.track_theta < 162 )
-                {
-                    h_EoP_gapF_mod->Fill(d.recon_EoP);
-                    h_EoEH_gapF_mod->Fill(d.recon_EoEH);
+            const auto beam = per_beam.find(current_index);
+            if (current.getPDG() == 11 && current.getGeneratorStatus() == 4 && beam != per_beam.end()) {
+                if (depth < beam->second.depth) {
+                    beam->second.depth = depth;
+                    beam->second.indices.clear();
+                    beam->second.indices.push_back(candidate.getObjectID().index);
+                } else if (depth == beam->second.depth) {
+                    beam->second.indices.push_back(candidate.getObjectID().index);
                 }
-                    
-                if ( s.cluster_theta > 22 && s.cluster_theta < 33 )
-                {
-                    h_EoP_gapB_mod->Fill(d.recon_EoP);
-                    h_EoEH_gapB_mod->Fill(d.recon_EoEH);
-                }
+                break;
+            }
+
+            for (auto parent_it = current.parents_begin(); parent_it != current.parents_end(); ++parent_it) {
+                const auto parent = *parent_it;
+                const int parent_index = parent.getObjectID().index;
+                if (parent_index >= 0 && visited.insert(parent_index).second)
+                    frontier.emplace(parent, depth + 1);
             }
         }
+    }
 
-        for ( const auto& s : summaries )
-        {
-            if ( s.n_tracks <= 0 || s.charge >= 0 )
-                continue;
-                
-            const auto& d = s.det;
-            if ( d.parType == 0 )
-            {
-                h_nTPts_e->Fill(d.nTrackPoints);
-                h_EoP_e->Fill(d.recon_EoP);
-                h_isoE_e->Fill(d.recon_isoE);
-                h_EoEH_e->Fill(d.recon_EoEH);
-                h_PIDe_e->Fill(d.recon_Le);
-                h_PIDh_e->Fill(d.recon_Lh);
+    std::unordered_map<int, edm4hep::MCParticle> by_index;
+    for (const auto& particle : particles)
+        by_index.emplace(particle.getObjectID().index, particle);
 
-                if ( vMC_e.Theta()*(180./M_PI) > 158 && vMC_e.Theta()*(180./M_PI) < 162 ) 
-                {
-                    h_EoP_gapF->Fill(d.recon_EoP);
-                    h_EoEH_gapF->Fill(d.recon_EoEH);
-                }
-                    
-                if ( vMC_e.Theta()*(180./M_PI) > 22 && vMC_e.Theta()*(180./M_PI) < 33 )
-                {
-                    h_EoP_gapB->Fill(d.recon_EoP);
-                    h_EoEH_gapB->Fill(d.recon_EoEH);
-                }
-            }
-            else if ( d.parType == -211 )
-            {
-                h_nTPts_pi->Fill(d.nTrackPoints);
-                h_EoP_pi->Fill(d.recon_EoP);
-                h_isoE_pi->Fill(d.recon_isoE);
-                h_EoEH_pi->Fill(d.recon_EoEH);
-                h_PIDe_pi->Fill(d.recon_Le);
-                h_PIDh_pi->Fill(d.recon_Lh);
-            }
-            else if ( abs(d.parType) == 11 )
-            {
-                h_nTPts_jet_e->Fill(d.nTrackPoints);
-                h_EoP_jet_e->Fill(d.recon_EoP);
-                h_isoE_jet_e->Fill(d.recon_isoE);
-                h_EoEH_jet_e->Fill(d.recon_EoEH);
-                h_PIDe_jet_e->Fill(d.recon_Le);
-                h_PIDh_jet_e->Fill(d.recon_Lh);
-            }
-            else
-            {
-                h_nTPts_else->Fill(d.nTrackPoints);
-                h_EoP_else->Fill(d.recon_EoP);
-                h_isoE_else->Fill(d.recon_isoE);
-                h_EoEH_else->Fill(d.recon_EoEH);
-                h_PIDe_else->Fill(d.recon_Le);
-                h_PIDh_else->Fill(d.recon_Lh);
-            }
-
-            // How well is PID matching true particle overall if PID is reporting a particle
-            FillPidPurity(d.recon_pID, d.parType, d.eta, d.p);
-
-            // how often is PID reporting true particle in general
-            FillPidSuccess(d.recon_pID, d.parType);
+    std::vector<edm4hep::MCParticle> selected;
+    for (int beam_index : beam_indices) {
+        for (int candidate_index : per_beam[beam_index].indices) {
+            const auto found = by_index.find(candidate_index);
+            if (found != by_index.end())
+                selected.push_back(found->second);
         }
-  
-        
-        outTree->Fill();
-        ResetVariables();
     }
-
-    cout << "** Analysis finished. " << std::endl;
-    cout << "DIS eID rate: " << (double)countReconE/countMCe * 100 << "%" << std::endl;
-
-    // Canvas
-    double draw_max = 0.;
-
-    // TCanvas* c_nScatElec = new TCanvas("c_nScatElec", "c_nScatElec", 1000, 600);
-    // h_n_scat_elec->SetLineColor(kBlue);
-    // h_n_scat_elec->Draw("HIST");
-    // draw_manager->LableAndCollect(c_nScatElec,2);
-
-    TCanvas* c_nTPts = new TCanvas("c_nTPts", "c_nTPts", 1000, 600);
-    DrawParComparison(c_nTPts, h_nTPts_e, h_nTPts_jet_e, h_nTPts_pi, h_nTPts_else, draw_max);
-    DrawVerticalLine(c_nTPts, eFinder->GetMinTrackPoints()-0.5, draw_max);
-    draw_manager->LableAndCollect(c_nTPts);
-
-    TCanvas* c_EoP = new TCanvas("c_EoP", "c_EoP", 1000, 600);
-    c_EoP->SetLogy();
-
-    DrawParComparison(c_EoP, h_EoP_e, h_EoP_jet_e, h_EoP_pi, h_EoP_else, draw_max);
-    DrawVerticalLine(c_EoP, eFinder->get_mEoP_min(), draw_max);
-    DrawVerticalLine(c_EoP, eFinder->get_mEoP_max(), draw_max);
-    draw_manager->LableAndCollect(c_EoP);
-
-    TCanvas* c_gap = new TCanvas("c_gap", "c_gap", 1400, 800);
-    c_gap->Divide(2,2);
-
-    c_gap->cd(1);
-    gPad->SetLogy();
-    h_EoP_gapB->Draw("HIST");
-    h_EoP_gapB->SetLineColor(kGray+2);
-    h_EoP_gapB_mod->Draw("HIST SAME");
-    h_EoP_gapB_mod->SetLineColor(kRed);
-
-    c_gap->cd(2);
-    gPad->SetLogy();
-    h_EoP_gapF->Draw("HIST");
-    h_EoP_gapF->SetLineColor(kGray+2);
-    h_EoP_gapF_mod->Draw("HIST SAME");
-    h_EoP_gapF_mod->SetLineColor(kRed);
-
-    c_gap->cd(3);
-    gPad->SetLogy();
-    h_EoEH_gapB->Draw("HIST");
-    h_EoEH_gapB->SetLineColor(kGray+2);
-    h_EoEH_gapB_mod->Draw("HIST SAME");
-    h_EoEH_gapB_mod->SetLineColor(kRed);
-
-    c_gap->cd(4);
-    gPad->SetLogy();
-    h_EoEH_gapF->Draw("HIST");
-    h_EoEH_gapF->SetLineColor(kGray+2);
-    h_EoEH_gapF_mod->Draw("HIST SAME");
-    h_EoEH_gapF_mod->SetLineColor(kRed);
-
-    draw_manager->LableAndCollect(c_gap);
-
-    TCanvas* c_isoE = new TCanvas("c_isoE", "c_isoE", 1000, 600);
-    c_isoE->SetLogy();
-
-    DrawParComparison(c_isoE, h_isoE_e, h_isoE_jet_e, h_isoE_pi, h_isoE_else, draw_max);
-    DrawVerticalLine(c_isoE, eFinder->get_mIsoE(), draw_max);
-    draw_manager->LableAndCollect(c_isoE);
-
-    TCanvas* c_EoEH = new TCanvas("c_EoEH", "c_EoEH", 1000, 600);
-    c_EoEH->SetLogy();
-
-    DrawParComparison(c_EoEH, h_EoEH_e, h_EoEH_jet_e, h_EoEH_pi, h_EoEH_else, draw_max);
-    DrawVerticalLine(c_EoEH, eFinder->get_mEoEH_min(), draw_max);
-    draw_manager->LableAndCollect(c_EoEH);
-
-    TCanvas* c_PIDe = new TCanvas("c_PIDe", "c_PIDe", 1000, 600);
-    c_PIDe->SetLogy();
-
-    DrawParComparison(c_PIDe, h_PIDe_e, h_PIDe_jet_e, h_PIDe_pi, h_PIDe_else, draw_max);
-    draw_manager->LableAndCollect(c_PIDe);
-
-    TCanvas* c_PIDh = new TCanvas("c_PIDh", "c_PIDh", 1000, 600);
-    c_PIDh->SetLogy();
-    
-    DrawParComparison(c_PIDh, h_PIDh_e, h_PIDh_jet_e, h_PIDh_pi, h_PIDh_else, draw_max);
-    DrawVerticalLine(c_PIDh, eFinder->get_mPID_veto(), draw_max);
-    draw_manager->LableAndCollect(c_PIDh);
-
-    TCanvas* c_EminusPz = new TCanvas("c_EminusPz", "c_EminusPz", 1000, 600);
-
-    DrawTCComparison(c_EminusPz, h_TrackEminusPz, h_CalEminusPz, draw_max);
-    DrawVerticalLine(c_EminusPz, 2*Ee, draw_max);
-    draw_manager->LableAndCollect(c_EminusPz);
-
-    TCanvas* c_reco_mul = new TCanvas("c_reco_mul", "c_reco_mul", 1000, 600);
-    c_reco_mul->SetLogy();
-
-    h_cand_mul->Draw("HIST");
-    h_cand_mul->SetLineColor(kGray+2);
-    h_cand_mul->GetYaxis()->SetRangeUser(1, h_cand_mul->GetMaximum()*1.5);
-
-    h_cand_mul_eHighPt->Draw("HIST SAME");
-    h_cand_mul_eHighPt->SetLineColor(kBlue);
-
-    h_cand_mul_oHighPt->Draw("HIST SAME");
-    h_cand_mul_oHighPt->SetLineColor(kOrange+7);
-
-    TLegend* leg_mul = new TLegend(0.6, 0.6, 0.8, 0.88);
-    leg_mul->SetBorderSize(0);
-    leg_mul->SetFillStyle(0);
-    leg_mul->AddEntry(h_cand_mul, "All candidates", "L");
-    leg_mul->AddEntry(h_cand_mul_eHighPt, "Scat. e has highest p_{T}", "L");
-    leg_mul->AddEntry(h_cand_mul_oHighPt, "Others have highest p_{T}", "L");
-    leg_mul->Draw();
-
-    draw_manager->LableAndCollect(c_reco_mul,2);
-
-    TCanvas* c_n_clusters_n_tracks = new TCanvas("c_n_clusters_n_tracks", "c_n_clusters_n_tracks", 1000, 600);
-    h_n_clusters_n_tracks->Scale(1.0/h_n_clusters_n_tracks->GetEntries());
-    h_n_clusters_n_tracks->Draw("COLZ TEXT");
-    draw_manager->LableAndCollect(c_n_clusters_n_tracks,2);
-
-    // TCanvas* c_n_cluster_in_cone = new TCanvas("c_n_cluster_in_cone", "c_n_cluster_in_cone", 1000, 600);
-    // h_n_cluster_in_cone->Draw("HIST");
-    // h_n_cluster_in_cone->SetLineColor(kGray+2);
-    // h_n_cluster_in_cone_found->Draw("HIST SAME");
-    // h_n_cluster_in_cone_found->SetLineColor(kRed);
-    // draw_manager->LableAndCollect(c_n_cluster_in_cone,2);
-
-    TCanvas* c_pID_eff = new TCanvas("c_pID_eff", "c_pID_eff", 1000, 600);
-
-    TH1D* h_eff_bar = (TH1D*)h_pID_eff->GetCopyPassedHisto();
-    TH1D* h_eff_tot = (TH1D*)h_pID_eff->GetCopyTotalHisto();
-    h_eff_bar->Divide(h_eff_bar, h_eff_tot, 1.0, 1.0, "B");  // binomial errors
-    h_eff_bar->SetFillColor(kP8Green);
-    h_eff_bar->SetFillStyle(3003);
-    h_eff_bar->SetLineColor(kP8Green);
-    h_eff_bar->SetMarkerColor(kP8Green);
-    h_eff_bar->Draw("HIST SAME");
-
-    h_eff_bar->GetYaxis()->SetRangeUser(0.0, 1.5);
-    gPad->Update();
-
-    h_pID_pur->Draw("SAME");
-    h_pID_suc->Draw("SAME");
-    h_pID_eff->Draw("SAME");
-
-    TLegend* leg_pID = new TLegend(0.6, 0.72, 0.8, 0.92);
-    leg_pID->SetBorderSize(0);
-    leg_pID->SetFillStyle(0);
-    leg_pID->AddEntry(h_pID_suc, "Purity in general", "LP");
-    leg_pID->AddEntry(h_pID_pur, "Purity if pID exists", "LP");
-    leg_pID->AddEntry(h_pID_eff, "Purity for e candidates", "LP");
-    leg_pID->Draw();
-
-    draw_manager->LableAndCollect(c_pID_eff);
-
-    TCanvas* c_pID_pur_eta;
-    DrawPurityCanvas(c_pID_pur_eta, "c_pID_pur_eta", h_cur_pur_eta, h_eVeto_pID_pur_eta, h_e_pID_pur_eta, h_pi_pID_pur_eta, h_K_pID_pur_eta, h_p_pID_pur_eta, draw_manager);
-
-    TCanvas* c_pID_pur_p;
-    DrawPurityCanvas(c_pID_pur_p, "c_pID_pur_p", h_cur_pur_p, h_eVeto_pID_pur_p, h_e_pID_pur_p, h_pi_pID_pur_p, h_K_pID_pur_p, h_p_pID_pur_p, draw_manager);
-
-    TCanvas* c_eID_pur_eta;
-    DrawPurityCanvas(c_eID_pur_eta, "c_eID_pur_eta", h_cur_pur_eta, h_eVeto_eID_pur_eta, h_e_eID_pur_eta, h_pi_eID_pur_eta, h_K_eID_pur_eta, h_p_eID_pur_eta, draw_manager);
-
-    TCanvas* c_eID_pur_p;
-    DrawPurityCanvas(c_eID_pur_p, "c_eID_pur_p", h_cur_pur_p, h_eVeto_eID_pur_p, h_e_eID_pur_p, h_pi_eID_pur_p, h_K_eID_pur_p, h_p_eID_pur_p, draw_manager);
-
-    TCanvas* c_trk_pur_eta;
-    DrawPurityCanvas(c_trk_pur_eta, "c_trk_pur_eta", h_cur_pur_eta, h_eVeto_trk_pur_eta, h_e_trk_pur_eta, h_pi_trk_pur_eta, h_K_trk_pur_eta, h_p_trk_pur_eta, draw_manager);
-
-    TCanvas* c_trk_pur_p;
-    DrawPurityCanvas(c_trk_pur_p, "c_trk_pur_p", h_cur_pur_p, h_eVeto_trk_pur_p, h_e_trk_pur_p, h_pi_trk_pur_p, h_K_trk_pur_p, h_p_trk_pur_p, draw_manager);
-
-    TCanvas* c_pt_theta = new TCanvas("c_pt_theta", "c_pt_theta", 1000, 600);
-    h_pt_theta->Draw("COLZ");
-    draw_manager->LableAndCollect(c_pt_theta);
-
-    // TCanvas* c_pid_score = eFinder->MakePlots();
-    // draw_manager->LableAndCollect(c_pid_score);
-
-    // Save
-
-    outFile->cd();
-    outTree->Write(outTree->GetName(), 2);
-
-    if ( file0 == 0 )
-        draw_manager->SaveToTree(outFile);
-
-    return;
+    return selected;
 }
 
-void DefineHistograms() {
-
-    h_nTPts_e = new TH1D("h_nTPts_e", "Number of Track Points for e; N_{Track Points}; Counts", 14, -0.5, 13.5);
-    h_nTPts_jet_e = new TH1D("h_nTPts_jet_e", "Number of Track Points for other e's; N_{Track Points}; Counts", 14, -0.5, 13.5);
-    h_nTPts_pi = new TH1D("h_nTPts_pi", "Number of Track Points for #pi; N_{Track Points}; Counts", 14, -0.5, 13.5);
-    h_nTPts_else = new TH1D("h_nTPts_else", "Number of Track Points for others; N_{Track Points}; Counts", 14, -0.5, 13.5);
-
-    h_EoP_e = new TH1D("h_EoP_e", "EoP e; E/p; Counts", 100, 0., 2.);
-    h_EoP_jet_e = new TH1D("h_EoP_jet_e", "EoP other e's; E/p; Counts", 100, 0., 2.);
-    h_EoP_pi = new TH1D("h_EoP_pi", "EoP pi; E/p; Counts", 100, 0., 2.);
-    h_EoP_else = new TH1D("h_EoP_else", "EoP; E/p; Counts", 100, 0., 2.);
-
-    h_EoP_gapF = new TH1D("h_EoP_gapF", "EoP gapF; E/p; Counts", 100, 0., 2.);
-    h_EoP_gapB = new TH1D("h_EoP_gapB", "EoP gapB; E/p; Counts", 100, 0., 2.);
-    h_EoP_gapF_mod = new TH1D("h_EoP_gapF_mod", "EoP gapF; E/p; Counts", 100, 0., 2.);
-    h_EoP_gapB_mod = new TH1D("h_EoP_gapB_mod", "EoP gapB; E/p; Counts", 100, 0., 2.);
-
-    h_isoE_e = new TH1D("h_isoE_e", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
-    h_isoE_jet_e = new TH1D("h_isoE_jet_e", "Isolation Energy other e's; Iso. E; Counts", 110, 0., 1.1);
-    h_isoE_pi = new TH1D("h_isoE_pi", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
-    h_isoE_else = new TH1D("h_isoE_else", "Isolation Energy; Iso. E; Counts", 110, 0., 1.1);
-
-    h_EoEH_e = new TH1D("h_EoEH_e", "E/E+H e; E/E+H; Counts", 110, 0., 1.1);
-    h_EoEH_jet_e = new TH1D("h_EoEH_jet_e", "E/E+H other e's; E/E+H; Counts", 110, 0., 1.1);
-    h_EoEH_pi = new TH1D("h_EoEH_pi", "E/E+H pi; E/E+H; Counts", 110, 0., 1.1);
-    h_EoEH_else = new TH1D("h_EoEH_else", "E/E+H; E/E+H; Counts", 110, 0., 1.1);
-
-    h_EoEH_gapB = new TH1D("h_EoEH_gapB", "E/E+H gapB; E/E+H; Counts", 110, 0., 1.1);
-    h_EoEH_gapF = new TH1D("h_EoEH_gapF", "E/E+H gapF; E/E+H; Counts", 110, 0., 1.1);
-    h_EoEH_gapF_mod = new TH1D("h_EoEH_gapF_mod", "E/E+H gapF; E/E+H; Counts", 110, 0., 1.1);
-    h_EoEH_gapB_mod = new TH1D("h_EoEH_gapB_mod", "E/E+H gapB; E/E+H; Counts", 110, 0., 1.1);
-
-    h_PIDe_e = new TH1D("h_PIDe_e", "PID e; PID; Counts", 100, 0., 1.);
-    h_PIDe_jet_e = new TH1D("h_PIDe_jet_e", "PID other e's; PID; Counts", 100, 0., 1.);
-    h_PIDe_pi = new TH1D("h_PIDe_pi", "PID pi; PID; Counts", 100, 0., 1.);
-    h_PIDe_else = new TH1D("h_PIDe_else", "PID; PID; Counts", 100, 0., 1.);
-
-    h_PIDh_e = new TH1D("h_PIDh_e", "PID e; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
-    h_PIDh_jet_e = new TH1D("h_PIDh_jet_e", "PID other e's; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
-    h_PIDh_pi = new TH1D("h_PIDh_pi", "PID pi; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
-    h_PIDh_else = new TH1D("h_PIDh_else", "PID; PID L_{h}/(L_{h}+L_{e}); Counts", 100, 0., 1.);
-
-    h_pt_theta = new TH2D("h_pt_theta", "p_{T} vs #theta; #theta; p_{T}", 180, 0., 180, 50, 0., 50.);
-
-    h_TrackEminusPz = new TH1D("h_TrackEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
-    h_CalEminusPz = new TH1D("h_CalEminusPz", "#Sigma(E - Pz); #Sigma(E - Pz); Counts", 200, 0., 50.);
-
-    h_n_scat_elec = new TH1D("h_n_scat_elec", "Number of scattered electrons; N_{e}; Counts", 10, -0.5, 9.5);
-    h_n_clusters_n_tracks = new TH2D("h_n_clusters_n_tracks", "Number of clusters vs number of tracks; N_{tracks}; N_{clusters}", 5, -0.5, 4.5, 5, -0.5, 4.5);
-
-    h_cand_mul = new TH1D("h_cand_mul", "Scattered electron candidates multiplicity; N_{candidates}; Counts", 10, -0.5, 9.5);
-    h_cand_mul_eHighPt = new TH1D("h_cand_mul_eHighPt", "Scattered electron candidates multiplicity (high p_{T,e}); N_{candidates}; Counts", 10, -0.5, 9.5);
-    h_cand_mul_oHighPt = new TH1D("h_cand_mul_oHighPt", "Scattered electron candidates multiplicity (high p_{T,others}); N_{candidates}; Counts", 10, -0.5, 9.5);
-
-    h_n_cluster_in_cone = new TH1D("h_n_cluster_in_cone", "Number of clusters in isolation cone; N_{clusters in cone}; Counts", 20, -0.5, 19.5);
-    h_n_cluster_in_cone_found = new TH1D("h_n_cluster_in_cone_found", "Number of clusters in isolation cone for found electrons; N_{clusters in cone}; Counts", 20, -0.5, 19.5);
-
-    h_pID_pur = new TEfficiency("h_pID_pur", ";PDG;Purity", 5, -0.5, 4.5);
-    TH1* h_total = const_cast<TH1*>(h_pID_pur->GetTotalHistogram());
-    h_total->GetXaxis()->SetBinLabel(1, "Not e");
-    h_total->GetXaxis()->SetBinLabel(2, "e");
-    h_total->GetXaxis()->SetBinLabel(3, "#pi");
-    h_total->GetXaxis()->SetBinLabel(4, "K");
-    h_total->GetXaxis()->SetBinLabel(5, "p");
-    h_total->LabelsOption("h", "X");
-    h_pID_pur->SetMarkerColor(kP8Blue);
-    h_pID_pur->SetLineColor(kP8Blue);
-    h_pID_pur->SetLineWidth(2);
-    h_pID_pur->SetMarkerStyle(21);
-
-    h_pID_suc = new TEfficiency("h_pID_suc", ";PDG;Success Rate", 5, -0.5, 4.5);
-    h_pID_suc->SetMarkerColor(kP8Red);
-    h_pID_suc->SetLineColor(kP8Red);
-    h_pID_suc->SetLineWidth(2);
-    h_pID_suc->SetMarkerStyle(20);
-
-    h_pID_eff = new TEfficiency("h_pID_eff", ";PDG;Efficiency", 5, -0.5, 4.5);
-    h_pID_eff->SetMarkerColor(kP8Green);
-    h_pID_eff->SetLineColor(kP8Green);
-    h_pID_eff->SetMarkerStyle(29);
-
-    //
-
-    int color[5] = {kP10Blue, kP10Brown, kP10Green, kP10Ash, kP10Red};
-    int marker[5] = {20, 21, 22, 23, 29};
-
-    TEfficiency** eID_eta[5] = {&h_e_eID_pur_eta, &h_pi_eID_pur_eta, &h_K_eID_pur_eta, &h_p_eID_pur_eta, &h_eVeto_eID_pur_eta};
-    TEfficiency** pID_eta[5] = {&h_e_pID_pur_eta, &h_pi_pID_pur_eta, &h_K_pID_pur_eta, &h_p_pID_pur_eta, &h_eVeto_pID_pur_eta};
-    TEfficiency** eID_p[5] = {&h_e_eID_pur_p, &h_pi_eID_pur_p, &h_K_eID_pur_p, &h_p_eID_pur_p, &h_eVeto_eID_pur_p};
-    TEfficiency** pID_p[5] = {&h_e_pID_pur_p, &h_pi_pID_pur_p, &h_K_pID_pur_p, &h_p_pID_pur_p, &h_eVeto_pID_pur_p};
-    TEfficiency** trk_eta[5] = {&h_e_trk_pur_eta, &h_pi_trk_pur_eta, &h_K_trk_pur_eta, &h_p_trk_pur_eta, &h_eVeto_trk_pur_eta};
-    TEfficiency** trk_p[5] = {&h_e_trk_pur_p, &h_pi_trk_pur_p, &h_K_trk_pur_p, &h_p_trk_pur_p, &h_eVeto_trk_pur_p};
-
-    const char* eID_eta_names[5] = {"h_e_eID_pur_eta", "h_pi_eID_pur_eta", "h_K_eID_pur_eta", "h_p_eID_pur_eta", "h_eVeto_eID_pur_eta"};
-    const char* pID_eta_names[5] = {"h_e_pID_pur_eta", "h_pi_pID_pur_eta", "h_K_pID_pur_eta", "h_p_pID_pur_eta", "h_eVeto_pID_pur_eta"};
-    const char* eID_p_names[5] = {"h_e_eID_pur_p", "h_pi_eID_pur_p", "h_K_eID_pur_p", "h_p_eID_pur_p", "h_eVeto_eID_pur_p"};
-    const char* pID_p_names[5] = {"h_e_pID_pur_p", "h_pi_pID_pur_p", "h_K_pID_pur_p", "h_p_pID_pur_p", "h_eVeto_pID_pur_p"};
-    const char* trk_eta_names[5] = {"h_e_trk_pur_eta", "h_pi_trk_pur_eta", "h_K_trk_pur_eta", "h_p_trk_pur_eta", "h_eVeto_trk_pur_eta"};
-    const char* trk_p_names[5] = {"h_e_trk_pur_p", "h_pi_trk_pur_p", "h_K_trk_pur_p", "h_p_trk_pur_p", "h_eVeto_trk_pur_p"};
-
-    for (int i = 0; i < 5; ++i) {
-        SetupPurityEff(*eID_eta[i], eID_eta_names[i], "#eta", 20, -5., 5., color[i], marker[i]);
-        SetupPurityEff(*pID_eta[i], pID_eta_names[i], "#eta", 20, -5., 5., color[i], marker[i]);
-        SetupPurityEff(*eID_p[i], eID_p_names[i], "p [GeV/c]", 150, 0., 150., color[i], marker[i]);
-        SetupPurityEff(*pID_p[i], pID_p_names[i], "p [GeV/c]", 150, 0., 150., color[i], marker[i]);
-        SetupPurityEff(*trk_eta[i], trk_eta_names[i], "#eta", 20, -5., 5., color[i], marker[i]);
-        SetupPurityEff(*trk_p[i], trk_p_names[i], "p [GeV/c]", 150, 0., 150., color[i], marker[i]);
-    }
-
-    SetupPurityEff(h_cur_pur_eta, "h_cur_pur_eta", "#eta", 20, -5., 5., kP10Yellow, 20);
-    h_cur_pur_eta->SetLineStyle(1);
-    h_cur_pur_eta->SetLineWidth(2);
-
-    SetupPurityEff(h_cur_pur_p, "h_cur_pur_p", "p [GeV/c]", 150, 0., 150., kP10Yellow, 20);
-    h_cur_pur_p->SetLineStyle(1);
-    h_cur_pur_p->SetLineWidth(2);
-
-    return;
+void EIDStudyKinematics(int Ee, int Eh, const edm4hep::MCParticle& electron,
+                        double& xB, double& Q2, double& W2, double& y, double& nu) {
+    const auto p = electron.getMomentum();
+    const double incoming_e = std::hypot(Ee, MASS_ELECTRON);
+    const double outgoing_e = std::hypot(std::hypot(p.x, p.y, p.z), MASS_ELECTRON);
+    const double target_x = Eh * std::sin(CROSSING_ANGLE);
+    const double target_z = Eh * std::cos(CROSSING_ANGLE);
+    const double target_e = std::hypot(Eh, MASS_PROTON);
+    const double q_x = -p.x;
+    const double q_y = -p.y;
+    const double q_z = -Ee - p.z;
+    const double q_e = incoming_e - outgoing_e;
+    const double q_dot_target = q_x * target_x + q_z * target_z - q_e * target_e;
+    const double incoming_dot_target = -Ee * target_z - incoming_e * target_e;
+    Q2 = -(q_e * q_e - q_x * q_x - q_y * q_y - q_z * q_z);
+    nu = q_dot_target / MASS_PROTON;
+    xB = (nu != 0.0) ? Q2 / (2.0 * MASS_PROTON * nu) : -999.0;
+    y = (incoming_dot_target != 0.0) ? q_dot_target / incoming_dot_target : -999.0;
+    W2 = MASS_PROTON * MASS_PROTON + 2.0 * MASS_PROTON * nu - Q2;
 }
 
-void DrawVerticalLine(TCanvas* &c, double x_pos, double y_max) {
+struct EIDStudyEventRow {
+    std::string source_file;
+    Long64_t source_entry = -1;
+    Long64_t source_file_entries = -1;
+    ULong64_t event_key = 0;
+    double source_q2_min = -1.0;
+    int n_candidates = 0;
+    int n_truth_electrons = 0;
+    int event_header_valid = 0;
+    double event_weight = 0.0;
+    std::vector<double> event_weights;
+    int truth_e_valid = 0;
+    double truth_px = -999.0, truth_py = -999.0, truth_pz = -999.0, truth_energy = -999.0;
+    double truth_xB = -999.0, truth_Q2 = -999.0, truth_W2 = -999.0, truth_y = -999.0, truth_nu = -999.0;
+};
 
-    c->cd();
-    c->Modified();
-    c->Update();
+struct EIDStudyCandidateRow {
+    ULong64_t event_key = 0;
+    int candidate_index = -1;
+    int reco_object_index = -1;
+    int reco_pdg = 0;
+    double charge = 0.0;
+    int truth_match_valid = 0;
+    int truth_pdg = -999;
+    int is_truth_scattered_electron = 0;
+    double truth_px = -999.0, truth_py = -999.0, truth_pz = -999.0, truth_energy = -999.0;
+    int n_tracks = 0;
+    int n_clusters = 0;
+    double px = 0.0, py = 0.0, pz = 0.0, energy = 0.0;
+    double cluster_energy_sum = 0.0;
+    double ecal_detector_cone_energy_r03 = -1.0;
+    double hcal_cone_energy_r03 = -1.0;
+    int seed_valid = 0;
+    double seed_energy = -999.0, seed_eta = -999.0, seed_phi = -999.0;
+    std::vector<double> cone_energy_by_radius;
+    std::vector<double> cone_fraction_by_radius;
+    std::vector<int> cone_association_count_by_radius;
+    std::vector<int> track_n_measurements;
+    std::vector<int> track_ndf;
+    std::vector<float> track_chi2;
+    std::vector<int> pid_pdg;
+    std::vector<int> pid_type;
+    std::vector<float> pid_likelihood;
+};
 
-    TLine* line = new TLine(x_pos, 0, x_pos, y_max);
-    line->SetLineColor(kBlack);
-    line->SetLineStyle(7);
-    line->Draw("SAME");
+} // namespace
 
-    return;
-}
-
-void DrawTCComparison(TCanvas* &c, TH1D* &ht, TH1D* &hc, double &draw_max) {
-
-    c->cd();
-
-    hc->SetLineColor(kGray);
-    hc->SetFillColor(kGray);
-    hc->SetFillStyle(3003);
-    hc->Draw("HIST");
-    draw_max = 1.2*std::max({hc->GetMaximum(), ht->GetMaximum()});
-    hc->SetMaximum(draw_max);
-
-    ht->SetLineColor(kBlue);
-    ht->SetFillColor(kBlue);
-    ht->SetFillStyle(3003);
-    ht->Draw("HIST SAME");
-
-    TLegend* leg = new TLegend(0.6, 0.6, 0.8, 0.88);
-    leg->SetBorderSize(0);
-    leg->SetFillStyle(0);
-    leg->AddEntry(ht, "Using E_{Track}", "L");
-    leg->AddEntry(hc, "Using E_{Cluster}", "L");
-    leg->Draw();
-
-    return;
-}
-
-void DrawParComparison(TCanvas* &c, TH1D* &h1, TH1D* &h2, TH1D* &h3, TH1D* &h4, double &draw_max) {
-
-    c->cd();
-
-    h4->Draw("HIST");
-    h4->SetLineColor(kGray+2);
-    // h4->SetFillColor(kGray);
-    // h4->SetFillStyle(3003);
-    draw_max = 1.2*std::max({h1->GetMaximum(), h2->GetMaximum(), h3->GetMaximum(), h4->GetMaximum()});
-    h4->SetMaximum(draw_max);
-
-    h3->Draw("HIST SAME");
-    h3->SetLineColor(kBlue);
-    // h3->SetFillColor(kGreen+3);
-    // h3->SetFillStyle(3003);  
-
-    h2->Draw("HIST SAME");
-    h2->SetLineColor(kViolet);
-    // h2->SetFillColor(kBlue);
-    // h2->SetFillStyle(3003);
-
-    h1->Draw("HIST SAME");
-    h1->SetLineWidth(2);
-    h1->SetLineColor(kRed);
-    h1->SetFillColor(kRed);
-    h1->SetFillStyle(3003);
-
-    double lx = h1->GetName() == TString("h_EoP_e") ? 0.7 : 0.42;
-    TLegend* leg = new TLegend(lx, 0.6, lx+0.25, 0.88);
-    leg->SetBorderSize(0);
-    leg->SetFillStyle(0);
-    leg->AddEntry(h1, "Electrons", "L");
-    leg->AddEntry(h2, "Other e's", "L");
-    leg->AddEntry(h3, "Pions", "L");
-    leg->AddEntry(h4, "Others", "L");
-    leg->Draw();
-
-    return;
-}
-
-void CreateOutputTree(TString outFileName) {
-
-	outFile = new TFile(outFileName, "RECREATE");
-	outTree = new TTree("T_eID", "T_eID");
-
-    outTree->Branch("eID_status", &eID_status);
-    outTree->Branch("eRecon_status", &eRecon_status);
-    outTree->Branch("mc_PDG", &mc_PDG);
-    outTree->Branch("EminusPz", &EminusPz);
-    outTree->Branch("EoP", &EoP);
-
-	outTree->Branch("mc_xB", &mc_xB);
-	outTree->Branch("mc_Q2", &mc_Q2);
-	outTree->Branch("mc_W2", &mc_W2);
-	outTree->Branch("mc_y",	 &mc_y);
-	outTree->Branch("mc_nu", &mc_nu);
-
-    outTree->Branch("rec_xB", &rec_xB);
-	outTree->Branch("rec_Q2", &rec_Q2);
-	outTree->Branch("rec_W2", &rec_W2);
-	outTree->Branch("rec_y",  &rec_y);
-	outTree->Branch("rec_nu", &rec_nu);
-
-    outTree->Branch("vMC_e", &vMC_e);
-	outTree->Branch("vTRACK_e", &vTRACK_e);
-	outTree->Branch("vCLUSTER_e", &vCLUSTER_e);
-    outTree->Branch("vMC_rec", &vMC_rec);
-    outTree->Branch("vMC_hfs", &vMC_hfs);
-    outTree->Branch("vREC_hfs", &vREC_hfs);
-
-    return;
-}
-
-void ResetVariables() {
-
-	eID_status = NO_MC;
-    eRecon_status = NO_REC;
-    mc_PDG = -999;
-    EminusPz = -999;
-    EoP = -999;
-
-	mc_xB = -999;
-	mc_Q2 = -999;
-	mc_W2 = -999;
-	mc_y = -999;
-	mc_nu = -999;
-
-    rec_xB = -999;
-	rec_Q2 = -999;
-	rec_W2 = -999;
-	rec_y = -999;
-	rec_nu = -999;
-
-    vMC_e.SetPxPyPzE(0, 0, 0, 0);
-	vTRACK_e.SetPxPyPzE(0, 0, 0, 0);
-	vCLUSTER_e.SetPxPyPzE(0, 0, 0, 0);
-    vMC_rec.SetPxPyPzE(0, 0, 0, 0);
-
-    vMC_hfs.clear();
-    vREC_hfs.clear();   
-
-    return;
-}
-
-void CalculateElectronKinematics(double fEe, double fEh, TLorentzVector kf, double& xB, double& Q2, double& W2, double& y, double& nu) {
-
-		TLorentzVector ki; ki.SetXYZM(0., 0., -fEe, MASS_ELECTRON);
-		TLorentzVector P = GetHadronBeam(fEh);
-		TLorentzVector q = ki - kf;
-		Q2 = -(q.Dot(q));
-		nu = (q.Dot(P))/MASS_PROTON;
-		xB = Q2/(2.*MASS_PROTON*nu);
-		y  = (q.Dot(P))/(ki.Dot(P));
-		W2  = MASS_PROTON*MASS_PROTON + (2.*MASS_PROTON*nu) - Q2;		
-}
-
-TLorentzVector GetHadronBeam(double fEh) {
- 
-	TLorentzVector hadron_beam;
-	hadron_beam.SetX(fEh*sin(CROSSING_ANGLE));
-	hadron_beam.SetY(0.);
-	hadron_beam.SetZ(fEh*cos(CROSSING_ANGLE));
-	hadron_beam.SetE(std::hypot(fEh, MASS_PROTON));
-	return hadron_beam;
-
-}
-
-void SetupPurityEff(TEfficiency* &h, const char* name, const char* xAxisTitle, int nBins, double xMin, double xMax, int color, int marker)
-{
-    h = new TEfficiency(name, Form(";%s;Purity", xAxisTitle), nBins, xMin, xMax);
-    h->SetMarkerColor(color);
-    h->SetLineColor(color);
-    h->SetMarkerStyle(marker);
-}
-
-void DrawPurityCanvas(TCanvas* &c, const char* canvasName,
-    TEfficiency* h_base, TEfficiency* h_veto, TEfficiency* h_e, TEfficiency* h_pi, TEfficiency* h_K, TEfficiency* h_p,
-    DrawManager* draw_manager)
-{
-    c = new TCanvas(canvasName, canvasName, 1000, 600);
-    TH1D* h_base_line = nullptr;
-
-    if (h_base) {
-        h_base_line = (TH1D*)h_base->GetCopyPassedHisto();
-        TH1D* h_base_total = (TH1D*)h_base->GetCopyTotalHisto();
-        h_base_line->SetName(Form("%s_base_line", canvasName));
-        h_base_line->SetDirectory(nullptr);
-        h_base_line->Divide(h_base_line, h_base_total, 1.0, 1.0, "B");
-        h_base_line->SetLineColor(h_base->GetLineColor());
-        h_base_line->SetLineStyle(1);
-        h_base_line->SetLineWidth(2);
-        h_base_line->SetFillStyle(3003);
-        h_base_line->SetFillColor(h_base->GetLineColor());
-        h_base_line->SetMarkerSize(0.0);
-        h_base_line->GetYaxis()->SetRangeUser(0.0, 1.5);
-        h_base_line->Draw("HIST");
-    }
-
-    h_veto->Draw(h_base_line ? "SAME" : "");
-    gPad->Update();
-    h_veto->GetPaintedGraph()->GetYaxis()->SetRangeUser(0.0, 1.5);
-
-    h_e->Draw("SAME");
-    h_pi->Draw("SAME");
-    h_K->Draw("SAME");
-    h_p->Draw("SAME");
-
-    TLegend* leg = new TLegend(0.6, 0.7, 0.8, 0.92);
-    leg->SetBorderSize(0);
-    leg->SetFillStyle(0);
-    if (h_base_line)
-        leg->AddEntry(h_base_line, "baseline", "L");
-    leg->AddEntry(h_veto, "electron veto", "LP");
-    leg->AddEntry(h_e, "electron", "LP");
-    leg->AddEntry(h_pi, "pion", "LP");
-    leg->AddEntry(h_K, "kaon", "LP");
-    leg->AddEntry(h_p, "proton", "LP");
-    leg->Draw();
-
-    draw_manager->LableAndCollect(c);
-}
-
-void FillEidPurity(int reco_pid, int mc_pdg, double eta, double momentum)
-{
-    const bool is_mc_electron = (mc_pdg == 0 || std::abs(mc_pdg) == 11);
-    const bool is_mc_pion = (std::abs(mc_pdg) == 211);
-    const bool is_mc_kaon = (std::abs(mc_pdg) == 321);
-    const bool is_mc_proton = (std::abs(mc_pdg) == 2212);
-
-    if (reco_pid != 11) {
-        h_pID_eff->Fill(!is_mc_electron, 0);
-        h_eVeto_eID_pur_eta->Fill(!is_mc_electron, eta);
-        h_eVeto_eID_pur_p->Fill(!is_mc_electron, momentum);
-    }
-    if (reco_pid == 11) {
-        h_pID_eff->Fill(is_mc_electron, 1);
-        h_e_eID_pur_eta->Fill(is_mc_electron, eta);
-        h_e_eID_pur_p->Fill(is_mc_electron, momentum);
-    }
-    if (reco_pid == 211) {
-        h_pID_eff->Fill(is_mc_pion, 2);
-        h_pi_eID_pur_eta->Fill(is_mc_pion, eta);
-        h_pi_eID_pur_p->Fill(is_mc_pion, momentum);
-    }
-    if (reco_pid == 321) {
-        h_pID_eff->Fill(is_mc_kaon, 3);
-        h_K_eID_pur_eta->Fill(is_mc_kaon, eta);
-        h_K_eID_pur_p->Fill(is_mc_kaon, momentum);
-    }
-    if (reco_pid == 2212) {
-        h_pID_eff->Fill(is_mc_proton, 4);
-        h_p_eID_pur_eta->Fill(is_mc_proton, eta);
-        h_p_eID_pur_p->Fill(is_mc_proton, momentum);
-    }
-}
-
-void FillNegTrackPurity(int reco_pid, int mc_pdg, double eta, double momentum)
-{
-    const bool is_mc_electron = (mc_pdg == 0 || std::abs(mc_pdg) == 11);
-    const bool is_mc_pion = (std::abs(mc_pdg) == 211);
-    const bool is_mc_kaon = (std::abs(mc_pdg) == 321);
-    const bool is_mc_proton = (std::abs(mc_pdg) == 2212);
-
-    if (reco_pid != 11) {
-        h_eVeto_trk_pur_eta->Fill(!is_mc_electron, eta);
-        h_eVeto_trk_pur_p->Fill(!is_mc_electron, momentum);
-    }
-    if (reco_pid == 11) {
-        h_e_trk_pur_eta->Fill(is_mc_electron, eta);
-        h_e_trk_pur_p->Fill(is_mc_electron, momentum);
-    }
-    if (reco_pid == 211) {
-        h_pi_trk_pur_eta->Fill(is_mc_pion, eta);
-        h_pi_trk_pur_p->Fill(is_mc_pion, momentum);
-    }
-    if (reco_pid == 321) {
-        h_K_trk_pur_eta->Fill(is_mc_kaon, eta);
-        h_K_trk_pur_p->Fill(is_mc_kaon, momentum);
-    }
-    if (reco_pid == 2212) {
-        h_p_trk_pur_eta->Fill(is_mc_proton, eta);
-        h_p_trk_pur_p->Fill(is_mc_proton, momentum);
-    }
-}
-
-void FillPidPurity(int reco_pid, int par_type, double eta, double momentum)
-{
-    if (reco_pid == 0) {
+void eIDana(int Ee = 10, int Eh = 100, int beam_type = 1,
+            int select_region = 0, int sr = 0, int file0 = -1,
+            Long64_t max_events = -1, const char* local_input = "") {
+    if (beam_type < 0 || beam_type > 5) {
+        std::cerr << "Invalid beam_type " << beam_type << "; expected 0 through 5.\n";
         return;
     }
 
-    const bool is_mc_electron = (par_type == 0 || std::abs(par_type) == 11);
-    const bool is_mc_pion = (std::abs(par_type) == 211);
-    const bool is_mc_kaon = (std::abs(par_type) == 321);
-    const bool is_mc_proton = (std::abs(par_type) == 2212);
+    AnaManager* ana_manager = new AnaManager("eIDstudy");
+    ana_manager->SetBeamEnergy(Ee, Eh);
+    ana_manager->Initialize(select_region, sr, file0, beam_type);
+    std::vector<std::string> input_names;
+    const std::string output_name = EIDStudyOutputName(Ee, Eh, beam_type,
+                                                       select_region, sr, file0);
+    if (local_input && local_input[0] != '\0') {
+        input_names.emplace_back(local_input);
+    } else {
+        input_names = ana_manager->GetInputNames();
+    }
+    if (input_names.empty()) {
+        std::cerr << "No valid input files resolved; eID study stopped.\n";
+        delete ana_manager;
+        return;
+    }
 
-    if (reco_pid != 11) {
-        h_pID_pur->Fill(!is_mc_electron, 0);
-        h_eVeto_pID_pur_eta->Fill(!is_mc_electron, eta);
-        h_eVeto_pID_pur_p->Fill(!is_mc_electron, momentum);
+    gSystem->mkdir("tmp", true);
+    TFile output(output_name.c_str(), "RECREATE");
+    if (output.IsZombie()) {
+        std::cerr << "Could not create output file " << output_name << "\n";
+        delete ana_manager;
+        return;
     }
-    if (reco_pid == 11) {
-        h_pID_pur->Fill(is_mc_electron, 1);
-        h_e_pID_pur_eta->Fill(is_mc_electron, eta);
-        h_e_pID_pur_p->Fill(is_mc_electron, momentum);
-    }
-    if (reco_pid == 211) {
-        h_pID_pur->Fill(is_mc_pion, 2);
-        h_pi_pID_pur_eta->Fill(is_mc_pion, eta);
-        h_pi_pID_pur_p->Fill(is_mc_pion, momentum);
-    }
-    if (reco_pid == 321) {
-        h_pID_pur->Fill(is_mc_kaon, 3);
-        h_K_pID_pur_eta->Fill(is_mc_kaon, eta);
-        h_K_pID_pur_p->Fill(is_mc_kaon, momentum);
-    }
-    if (reco_pid == 2212) {
-        h_pID_pur->Fill(is_mc_proton, 4);
-        h_p_pID_pur_eta->Fill(is_mc_proton, eta);
-        h_p_pID_pur_p->Fill(is_mc_proton, momentum);
-    }
-}
 
-void FillPidSuccess(int reco_pid, int par_type)
-{
-    const bool is_mc_electron = (par_type == 0 || std::abs(par_type) == 11);
-    const bool is_mc_pion = (std::abs(par_type) == 211);
-    const bool is_mc_kaon = (std::abs(par_type) == 321);
-    const bool is_mc_proton = (std::abs(par_type) == 2212);
+    TNamed schema_version("eIDStudySchemaVersion", std::to_string(kEIDStudySchemaVersion).c_str());
+    schema_version.Write();
+    TNamed beam_metadata("eIDStudyBeamEnergies", Form("%dx%d GeV", Ee, Eh));
+    beam_metadata.Write();
+    TNamed beam_type_metadata("eIDStudyBeamType", std::to_string(beam_type).c_str());
+    beam_type_metadata.Write();
+    TNamed campaign_metadata("eIDStudyCampaign", ana_manager->campaign.c_str());
+    campaign_metadata.Write();
+    TNamed candidate_definition("eIDStudyCandidateDefinition",
+        "Every edm4eic::ReconstructedParticle in the ReconstructedParticles collection; no eID candidate cuts applied.");
+    candidate_definition.Write();
+    TNamed truth_definition("eIDStudyTruthElectronDefinition",
+        "Final-state generator electrons with PDG 11 and status 1, selected by minimum-depth parent ancestry to a status-4 PDG-11 beam electron.");
+    truth_definition.Write();
+    std::ostringstream isolation_radii_text;
+    for (size_t i = 0; i < kEIDStudyIsolationRadii.size(); ++i) {
+        if (i) isolation_radii_text << ',';
+        isolation_radii_text << kEIDStudyIsolationRadii[i];
+    }
+    TNamed isolation_radii("eIDStudyIsolationRadii", isolation_radii_text.str().c_str());
+    isolation_radii.Write();
+    TNamed isolation_definition("eIDStudyIsolationDefinition",
+        "Leading associated cluster seeds each cone. DeltaR is measured in eta-phi. Denominator sums every cluster association on every ReconstructedParticle inside DeltaR<R, including self and duplicate associations. Per-radius sums and counts are stored for the listed radius grid.");
+    isolation_definition.Write();
+    TNamed weight_definition("eIDStudyWeightDefinition",
+        "Raw edm4hep::EventHeader.weight and EventHeader.weights are copied when present; zero scalar weights are not interpreted as unit weights or as usable physics normalization. Use sample cross-section and generated-event normalization separately.");
+    weight_definition.Write();
 
-    if (!is_mc_electron) {
-        h_pID_suc->Fill(reco_pid != 11, 0);
+    TTree event_tree("Events", "One row per input event, including events with no reconstructed candidates");
+    EIDStudyEventRow event_row;
+    event_tree.Branch("source_file", &event_row.source_file);
+    event_tree.Branch("source_entry", &event_row.source_entry);
+    event_tree.Branch("source_file_entries", &event_row.source_file_entries);
+    event_tree.Branch("event_key", &event_row.event_key);
+    event_tree.Branch("source_q2_min", &event_row.source_q2_min);
+    event_tree.Branch("n_candidates", &event_row.n_candidates);
+    event_tree.Branch("n_truth_electrons", &event_row.n_truth_electrons);
+    event_tree.Branch("event_header_valid", &event_row.event_header_valid);
+    event_tree.Branch("event_weight", &event_row.event_weight);
+    event_tree.Branch("event_weights", &event_row.event_weights);
+    event_tree.Branch("truth_e_valid", &event_row.truth_e_valid);
+    event_tree.Branch("truth_px", &event_row.truth_px);
+    event_tree.Branch("truth_py", &event_row.truth_py);
+    event_tree.Branch("truth_pz", &event_row.truth_pz);
+    event_tree.Branch("truth_energy", &event_row.truth_energy);
+    event_tree.Branch("truth_xB", &event_row.truth_xB);
+    event_tree.Branch("truth_Q2", &event_row.truth_Q2);
+    event_tree.Branch("truth_W2", &event_row.truth_W2);
+    event_tree.Branch("truth_y", &event_row.truth_y);
+    event_tree.Branch("truth_nu", &event_row.truth_nu);
+
+    TTree candidate_tree("Candidates", "All ReconstructedParticles entries before eID selection cuts");
+    EIDStudyCandidateRow candidate_row;
+    candidate_tree.Branch("event_key", &candidate_row.event_key);
+    candidate_tree.Branch("candidate_index", &candidate_row.candidate_index);
+    candidate_tree.Branch("reco_object_index", &candidate_row.reco_object_index);
+    candidate_tree.Branch("reco_pdg", &candidate_row.reco_pdg);
+    candidate_tree.Branch("charge", &candidate_row.charge);
+    candidate_tree.Branch("truth_match_valid", &candidate_row.truth_match_valid);
+    candidate_tree.Branch("truth_pdg", &candidate_row.truth_pdg);
+    candidate_tree.Branch("is_truth_scattered_electron", &candidate_row.is_truth_scattered_electron);
+    candidate_tree.Branch("truth_px", &candidate_row.truth_px);
+    candidate_tree.Branch("truth_py", &candidate_row.truth_py);
+    candidate_tree.Branch("truth_pz", &candidate_row.truth_pz);
+    candidate_tree.Branch("truth_energy", &candidate_row.truth_energy);
+    candidate_tree.Branch("n_tracks", &candidate_row.n_tracks);
+    candidate_tree.Branch("n_clusters", &candidate_row.n_clusters);
+    candidate_tree.Branch("track_n_measurements", &candidate_row.track_n_measurements);
+    candidate_tree.Branch("track_ndf", &candidate_row.track_ndf);
+    candidate_tree.Branch("track_chi2", &candidate_row.track_chi2);
+    candidate_tree.Branch("px", &candidate_row.px);
+    candidate_tree.Branch("py", &candidate_row.py);
+    candidate_tree.Branch("pz", &candidate_row.pz);
+    candidate_tree.Branch("energy", &candidate_row.energy);
+    candidate_tree.Branch("cluster_energy_sum", &candidate_row.cluster_energy_sum);
+    candidate_tree.Branch("ecal_detector_cone_energy_r03", &candidate_row.ecal_detector_cone_energy_r03);
+    candidate_tree.Branch("hcal_cone_energy_r03", &candidate_row.hcal_cone_energy_r03);
+    candidate_tree.Branch("seed_valid", &candidate_row.seed_valid);
+    candidate_tree.Branch("seed_energy", &candidate_row.seed_energy);
+    candidate_tree.Branch("seed_eta", &candidate_row.seed_eta);
+    candidate_tree.Branch("seed_phi", &candidate_row.seed_phi);
+    candidate_tree.Branch("cone_energy_by_radius", &candidate_row.cone_energy_by_radius);
+    candidate_tree.Branch("cone_fraction_by_radius", &candidate_row.cone_fraction_by_radius);
+    candidate_tree.Branch("cone_association_count_by_radius", &candidate_row.cone_association_count_by_radius);
+    candidate_tree.Branch("pid_pdg", &candidate_row.pid_pdg);
+    candidate_tree.Branch("pid_type", &candidate_row.pid_type);
+    candidate_tree.Branch("pid_likelihood", &candidate_row.pid_likelihood);
+
+    Long64_t total_events = 0;
+    Long64_t total_candidates = 0;
+    Long64_t total_cluster_associations = 0;
+    Long64_t compared_iso_candidates = 0;
+    double largest_iso_abs_difference = 0.0;
+
+    for (const std::string& input_name : input_names) {
+        podio::ROOTReader reader;
+        reader.openFiles({input_name});
+        const size_t n_entries = reader.getEntries("events");
+        std::cout << "Processing " << input_name << " (" << n_entries << " events)\n";
+
+        for (size_t entry = 0; entry < n_entries; ++entry) {
+            if (max_events >= 0 && total_events >= max_events) break;
+            auto raw_event = reader.readEntry("events", entry);
+            if (!raw_event) {
+                std::cerr << "Failed reading entry " << entry << " from " << input_name << "\n";
+                continue;
+            }
+            podio::Frame event(std::move(raw_event));
+            const auto& reco_particles = static_cast<const edm4eic::ReconstructedParticleCollection&>(
+                *(event.get("ReconstructedParticles")));
+            const auto& mc_particles = static_cast<const edm4hep::MCParticleCollection&>(
+                *(event.get("MCParticles")));
+            const auto& reco_mc_associations = static_cast<const edm4eic::MCRecoParticleAssociationCollection&>(
+                *(event.get("ReconstructedParticleAssociations")));
+            struct DetectorCluster { double eta, phi, energy; };
+            std::vector<DetectorCluster> detector_ecal_clusters, detector_hcal_clusters;
+            const auto append_detector_clusters = [](const edm4eic::ClusterCollection& clusters,
+                                                      std::vector<DetectorCluster>& destination) {
+                for (const auto& cluster : clusters) {
+                    const auto& position = cluster.getPosition();
+                    destination.push_back({edm4hep::utils::eta(position),
+                                           edm4hep::utils::angleAzimuthal(position),
+                                           cluster.getEnergy()});
+                }
+            };
+            append_detector_clusters(static_cast<const edm4eic::ClusterCollection&>(*(event.get("EcalBarrelScFiClusters"))), detector_ecal_clusters);
+            append_detector_clusters(static_cast<const edm4eic::ClusterCollection&>(*(event.get("EcalEndcapNClusters"))), detector_ecal_clusters);
+            append_detector_clusters(static_cast<const edm4eic::ClusterCollection&>(*(event.get("EcalEndcapPClusters"))), detector_ecal_clusters);
+            append_detector_clusters(static_cast<const edm4eic::ClusterCollection&>(*(event.get("HcalBarrelClusters"))), detector_hcal_clusters);
+            append_detector_clusters(static_cast<const edm4eic::ClusterCollection&>(*(event.get("HcalEndcapNClusters"))), detector_hcal_clusters);
+            append_detector_clusters(static_cast<const edm4eic::ClusterCollection&>(*(event.get("LFHCALClusters"))), detector_hcal_clusters);
+            const auto truth_electrons = EIDStudyTruthElectrons(mc_particles);
+
+            event_row = EIDStudyEventRow{};
+            event_row.source_file = input_name;
+            event_row.source_entry = static_cast<Long64_t>(entry);
+            event_row.source_file_entries = static_cast<Long64_t>(n_entries);
+            event_row.event_key = EIDStudyEventKey(input_name, static_cast<Long64_t>(entry));
+            event_row.source_q2_min = EIDStudyQ2Minimum(input_name);
+            event_row.n_candidates = static_cast<int>(reco_particles.size());
+            event_row.n_truth_electrons = static_cast<int>(truth_electrons.size());
+            auto* event_header_base = event.get("EventHeader");
+            if (event_header_base) {
+                const auto& event_headers = static_cast<const edm4hep::EventHeaderCollection&>(*event_header_base);
+                if (!event_headers.empty()) {
+                    event_row.event_weight = event_headers[0].getWeight();
+                    event_row.event_header_valid = 1;
+                    for (double weight : event_headers[0].getWeights())
+                        event_row.event_weights.push_back(weight);
+                }
+            }
+            if (!truth_electrons.empty()) {
+                const auto& truth_e = truth_electrons[0];
+                const auto p = truth_e.getMomentum();
+                event_row.truth_e_valid = 1;
+                event_row.truth_px = p.x;
+                event_row.truth_py = p.y;
+                event_row.truth_pz = p.z;
+                event_row.truth_energy = truth_e.getEnergy();
+                EIDStudyKinematics(Ee, Eh, truth_e, event_row.truth_xB, event_row.truth_Q2,
+                                   event_row.truth_W2, event_row.truth_y, event_row.truth_nu);
+            }
+            event_tree.Fill();
+
+            // Record all associated clusters first so the study tree exactly
+            // preserves the denominator loop's per-association counting.
+            std::vector<double> all_cluster_eta;
+            std::vector<double> all_cluster_phi;
+            std::vector<double> all_cluster_energy;
+            for (size_t candidate_index = 0; candidate_index < reco_particles.size(); ++candidate_index) {
+                const auto& particle = reco_particles[candidate_index];
+                for (const auto& cluster : particle.getClusters()) {
+                    const auto& position = cluster.getPosition();
+                    const double eta = edm4hep::utils::eta(position);
+                    const double phi = edm4hep::utils::angleAzimuthal(position);
+                    const double energy = cluster.getEnergy();
+                    ++total_cluster_associations;
+                    all_cluster_eta.push_back(eta);
+                    all_cluster_phi.push_back(phi);
+                    all_cluster_energy.push_back(energy);
+                }
+            }
+
+            for (size_t candidate_index = 0; candidate_index < reco_particles.size(); ++candidate_index) {
+                const auto& particle = reco_particles[candidate_index];
+                const auto momentum = particle.getMomentum();
+                candidate_row = EIDStudyCandidateRow{};
+                candidate_row.event_key = event_row.event_key;
+                candidate_row.candidate_index = static_cast<int>(candidate_index);
+                candidate_row.reco_object_index = particle.getObjectID().index;
+                candidate_row.reco_pdg = particle.getPDG();
+                candidate_row.charge = particle.getCharge();
+                candidate_row.n_tracks = static_cast<int>(particle.getTracks().size());
+                candidate_row.n_clusters = static_cast<int>(particle.getClusters().size());
+                candidate_row.px = momentum.x;
+                candidate_row.py = momentum.y;
+                candidate_row.pz = momentum.z;
+                candidate_row.energy = particle.getEnergy();
+
+                for (const auto& track : particle.getTracks()) {
+                    candidate_row.track_n_measurements.push_back(track.measurements_size());
+                    candidate_row.track_ndf.push_back(track.getNdf());
+                    candidate_row.track_chi2.push_back(track.getChi2());
+                }
+
+                edm4hep::MCParticle truth_match;
+                for (const auto& association : reco_mc_associations) {
+                    if (association.getRec() == particle) {
+                        truth_match = association.getSim();
+                        if (truth_match.isAvailable()) {
+                            candidate_row.truth_match_valid = 1;
+                            candidate_row.truth_pdg = truth_match.getPDG();
+                            candidate_row.is_truth_scattered_electron =
+                                !truth_electrons.empty() &&
+                                truth_match.getObjectID().index == truth_electrons[0].getObjectID().index;
+                            const auto truth_p = truth_match.getMomentum();
+                            candidate_row.truth_px = truth_p.x;
+                            candidate_row.truth_py = truth_p.y;
+                            candidate_row.truth_pz = truth_p.z;
+                            candidate_row.truth_energy = truth_match.getEnergy();
+                        }
+                        break;
+                    }
+                }
+
+                const edm4eic::Cluster* leading_cluster = nullptr;
+                for (const auto& cluster : particle.getClusters()) {
+                    candidate_row.cluster_energy_sum += cluster.getEnergy();
+                    if (cluster.getEnergy() > (leading_cluster ? leading_cluster->getEnergy() : 0.0))
+                        leading_cluster = &cluster;
+                }
+                if (leading_cluster) {
+                    const auto& position = leading_cluster->getPosition();
+                    candidate_row.seed_valid = 1;
+                    candidate_row.seed_energy = leading_cluster->getEnergy();
+                    candidate_row.seed_eta = edm4hep::utils::eta(position);
+                    candidate_row.seed_phi = edm4hep::utils::angleAzimuthal(position);
+
+                    // Legacy eID.C forms E/(E+H) using the candidate-associated
+                    // ECal energy and all HCal clusters within DeltaR<0.3. It
+                    // also has a gap-modified form using detector-wide ECal
+                    // clusters in the same cone. Persist both missing sums.
+                    candidate_row.ecal_detector_cone_energy_r03 = 0.0;
+                    candidate_row.hcal_cone_energy_r03 = 0.0;
+                    const auto sum_detector_cone = [&](const std::vector<DetectorCluster>& clusters) {
+                        double sum = 0.0;
+                        for (const auto& cluster : clusters) {
+                            const double d_eta = cluster.eta - candidate_row.seed_eta;
+                            const double d_phi = EIDStudyDeltaPhi(cluster.phi, candidate_row.seed_phi);
+                            if (std::hypot(d_eta, d_phi) < 0.3) sum += cluster.energy;
+                        }
+                        return sum;
+                    };
+                    candidate_row.ecal_detector_cone_energy_r03 = sum_detector_cone(detector_ecal_clusters);
+                    candidate_row.hcal_cone_energy_r03 = sum_detector_cone(detector_hcal_clusters);
+
+                    // Compute each DeltaR once. upper_bound finds the first
+                    // radius for which DeltaR < R; prefix sums then populate
+                    // all larger cones while retaining repeated associations.
+                    std::vector<double> energy_differences(kEIDStudyIsolationRadii.size() + 1, 0.0);
+                    std::vector<int> count_differences(kEIDStudyIsolationRadii.size() + 1, 0);
+                    for (size_t i = 0; i < all_cluster_energy.size(); ++i) {
+                        const double d_eta = all_cluster_eta[i] - candidate_row.seed_eta;
+                        const double d_phi = EIDStudyDeltaPhi(all_cluster_phi[i], candidate_row.seed_phi);
+                        const double delta_r = std::hypot(d_eta, d_phi);
+                        const auto first_radius = std::upper_bound(
+                            kEIDStudyIsolationRadii.begin(), kEIDStudyIsolationRadii.end(), delta_r);
+                        const size_t radius_index = static_cast<size_t>(
+                            std::distance(kEIDStudyIsolationRadii.begin(), first_radius));
+                        if (radius_index < kEIDStudyIsolationRadii.size()) {
+                            energy_differences[radius_index] += all_cluster_energy[i];
+                            ++count_differences[radius_index];
+                        }
+                    }
+                    double cone_energy = 0.0;
+                    int cone_associations = 0;
+                    size_t r07_index = 0;
+                    for (size_t radius_index = 0;
+                         radius_index < kEIDStudyIsolationRadii.size(); ++radius_index) {
+                        cone_energy += energy_differences[radius_index];
+                        cone_associations += count_differences[radius_index];
+                        candidate_row.cone_energy_by_radius.push_back(cone_energy);
+                        candidate_row.cone_association_count_by_radius.push_back(cone_associations);
+                        candidate_row.cone_fraction_by_radius.push_back(
+                            cone_energy > 0.0 ? candidate_row.cluster_energy_sum / cone_energy : -1.0);
+                        if (kEIDStudyIsolationRadii[radius_index] == 0.7)
+                            r07_index = radius_index;
+                    }
+
+                    // Validate against a literal copy of the old nested loop on
+                    // a bounded subset. Running this O(candidates*clusters)
+                    // reference for every row is too expensive at sample scale.
+                    if (candidate_row.n_tracks > 0 && candidate_row.n_clusters > 0 &&
+                        compared_iso_candidates < kIsolationReferenceCheckLimit) {
+                        double current_cone_energy = 0.0;
+                        for (const auto& other_particle : reco_particles) {
+                            for (const auto& other_cluster : other_particle.getClusters()) {
+                                const auto& other_position = other_cluster.getPosition();
+                                const double other_eta = edm4hep::utils::eta(other_position);
+                                const double other_phi = edm4hep::utils::angleAzimuthal(other_position);
+                                const double d_eta = other_eta - candidate_row.seed_eta;
+                                const double d_phi = EIDStudyDeltaPhi(other_phi, candidate_row.seed_phi);
+                                if (std::hypot(d_eta, d_phi) < 0.7)
+                                    current_cone_energy += other_cluster.getEnergy();
+                            }
+                        }
+                        if (current_cone_energy > 0.0) {
+                            largest_iso_abs_difference = std::max(largest_iso_abs_difference,
+                                std::abs(candidate_row.cone_fraction_by_radius[r07_index] -
+                                         candidate_row.cluster_energy_sum / current_cone_energy));
+                            ++compared_iso_candidates;
+                        }
+                    }
+                } else {
+                    candidate_row.cone_energy_by_radius.assign(kEIDStudyIsolationRadii.size(), 0.0);
+                    candidate_row.cone_fraction_by_radius.assign(kEIDStudyIsolationRadii.size(), -1.0);
+                    candidate_row.cone_association_count_by_radius.assign(kEIDStudyIsolationRadii.size(), 0);
+                }
+
+                for (const auto& pid : particle.getParticleIDs()) {
+                    candidate_row.pid_pdg.push_back(pid.getPDG());
+                    candidate_row.pid_type.push_back(pid.getType());
+                    candidate_row.pid_likelihood.push_back(pid.getLikelihood());
+                }
+                candidate_tree.Fill();
+                ++total_candidates;
+            }
+            ++total_events;
+        }
+        if (max_events >= 0 && total_events >= max_events) break;
     }
-    if (is_mc_electron) {
-        h_pID_suc->Fill(reco_pid == 11, 1);
-    }
-    if (is_mc_pion) {
-        h_pID_suc->Fill(reco_pid == 211, 2);
-    }
-    if (is_mc_kaon) {
-        h_pID_suc->Fill(reco_pid == 321, 3);
-    }
-    if (is_mc_proton) {
-        h_pID_suc->Fill(reco_pid == 2212, 4);
-    }
+
+    output.cd();
+    event_tree.Write();
+    candidate_tree.Write();
+    output.Close();
+
+    std::cout << "Wrote " << output_name << "\n"
+              << "Events: " << total_events << ", candidates: " << total_candidates
+              << ", cluster associations used for isolation: " << total_cluster_associations << "\n"
+              << "R=0.7 isolation benchmark: " << compared_iso_candidates
+              << " candidates, maximum absolute difference " << largest_iso_abs_difference << "\n";
+    delete ana_manager;
 }

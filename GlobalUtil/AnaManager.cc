@@ -29,11 +29,11 @@ void AnaManager::UpdateCampaign()
 {
     campaign = "26.07.1";
 
-    if (beam_type == EP && Ee == 18 && Eh == 275)
-        campaign = "26.07.0";
-
     if (beam_type == EHE3 && Ee == 9 && Eh == 166)
         campaign = "26.07.2";
+
+    if (beam_type == EP && Ee == 18 && Eh == 275)
+        campaign = "26.07.1";
 
     if (beam_type == PI_BG)
         campaign = "26.03.0";
@@ -144,6 +144,8 @@ vector<std::string> AnaManager::GetInputNames()
                 else if ( line_c >= starting_file + step )
                     break;
             }
+
+            std::cout << "Adding file: " << file << std::endl;
 
             inFiles.push_back(file);
             line_c ++;

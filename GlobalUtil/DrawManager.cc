@@ -90,6 +90,7 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
     // 5: bottom-left
     // 6: bottom-left, tighter text
     // 7: top-left, tighter text
+    // 8: top-left, bigger text
     // Not working very well for canvas with multiple pads yet
 
     std::string lumi_unit = type == "ep" ? "fb^{-1}" : "fb^{-1}/A";
@@ -145,6 +146,9 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
 
         if ( draw_position == 7 )
             scale_factor = TMath::Sqrt(scale_factor)*0.7;
+
+        if ( draw_position == 8 )
+            scale_factor = scale_factor*1.2;
 
         Double_t left_margin = 0.19;
         Double_t top_margin = 0.93;
@@ -235,6 +239,10 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
             internal_x = left_margin + logo_width - 0.12 * scale_factor;
         }
 
+        if ( draw_position == 8 ) {
+            internal_x = left_margin + logo_width - 0.16 * scale_factor;
+        }
+
         TLatex Text_ePIC;
         // Text_ePIC.SetTextSize(0.065 * scale_factor);  // Text size also scales
         Text_ePIC.SetTextSize(0.055 * scale_factor);  // Text size also scales
@@ -304,8 +312,13 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Text_date.SetTextSize(0.04 * scale_factor);
         Text_date.SetTextFont(52);
         Text_date.SetTextAlign(31);  // Right-aligned, bottom of text at y position
+        
         if ( draw_position == 1 ) {
             Text_date.SetTextSize(0.045 * scale_factor);
+        }
+
+        if ( draw_position == 8 ) {
+            Text_date.SetTextSize(0.05 * scale_factor);
         }
 
         // Get the right edge of the frame (accounting for right margin)
@@ -315,6 +328,12 @@ void DrawManager::LableAndCollect(TCanvas* &c, int draw_position = 0)
         Double_t date_y = 0.955;  // Near top
         // Double_t date_y = 0.96;  // Near top
         // Double_t date_y = 0.93;  // Near top
+
+        if ( draw_position == 8 ) {
+            date_y = 0.93;
+            date_x = 1.0 - right_margin - 0.03;  // Right edge minus small padding
+        }
+
         Text_date.DrawLatexNDC(date_x, date_y, Form("Simulation campaign: %s", campaign.c_str()));  // performance plot
 
         Text_com.Draw();

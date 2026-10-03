@@ -78,6 +78,18 @@ double get_lumi( int beam_type, int Ee, int Eh, int group, int ev0, int ev1 )
 
     if ( beam_type == EP || beam_type == BEAM_BG)
     {
+        if ( Ee == 9 && Eh == 275 )
+        {
+            double cs[4] = {600707, 52419.1, 2308.09, 36.6295}; // pb
+            double gen_lumi = ev0/(cs[group]*1000);
+            return gen_lumi;
+        }
+        if ( Ee == 9 && Eh == 130 )
+        {
+            double cs[4] = {529241, 40644.2, 1482.73, 10.0045}; // pb
+            double gen_lumi = ev0/(cs[group]*1000);
+            return gen_lumi;
+        }
         if ( Ee == 18 && Eh == 275 )
         {
             // double gen_lumi[4] = {6.73335E-03, 7.21215E-02, 1.48384E+00, 6.29541E+01}; // fb^-1
