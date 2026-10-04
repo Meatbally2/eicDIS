@@ -20,6 +20,8 @@
 #include <TTreeReader.h>
 #include <TTreeReaderValue.h>
 #include <TSystem.h>
+#include <TExec.h>
+#include <TProfile.h>
 
 #include <array>
 #include <algorithm>
@@ -43,6 +45,7 @@ constexpr int kRegions = 5; // minQ2=1, 10, 100, 1000, combined
 constexpr int kInputRegions = 4;
 constexpr int kOverall = 4;
 constexpr int kClasses = 4; // scattered e, other e, pi-, other matched truth
+constexpr int kMinTrackPoints = 4;
 const char* kRegionNames[kRegions] = {"minQ2_1", "minQ2_10", "minQ2_100", "minQ2_1000", "overall"};
 const char* kClassNames[kClasses] = {"scattered_e", "other_e", "pi_minus", "other"};
 const int kRegionQ2Min[kInputRegions] = {1, 10, 100, 1000};
@@ -75,7 +78,7 @@ struct Candidate {
     int n_tracks = 0, n_clusters = 0, first_points = 0, seed_valid = 0;
     double charge = 0, px = 0, py = 0, pz = 0, energy = 0;
     double cluster_energy = 0, seed_eta = 0, seed_phi = 0, isolation = -1;
-    double ecal_cone = -1, hcal_cone = -1, truth_px = -999, truth_py = -999, truth_pz = -999;
+    double ecal_cone = -1, hcal_cone = -1, truth_px = -999, truth_py = -999, truth_pz = -999, truth_energy = -999;
     double le = 0, lpi = 0, lk = 0, lp = 0;
     double P() const { return std::sqrt(px*px+py*py+pz*pz); }
     double Pt() const { return std::hypot(px,py); }
@@ -87,7 +90,7 @@ struct Candidate {
     double PIDh() const { const double h=std::max({lpi,lk,lp}); return le+h>0 ? h/(le+h) : 0; }
     double TruthP() const { return std::sqrt(truth_px*truth_px+truth_py*truth_py+truth_pz*truth_pz); }
     double TruthEta() const { return std::asinh(truth_pz/std::hypot(truth_px,truth_py)); }
-    bool Base() const { return n_tracks>0 && n_clusters>0 && charge<0 && first_points>=4 && isolation>=0.9; }
+    bool Base() const { return n_tracks>0 && n_clusters>0 && charge<0 && first_points>=kMinTrackPoints && isolation>=0.9; }
     bool Tight() const { return Base() && EoEH()>0.85; }
     bool Gap() const { return Theta()>158 && Theta()<162 || seed_valid && ClusterTheta()>22 && ClusterTheta()<33; }
 };
@@ -106,6 +109,30 @@ std::unique_ptr<TH1D> Ratio(const TH1D& passed, const TH1D& total, const std::st
     result->SetMinimum(0);
     result->SetMaximum(1.5);
     return result;
+}
+
+std::unique_ptr<TH1D> MakeCentral68Width(const TH2D& response, const std::string& name) {
+    const auto* xaxis = response.GetXaxis();
+    auto width = std::make_unique<TH1D>(name.c_str(), ";truth variable;Half-width of central 68% of E/p", 
+                                        xaxis->GetNbins(), xaxis->GetXmin(), xaxis->GetXmax());
+    width->SetDirectory(nullptr);
+    width->SetStats(false);
+    const double probabilities[] = {0.16, 0.84};
+    for (int bin = 1; bin <= xaxis->GetNbins(); ++bin) {
+        std::unique_ptr<TH1D> projection(response.ProjectionY(Form("%s_proj_%d", name.c_str(), bin), bin, bin));
+        if (!projection || projection->Integral() <= 0) {
+            width->SetBinContent(bin, -1.0);
+            continue;
+        }
+        double quantiles[2] = {};
+        projection->GetQuantiles(2, quantiles, probabilities);
+        const double sigma68 = 0.5 * (quantiles[1] - quantiles[0]);
+        width->SetBinContent(bin, sigma68);
+        const double effective_entries = projection->GetEffectiveEntries();
+        if (effective_entries > 1)
+            width->SetBinError(bin, sigma68 / std::sqrt(2.0 * (effective_entries - 1.0)));
+    }
+    return width;
 }
 
 struct Hists {
@@ -130,6 +157,16 @@ struct Hists {
     std::array<std::unique_ptr<TH1D>, kRegions> n_candidates;
     std::array<std::unique_ptr<TH1D>, kRegions> truth_q2;
     std::array<std::unique_ptr<TH2D>, kRegions> pt_theta;
+    // Each response map is truth-variable versus reconstructed E/p. Stage 0
+    // contains matched electrons with a track and cluster; stage 1 contains
+    // the final event-level candidate selected by the baseline eID replay.
+    std::array<std::array<std::array<std::unique_ptr<TH2D>, kRegions>, 2>, 4> eop_response;
+    std::array<std::array<std::array<std::unique_ptr<TProfile>, kRegions>, 2>, 4> eop_mean;
+    std::array<std::array<std::array<std::unique_ptr<TH1D>, kRegions>, 2>, 4> eop_sigma68;
+    std::array<std::array<std::unique_ptr<TH2D>, kRegions>, 4> eop_kinematics_electron;
+    std::array<std::array<std::unique_ptr<TH2D>, kRegions>, 4> eop_kinematics_negative_hadron;
+    std::array<std::array<std::unique_ptr<TH2D>, kRegions>, 4> eoeh_kinematics_electron;
+    std::array<std::array<std::unique_ptr<TH2D>, kRegions>, 4> eoeh_kinematics_negative_hadron;
 
     Hists() {
         for (int r = 0; r < kRegions; ++r) {
@@ -139,6 +176,48 @@ struct Hists {
             n_candidates[r] = std::make_unique<TH1D>(("h_mult_" + tag).c_str(), ";candidates per event;Weighted events", 20, -0.5, 19.5);
             truth_q2[r] = std::make_unique<TH1D>(("h_truth_q2_" + tag).c_str(), ";truth Q^{2} (GeV^{2});Weighted events", 100, 0, 1000);
             pt_theta[r] = std::make_unique<TH2D>(("h_pt_theta_" + tag).c_str(), ";#theta (degrees);p_{T} (GeV)", 180, 0, 180, 50, 0, 50);
+            const char* response_names[] = {"theta", "eta", "pt", "energy"};
+            const char* response_titles[] = {"truth #theta (degrees)", "truth #eta", "truth p_{T} (GeV)", "truth E_{e} (GeV)"};
+            const int response_bins[] = {18, 20, 20, 20};
+            const double response_min[] = {0, -5, 0, 0};
+            const double response_max[] = {180, 5, 10, 10};
+            for (int v = 0; v < 4; ++v) for (int stage = 0; stage < 2; ++stage) {
+                const char* stage_name = stage == 0 ? "matched" : "selected";
+                eop_response[v][stage][r] = std::make_unique<TH2D>(
+                    ("h_eop_vs_truth_" + std::string(response_names[v]) + "_" + stage_name + "_" + tag).c_str(),
+                    Form(";%s;E/p", response_titles[v]), response_bins[v], response_min[v], response_max[v], 400, 0, 10);
+                eop_response[v][stage][r]->Sumw2();
+            }
+            for (int v = 0; v < 4; ++v) {
+                const char* response_names[] = {"theta", "eta", "pt", "energy"};
+                const char* particle_names[] = {"electron", "negative_hadron"};
+                auto make_eop_map = [&](const char* particle) {
+                    const char* x_title = v == 3
+                        ? (std::string(particle) == "electron" ? "truth electron energy (GeV)" : "truth hadron energy (GeV)")
+                        : response_titles[v];
+                    auto map = std::make_unique<TH2D>(
+                        ("h_eop_map_" + std::string(response_names[v]) + "_" + particle + "_" + tag).c_str(),
+                        Form(";%s;E/p;Fraction", x_title), response_bins[v], response_min[v], response_max[v], 400, 0, 10);
+                    map->Sumw2();
+                    return map;
+                };
+                eop_kinematics_electron[v][r] = make_eop_map(particle_names[0]);
+                eop_kinematics_negative_hadron[v][r] = make_eop_map(particle_names[1]);
+
+                auto make_eoeh_map = [&](const char* particle) {
+                    const char* x_title = v == 3
+                        ? (std::string(particle) == "electron" ? "truth electron energy (GeV)" : "truth hadron energy (GeV)")
+                        : response_titles[v];
+                    auto map = std::make_unique<TH2D>(
+                        ("h_eoeh_map_" + std::string(response_names[v]) + "_" + particle + "_" + tag).c_str(),
+                        Form(";%s;E/(E+H);Fraction per truth bin", x_title),
+                        response_bins[v], response_min[v], response_max[v], 100, 0, 1);
+                    map->Sumw2();
+                    return map;
+                };
+                eoeh_kinematics_electron[v][r] = make_eoeh_map(particle_names[0]);
+                eoeh_kinematics_negative_hadron[v][r] = make_eoeh_map(particle_names[1]);
+            }
             n_clusters_tracks[r] = std::make_unique<TH2D>(("h_n_clusters_n_tracks_"+tag).c_str(), ";N_{tracks};N_{clusters}",5,-0.5,4.5,5,-0.5,4.5);
             const char* gap_names[] = {"gap_eop_b","gap_eop_f","gap_eoeh_b","gap_eoeh_f"};
             std::array<std::unique_ptr<TH1D>,2>* gaps[] = {&gap_eop_b[r],&gap_eop_f[r],&gap_eoeh_b[r],&gap_eoeh_f[r]};
@@ -173,36 +252,106 @@ struct Hists {
     }
 };
 
+constexpr int kCutFlowBins = 8;
+constexpr int kThresholdBins = 11;
+constexpr double kIsolationThresholds[kThresholdBins] = {0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95,1.00};
+constexpr double kEoEHThresholds[kThresholdBins] = {0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90,0.95,1.00};
+constexpr int kTrackPointThresholds[kThresholdBins] = {0,1,2,3,4,5,6,7,8,9,10};
+
+struct CutStudyHists {
+    std::array<std::unique_ptr<TH1D>, kRegions> signal_event_flow;
+    std::array<std::unique_ptr<TH1D>, kRegions> background_candidate_flow;
+    // scan index: track measurements, isolation, E/(E+H).
+    std::array<std::array<std::unique_ptr<TH1D>, kRegions>, 3> signal_pass, signal_total;
+    std::array<std::array<std::unique_ptr<TH1D>, kRegions>, 3> background_pass, background_total;
+
+    CutStudyHists() {
+        const char* scan_names[] = {"track_points", "isolation", "eoeh"};
+        const char* scan_titles[] = {"N_{track points} threshold", "Isolation fraction threshold", "E/(E+H) threshold"};
+        for (int r = 0; r < kRegions; ++r) {
+            const std::string tag = kRegionNames[r];
+            signal_event_flow[r] = std::make_unique<TH1D>(("h_cutflow_signal_events_"+tag).c_str(), ";Selection stage;Weighted truth-electron events", kCutFlowBins, 0.5, kCutFlowBins+0.5);
+            background_candidate_flow[r] = std::make_unique<TH1D>(("h_cutflow_background_candidates_"+tag).c_str(), ";Selection stage;Weighted background candidates", kCutFlowBins, 0.5, kCutFlowBins+0.5);
+            signal_event_flow[r]->Sumw2();
+            background_candidate_flow[r]->Sumw2();
+            for (int s = 0; s < 3; ++s) {
+                const int bins = s == 0 ? kThresholdBins : kThresholdBins;
+                const double xmin = s == 0 ? -0.5 : (s == 1 ? 0.475 : 0.475);
+                const double xmax = s == 0 ? 10.5 : 1.025;
+                const std::string base = std::string("h_")+scan_names[s]+"_"+tag;
+                signal_pass[s][r] = std::make_unique<TH1D>((base+"_signal_pass").c_str(), Form(";%s;Weighted events",scan_titles[s]), bins, xmin, xmax);
+                signal_total[s][r] = std::make_unique<TH1D>((base+"_signal_total").c_str(), Form(";%s;Weighted events",scan_titles[s]), bins, xmin, xmax);
+                background_pass[s][r] = std::make_unique<TH1D>((base+"_background_pass").c_str(), Form(";%s;Weighted candidates",scan_titles[s]), bins, xmin, xmax);
+                background_total[s][r] = std::make_unique<TH1D>((base+"_background_total").c_str(), Form(";%s;Weighted candidates",scan_titles[s]), bins, xmin, xmax);
+                signal_pass[s][r]->Sumw2(); signal_total[s][r]->Sumw2();
+                background_pass[s][r]->Sumw2(); background_total[s][r]->Sumw2();
+            }
+        }
+    }
+};
+
+std::unique_ptr<TH1D> MakeSurvivalRatio(const TH1D& passed, int denominator_bin, const std::string& name) {
+    auto ratio = std::unique_ptr<TH1D>(static_cast<TH1D*>(passed.Clone(name.c_str())));
+    const double denominator = passed.GetBinContent(denominator_bin);
+    const double denominator_var = std::pow(passed.GetBinError(denominator_bin), 2);
+    for (int bin = 1; bin <= passed.GetNbinsX(); ++bin) {
+        const double numerator = passed.GetBinContent(bin);
+        const double numerator_var = std::pow(passed.GetBinError(bin), 2);
+        const double value = denominator > 0 ? numerator / denominator : 0;
+        // Weighted subset ratio uncertainty, treating the passed and failed
+        // contributions as independent sums. Candidate-level correlations
+        // within an event are not included.
+        const double fail_var = std::max(0.0, denominator_var - numerator_var);
+        const double variance = denominator > 0
+            ? ((1.0-value)*(1.0-value)*numerator_var + value*value*fail_var) / (denominator*denominator)
+            : 0;
+        ratio->SetBinContent(bin, value);
+        ratio->SetBinError(bin, std::sqrt(std::max(0.0, variance)));
+    }
+    ratio->SetStats(false);
+    ratio->SetMinimum(0);
+    ratio->SetMaximum(1.05);
+    return ratio;
+}
+
+std::unique_ptr<TH1D> MakeEfficiencyRatio(const TH1D& passed, const TH1D& total, const std::string& name) {
+    auto ratio = std::unique_ptr<TH1D>(static_cast<TH1D*>(passed.Clone(name.c_str())));
+    for (int bin = 1; bin <= passed.GetNbinsX(); ++bin) {
+        const double denominator = total.GetBinContent(bin);
+        const double denominator_var = std::pow(total.GetBinError(bin), 2);
+        const double numerator = passed.GetBinContent(bin);
+        const double numerator_var = std::pow(passed.GetBinError(bin), 2);
+        const double value = denominator > 0 ? numerator / denominator : 0;
+        const double fail_var = std::max(0.0, denominator_var - numerator_var);
+        const double variance = denominator > 0
+            ? ((1.0-value)*(1.0-value)*numerator_var + value*value*fail_var) / (denominator*denominator)
+            : 0;
+        ratio->SetBinContent(bin, value);
+        ratio->SetBinError(bin, std::sqrt(std::max(0.0, variance)));
+    }
+    ratio->SetStats(false);
+    ratio->SetMinimum(0);
+    ratio->SetMaximum(1.05);
+    return ratio;
+}
+
 void AddEIDPlotLabels(TCanvas& canvas, int region, double lumi_fb) {
     DrawManager labels("ep", "10x100 GeV", gCampaign);
-    labels.SetEPIC();
+    labels.SetEPIC("Work in Progress");
+    labels.SetLumi(lumi_fb);
     TCanvas* canvas_ptr = &canvas;
     labels.LableAndCollect(canvas_ptr);
 
-    // Match the DrawManager text block while stating the generated Q2 lower
-    // bound clearly; its legacy SetQ2min text has an outdated inequality.
-    TLatex label;
-    label.SetNDC();
-    label.SetTextFont(42);
-    double scale = std::min(canvas.GetWw() / 1398.0, canvas.GetWh() / 575.0);
-    if (scale > 1.0) scale /= 1.9;
-    if (scale < 1.0) scale = std::sqrt(scale);
-    label.SetTextSize(0.055 * scale);
-    label.SetTextAlign(13);
-    const double q2_y = 0.93 - 0.263 * scale;
-    if (region < kInputRegions)
-        label.DrawLatex(0.195, q2_y, Form("Q^{2} #geq %.0f GeV^{2}", double(kRegionQ2Min[region])));
-    else
-        label.DrawLatex(0.195, q2_y, "Combined generated minQ^{2} regions");
+    (void)region;
     canvas.Modified();
     canvas.Update();
 }
 
 void SaveStudyCanvas(TCanvas& canvas, const std::string& png_dir,
-                     const std::string& pdf_name, int& page, int region) {
-    const std::string png_name = Form("%s/%03d_%s.png", png_dir.c_str(), page++, kRegionNames[region]);
+                     int& page, int region, const std::string& plot_name = "plot") {
+    const std::string png_name = Form("%s/%03d_%s_%s.png", png_dir.c_str(), page++,
+                                      plot_name.c_str(), kRegionNames[region]);
     canvas.Print(png_name.c_str());
-    if (!pdf_name.empty()) canvas.Print(pdf_name.c_str());
 }
 
 void AddGapCanvasLogo(TCanvas& canvas, int region) {
@@ -232,7 +381,6 @@ void AddGapCanvasLogo(TCanvas& canvas, int region) {
 void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
                   double target_lumi_fb = 1.0,
                   const char* output_root = "",
-                  const char* output_pdf = "",
                   const char* output_png_dir = "") {
     // Accept compatible inspection files separated by semicolons, e.g. one
     // file for each generated minQ2 region. The default remains one input file.
@@ -323,6 +471,9 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
         event_info[row.key].weight = w;
     }
 
+    // Match eff.C: install ePIC defaults before booking histograms so their
+    // axes inherit the user's font, text size, and margins.
+    set_ePIC_style();
     Hists h;
     for (const auto& row : event_rows) {
         const double w = event_info[row.key].weight;
@@ -347,6 +498,7 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
     TTreeReaderValue<double> energy(cr,"energy"), seed_eta(cr,"seed_eta"), seed_phi(cr,"seed_phi");
     TTreeReaderValue<double> ecal_cone(cr,"ecal_detector_cone_energy_r03"), hcal_cone(cr,"hcal_cone_energy_r03");
     TTreeReaderValue<double> candidate_truth_px(cr,"truth_px"),candidate_truth_py(cr,"truth_py"),candidate_truth_pz(cr,"truth_pz");
+    TTreeReaderValue<double> candidate_truth_energy(cr,"truth_energy");
     TTreeReaderValue<std::vector<int>> pid_pdg(cr,"pid_pdg");
     TTreeReaderValue<std::vector<float>> pid_likelihood(cr,"pid_likelihood");
     TTreeReaderValue<double> cluster_energy(cr, "cluster_energy_sum");
@@ -368,6 +520,7 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
         c.seed_eta=*seed_eta; c.seed_phi=*seed_phi;
         c.ecal_cone=*ecal_cone; c.hcal_cone=*hcal_cone;
         c.truth_px=*candidate_truth_px; c.truth_py=*candidate_truth_py; c.truth_pz=*candidate_truth_pz;
+        c.truth_energy=*candidate_truth_energy;
         c.isolation=cone_fraction->size()==radii.size()?cone_fraction->at(r07):-1;
         for(size_t i=0;i<pid_pdg->size()&&i<pid_likelihood->size();++i) {
             const double l=pid_likelihood->at(i);
@@ -382,6 +535,41 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
         const int region=evt->second.region;
         const double w=evt->second.weight;
         const double eta=c.Pt()>0?std::asinh(c.pz/c.Pt()):-999;
+        if (c.truth_valid && c.charge < 0 && c.n_tracks > 0 && c.n_clusters > 0 && c.P() > 0 &&
+            c.TruthP() > 0 && c.truth_energy > 0 && c.cluster_energy >= 0) {
+            const double truth_pt = std::hypot(c.truth_px, c.truth_py);
+            const double truth_theta = std::atan2(truth_pt, c.truth_pz) * 180.0 / M_PI;
+            const double truth_eta = c.TruthEta();
+            const double eop = c.cluster_energy / c.P();
+            const double values[] = {truth_theta, truth_eta, truth_pt, c.truth_energy};
+            const int eop_class = c.scattered ? 0 :
+                (c.truth_pdg == -211 || c.truth_pdg == -321 || c.truth_pdg == -2212) ? 1 : -1;
+            for (int r : {evt->second.region, kOverall}) {
+                for (int v = 0; v < 4; ++v) {
+                    if (c.scattered)
+                        h.eop_response[v][0][r]->Fill(values[v], eop, w);
+                    if (eop_class == 0) h.eop_kinematics_electron[v][r]->Fill(values[v], eop, w);
+                    else if (eop_class == 1) h.eop_kinematics_negative_hadron[v][r]->Fill(values[v], eop, w);
+                }
+            }
+        }
+        if (c.truth_valid && c.charge < 0 && c.n_tracks > 0 && c.n_clusters > 0 && c.P() > 0 &&
+            c.TruthP() > 0 && c.truth_energy > 0 && c.cluster_energy >= 0 && c.hcal_cone >= 0 &&
+            c.cluster_energy + c.hcal_cone > 0) {
+            const double truth_pt = std::hypot(c.truth_px, c.truth_py);
+            const double truth_theta = std::atan2(truth_pt, c.truth_pz) * 180.0 / M_PI;
+            const double truth_eta = c.TruthEta();
+            const double eoeh = c.EoEH();
+            const double values[] = {truth_theta, truth_eta, truth_pt, c.truth_energy};
+            const int eoeh_class = c.scattered ? 0 :
+                (c.truth_pdg == -211 || c.truth_pdg == -321 || c.truth_pdg == -2212) ? 1 : -1;
+            for (int r : {evt->second.region, kOverall}) {
+                for (int v = 0; v < 4; ++v) {
+                    if (eoeh_class == 0) h.eoeh_kinematics_electron[v][r]->Fill(values[v], eoeh, w);
+                    else if (eoeh_class == 1) h.eoeh_kinematics_negative_hadron[v][r]->Fill(values[v], eoeh, w);
+                }
+            }
+        }
         for (int r : {region, kOverall}) {
             h.candidate_pt[r]->Fill(c.Pt(), w);
             if (eta > -900) h.candidate_eta[r]->Fill(eta, w);
@@ -396,6 +584,121 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
             h.e_over_eh[r][cls]->Fill(c.n_clusters>0?c.EoEH():-1,w);
             h.pid_e[r][cls]->Fill(c.PIDe(),w);
             h.pid_h[r][cls]->Fill(c.PIDh(),w);
+        }
+    }
+
+    CutStudyHists cut_study;
+    const char* cutflow_labels[kCutFlowBins] = {
+        "Truth e", "Matched", "Trk+clu", "q < 0",
+        "NTP #geq 4", "Iso #geq 0.9", "E/(E+H)", "Selected e+gap"
+    };
+    for (int r = 0; r < kRegions; ++r) {
+        for (int b = 1; b <= kCutFlowBins; ++b) {
+            cut_study.signal_event_flow[r]->GetXaxis()->SetBinLabel(b, cutflow_labels[b-1]);
+            cut_study.background_candidate_flow[r]->GetXaxis()->SetBinLabel(b, cutflow_labels[b-1]);
+        }
+    }
+    for (const auto& row : event_rows) {
+        const auto event_it = candidate_events.find(row.key);
+        const std::vector<Candidate>* rows = event_it == candidate_events.end() ? nullptr : &event_it->second.rows;
+        const double w = event_info[row.key].weight;
+        bool has_match=false, has_track_cluster=false, has_negative=false, has_points=false, has_isolated=false, has_tight=false;
+        bool signal_scan_passed[3][kThresholdBins] = {};
+        const Candidate* best_tight=nullptr;
+        const Candidate* best_gap=nullptr;
+        if (rows) for (const auto& c : *rows) {
+            const bool track_cluster = c.n_tracks>0 && c.n_clusters>0;
+            const bool negative = c.charge<0;
+            const bool points = c.first_points>=kMinTrackPoints;
+            const bool isolated = c.isolation>=0.9;
+            const bool eoeh = c.EoEH()>0.85;
+            if (c.scattered) {
+                has_match = true;
+                has_track_cluster = has_track_cluster || track_cluster;
+                has_negative = has_negative || (track_cluster && negative);
+                has_points = has_points || (track_cluster && negative && points);
+                has_isolated = has_isolated || (track_cluster && negative && points && isolated);
+                has_tight = has_tight || (track_cluster && negative && points && isolated && eoeh);
+            }
+
+            if (c.Tight()) {
+                if (!best_tight || c.Pt()>best_tight->Pt()) best_tight=&c;
+            } else if (c.Base() && c.Gap()) {
+                if (!best_gap || c.Pt()>best_gap->Pt()) best_gap=&c;
+            }
+
+            const bool background = !c.scattered;
+            if (background && track_cluster && negative) {
+                for (int r : {row.region,kOverall}) {
+                    cut_study.background_candidate_flow[r]->Fill(4,w);
+                    if (points) cut_study.background_candidate_flow[r]->Fill(5,w);
+                    if (points && isolated) cut_study.background_candidate_flow[r]->Fill(6,w);
+                    if (points && isolated && eoeh) cut_study.background_candidate_flow[r]->Fill(7,w);
+                }
+            }
+
+            if (c.scattered) for (int scan=0; scan<3; ++scan) for (int i=0; i<kThresholdBins; ++i) {
+                const double threshold = scan==0 ? kTrackPointThresholds[i] :
+                                         scan==1 ? kIsolationThresholds[i] : kEoEHThresholds[i];
+                const bool fixed = scan==0 ? (track_cluster && negative && isolated && eoeh) :
+                                   scan==1 ? (track_cluster && negative && points && eoeh) :
+                                             (track_cluster && negative && points && isolated);
+                if (!fixed) continue;
+                const bool passes = scan==0 ? c.first_points>=threshold :
+                                    scan==1 ? c.isolation>=threshold : c.EoEH()>threshold;
+                signal_scan_passed[scan][i] = signal_scan_passed[scan][i] || passes;
+            }
+
+            for (int r : {row.region,kOverall}) {
+                for (int scan=0; scan<3; ++scan) for (int i=0; i<kThresholdBins; ++i) {
+                    const double threshold = scan==0 ? kTrackPointThresholds[i] :
+                                             scan==1 ? kIsolationThresholds[i] : kEoEHThresholds[i];
+                    const bool fixed = scan==0 ? (track_cluster && negative && isolated && eoeh) :
+                                       scan==1 ? (track_cluster && negative && points && eoeh) :
+                                                 (track_cluster && negative && points && isolated);
+                    if (!fixed) continue;
+                    const bool passes = scan==0 ? c.first_points>=threshold :
+                                        scan==1 ? c.isolation>=threshold : c.EoEH()>threshold;
+                    const double x = threshold;
+                    if (background) {
+                        cut_study.background_total[scan][r]->Fill(x,w);
+                        if (passes) cut_study.background_pass[scan][r]->Fill(x,w);
+                    }
+                }
+            }
+        }
+
+        const Candidate* best = best_tight ? best_tight : best_gap;
+        if (best && best->scattered && best->n_tracks > 0 && best->n_clusters > 0 &&
+            best->P() > 0 && best->TruthP() > 0 && best->truth_energy > 0 && best->cluster_energy >= 0) {
+            const double truth_pt = std::hypot(best->truth_px, best->truth_py);
+            const double truth_theta = std::atan2(truth_pt, best->truth_pz) * 180.0 / M_PI;
+            const double truth_eta = best->TruthEta();
+            const double eop = best->cluster_energy / best->P();
+            const double values[] = {truth_theta, truth_eta, truth_pt, best->truth_energy};
+            for (int r : {row.region, kOverall})
+                for (int v = 0; v < 4; ++v)
+                    h.eop_response[v][1][r]->Fill(values[v], eop, w);
+        }
+        for (int r : {row.region,kOverall}) {
+            if (row.truth_valid) {
+                cut_study.signal_event_flow[r]->Fill(1,w);
+                if (has_match) cut_study.signal_event_flow[r]->Fill(2,w);
+                if (has_track_cluster) cut_study.signal_event_flow[r]->Fill(3,w);
+                if (has_negative) cut_study.signal_event_flow[r]->Fill(4,w);
+                if (has_points) cut_study.signal_event_flow[r]->Fill(5,w);
+                if (has_isolated) cut_study.signal_event_flow[r]->Fill(6,w);
+                if (has_tight) cut_study.signal_event_flow[r]->Fill(7,w);
+                if (best && best->scattered) cut_study.signal_event_flow[r]->Fill(8,w);
+            }
+
+            for (int scan=0; scan<3; ++scan) for (int i=0; i<kThresholdBins; ++i) {
+                const double threshold = scan==0 ? kTrackPointThresholds[i] :
+                                         scan==1 ? kIsolationThresholds[i] : kEoEHThresholds[i];
+                const double x = threshold;
+                if (row.truth_valid) cut_study.signal_total[scan][r]->Fill(x,w);
+                if (row.truth_valid && signal_scan_passed[scan][i]) cut_study.signal_pass[scan][r]->Fill(x,w);
+            }
         }
     }
 
@@ -520,8 +823,16 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
         }
     }
 
+    for (int r = 0; r < kRegions; ++r) for (int v = 0; v < 4; ++v) for (int stage = 0; stage < 2; ++stage) {
+        const std::string suffix = std::string("_") + kRegionNames[r] + (stage == 0 ? "_matched" : "_selected");
+        h.eop_mean[v][stage][r].reset(h.eop_response[v][stage][r]->ProfileX(("p_eop_mean_truth_" + std::to_string(v) + suffix).c_str()));
+        h.eop_mean[v][stage][r]->SetDirectory(nullptr);
+        h.eop_mean[v][stage][r]->SetStats(false);
+        h.eop_sigma68[v][stage][r] = MakeCentral68Width(
+            *h.eop_response[v][stage][r], "h_eop_sigma68_truth_" + std::to_string(v) + suffix);
+    }
+
     std::string root_name = output_root;
-    std::string pdf_name = output_pdf;
     std::string png_dir = output_png_dir;
     if (root_name.empty() || png_dir.empty()) {
         std::string stem = input_files.front();
@@ -536,6 +847,17 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
     for (int r = 0; r < kRegions; ++r) {
         h.candidate_pt[r]->Write(); h.candidate_eta[r]->Write(); h.n_candidates[r]->Write();
         h.truth_q2[r]->Write(); h.pt_theta[r]->Write(); h.n_clusters_tracks[r]->Write();
+        for (int v = 0; v < 4; ++v) for (int stage = 0; stage < 2; ++stage) {
+            h.eop_response[v][stage][r]->Write();
+            h.eop_mean[v][stage][r]->Write();
+            h.eop_sigma68[v][stage][r]->Write();
+        }
+        for (int v = 0; v < 4; ++v) {
+            h.eop_kinematics_electron[v][r]->Write();
+            h.eop_kinematics_negative_hadron[v][r]->Write();
+            h.eoeh_kinematics_electron[v][r]->Write();
+            h.eoeh_kinematics_negative_hadron[v][r]->Write();
+        }
         for(int m=0;m<2;++m) {
             h.gap_eop_b[r][m]->Write();h.gap_eop_f[r][m]->Write();
             h.gap_eoeh_b[r][m]->Write();h.gap_eoeh_f[r][m]->Write();
@@ -553,6 +875,14 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
             h.isolation[r][c]->Write(); h.cluster_energy[r][c]->Write();
             h.e_over_eh[r][c]->Write(); h.pid_e[r][c]->Write();h.pid_h[r][c]->Write();
         }
+        cut_study.signal_event_flow[r]->Write();
+        cut_study.background_candidate_flow[r]->Write();
+        for (int scan=0; scan<3; ++scan) {
+            cut_study.signal_pass[scan][r]->Write();
+            cut_study.signal_total[scan][r]->Write();
+            cut_study.background_pass[scan][r]->Write();
+            cut_study.background_total[scan][r]->Write();
+        }
     }
     std::ostringstream normalization;
     normalization << "10x100 ep; target luminosity=" << target_lumi_fb << " fb^-1; ";
@@ -564,21 +894,31 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
     TNamed norm_note("normalization", normalization.str().c_str());
     norm_note.Write();
     TNamed selection_note("legacy_selection",
-        "ElectronID::FindScatteredElectron replay: negative charge, track and cluster, first-track measurements >=4, R=0.7 isolation >=0.9, E/(E+H)>0.85; if no tight candidates, use candidates in track-theta 158-162 or cluster-theta 22-33 gaps; choose highest reconstructed pT.");
+        "ElectronID::FindScatteredElectron selection study: negative charge, track and cluster, first-track measurements >=4, R=0.7 isolation >=0.9, E/(E+H)>0.85; if no tight candidates, use candidates in track-theta 158-162 or cluster-theta 22-33 gaps; choose highest reconstructed pT for event-level purity.");
     selection_note.Write();
+    TNamed cutflow_definition("cutflow_definition",
+        "Signal cutflow counts weighted truth-electron events with at least one matching candidate passing each cumulative requirement; its denominator is Events rows with truth_e_valid. Background cutflow counts weighted non-scattered candidate rows and is normalized to negative-charge candidates with both track and cluster. The final signal stage requires the highest-pT candidate selected by the replayed eID logic to match the truth scattered electron.");
+    cutflow_definition.Write();
+    TNamed threshold_scan_definition("threshold_scan_definition",
+        "Track-measurement, isolation, and E/(E+H) scans vary one active eID threshold while holding the other tight-selection requirements at their current values, including the four-measurement track requirement where it is not being scanned. Signal efficiency is event-level relative to all truth-electron Events rows; background acceptance is candidate-level relative to the sample passing the other fixed requirements. It is not the current event-level fake rate. E/p and PID veto are not active requirements in ElectronID::FindScatteredElectron and are therefore not treated as current cuts. Weighted ratio errors use independent passed/failed sumw2 and do not include correlations among candidates in one event.");
+    threshold_scan_definition.Write();
+    TNamed eop_resolution_definition("eop_resolution_definition",
+        "E/p response maps use associated ECal cluster-energy sum divided by reconstructed track momentum for truth-matched scattered electrons with both track and cluster. Truth theta, eta, pT, and truth scattered-electron energy define the bins. The matched stage is before baseline eID cuts; the selected stage is the final highest-pT candidate from the event-level baseline replay, including its gap fallback, only when truth matched. The response is the weighted mean E/p; resolution is half the weighted central 68 percent interval of E/p per truth bin. Region weights are applied before computing both summaries. Resolution errors are the approximate Gaussian width uncertainty sigma68/sqrt(2*(N_eff-1)).");
+    eop_resolution_definition.Write();
+    TNamed eop_map_definition("eop_map_definition",
+        "The 2D E/p maps show truth-matched scattered electrons and negative reconstructed tracks matched to pi-minus, K-minus, or antiproton, before the baseline eID cuts and requiring both track and cluster. E/p is cluster-associated ECal energy divided by reconstructed track momentum. Each displayed map is normalized to unit weighted integral; the ROOT map histograms retain weighted candidate yields. The hadron energy axis uses matched truth-particle energy.");
+    eop_map_definition.Write();
     TNamed comparison_note("legacy_plot_comparison",
         "The pion overlay uses truth PDG -211 and unmatched candidates appear in Others. In eID.C the comparison class is abs(mc_pdg), making its -211 pion branch unreachable. The first truth-matched reconstructed particle for N_tracks vs N_clusters is taken in Candidates tree order, which may differ from association order.");
     comparison_note.Write();
     output.Close();
 
-    set_ePIC_style();
     TCanvas canvas("c_eID_study", "eID weighted study", 1000, 600);
     int page = 1;
-    if (!pdf_name.empty()) {
-        const std::string open_pdf = pdf_name + "[";
-        canvas.Print(open_pdf.c_str());
-    }
-    for (int r = 0; r < kRegions; ++r) {
+    // Render the weighted combination only. Per-region histograms remain in
+    // the ROOT output for targeted diagnostics; the combined 2D E/p maps show
+    // the kinematic dependence without multiplying the plot count by Q2 region.
+    for (int r = kOverall; r < kRegions; ++r) {
         if (r < kInputRegions && n_generated[r] == 0) {
             canvas.Clear();
             TLatex missing;
@@ -589,7 +929,7 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
             missing.DrawLatex(0.5, 0.55, Form("%s: no inspection input supplied", kRegionNames[r]));
             missing.DrawLatex(0.5, 0.45, "This Q^{2} region is not included in the combined plots");
             AddEIDPlotLabels(canvas, r, target_lumi_fb);
-            SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            SaveStudyCanvas(canvas, png_dir, page, r, "missing_region_input");
             continue;
         }
         for (int feature = 0; feature < 7; ++feature) {
@@ -609,6 +949,7 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
             hs[0]->SetFillColor(kRed);
             hs[0]->SetFillStyle(3003);
             const char* xlabel[]={"N_{track points}","E/p","Isolation fraction (R=0.7)","E/(E+H)","L_{e}/#Sigma L","L_{h}/(L_{h}+L_{e})","E_{cluster} (GeV)"};
+            const char* feature_names[]={"track_points_by_class","eop_by_class","isolation_by_class","e_over_eh_by_class","pide_by_class","pidh_by_class","cluster_energy_by_class"};
             hs[3]->SetTitle(Form(";%s;Expected candidates",xlabel[feature]));
             double ymax=0;
             for(auto* hist:hs) ymax=std::max(ymax,hist->GetMaximum());
@@ -638,7 +979,112 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
                 line.SetLineStyle(7);line.DrawClone("same");
             }
             AddEIDPlotLabels(canvas, r, target_lumi_fb);
-            SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            SaveStudyCanvas(canvas, png_dir, page, r, feature_names[feature]);
+        }
+        {
+            const char* variable_titles[2][4] = {
+                {"truth #theta (degrees)", "truth #eta", "truth p_{T} (GeV)", "truth electron energy (GeV)"},
+                {"truth #theta (degrees)", "truth #eta", "truth p_{T} (GeV)", "truth hadron energy (GeV)"}
+            };
+            const char* sample_labels[] = {"#bf{e^{-}}", "#bf{h^{-}}"};
+            const char* variable_names[] = {"theta", "eta", "pt", "energy"};
+            for (int v = 0; v < 4; ++v) for (int sample = 0; sample < 2; ++sample) {
+                canvas.Clear();
+                canvas.SetCanvasSize(1400, 600);
+                canvas.SetLogz(true);
+                canvas.SetLogx(false); canvas.SetLogy(false);
+                canvas.SetLeftMargin(0.13); canvas.SetBottomMargin(0.13); canvas.SetRightMargin(0.16);
+                auto* source = sample == 0 ? h.eop_kinematics_electron[v][r].get()
+                                           : h.eop_kinematics_negative_hadron[v][r].get();
+                std::unique_ptr<TH2D> display(static_cast<TH2D*>(source->Clone(
+                    Form("display_eop_map_%d_%d_%d", r, v, sample))));
+                display->SetDirectory(nullptr);
+                display->SetStats(false);
+                const double integral = display->Integral(0, display->GetNbinsX() + 1,
+                                                         0, display->GetNbinsY() + 1);
+                if (integral > 0) display->Scale(1.0 / integral);
+                display->SetTitle(Form("%s;%s;E/p;Fraction",
+                                       sample_labels[sample], variable_titles[sample][v]));
+                display->GetYaxis()->SetRangeUser(0, 2);
+                display->GetXaxis()->CenterTitle(); display->GetYaxis()->CenterTitle(); display->GetZaxis()->CenterTitle();
+                display->GetXaxis()->SetTitleOffset(1.2); display->GetYaxis()->SetTitleOffset(1.2);
+                display->GetZaxis()->SetTitleOffset(1.1);
+                display->SetMinimum(1e-5);
+                display->GetListOfFunctions()->Add(new TExec(
+                    Form("eop_palette_%d_%d_%d", r, v, sample), "gStyle->SetPalette(kLightTemperature);"));
+                display->Draw("colz");
+                // Match eff.C: DrawManager adds its ePIC block to the same
+                // canvas as the 2D histogram, after drawing the map.
+                AddEIDPlotLabels(canvas, r, target_lumi_fb);
+                TLatex sample_label;
+                sample_label.SetNDC(); sample_label.SetTextFont(42); sample_label.SetTextSize(0.055); sample_label.SetTextAlign(12);
+                sample_label.DrawLatex(0.72, 0.855, sample_labels[sample]);
+                const std::string variable_name = v == 3
+                    ? (sample == 0 ? "electron_energy" : "hadron_energy")
+                    : variable_names[v];
+                SaveStudyCanvas(canvas, png_dir, page, r,
+                    std::string("eop_") + (sample == 0 ? "electron_vs_" : "negative_hadrons_vs_") + variable_name);
+                canvas.SetCanvasSize(1000, 600);
+                canvas.SetLogz(false);
+            }
+        }
+        {
+            const char* variable_titles[2][4] = {
+                {"truth #theta (degrees)", "truth #eta", "truth p_{T} (GeV)", "truth electron energy (GeV)"},
+                {"truth #theta (degrees)", "truth #eta", "truth p_{T} (GeV)", "truth hadron energy (GeV)"}
+            };
+            const char* sample_labels[] = {"#bf{e^{-}}", "#bf{h^{-}}"};
+            const char* variable_names[] = {"theta", "eta", "pt", "energy"};
+            for (int v = 0; v < 4; ++v) for (int sample = 0; sample < 2; ++sample) {
+                canvas.Clear();
+                canvas.SetCanvasSize(1400, 600);
+                canvas.SetLogz(true);
+                canvas.SetLogx(false); canvas.SetLogy(false);
+                canvas.SetLeftMargin(0.13); canvas.SetBottomMargin(0.13); canvas.SetRightMargin(0.16);
+                canvas.SetTopMargin(0.37); // reserve the ePIC header above the E/(E+H) peak near one
+                auto* source = sample == 0 ? h.eoeh_kinematics_electron[v][r].get()
+                                           : h.eoeh_kinematics_negative_hadron[v][r].get();
+                std::unique_ptr<TH2D> display(static_cast<TH2D*>(source->Clone(
+                    Form("display_eoeh_map_%d_%d_%d", r, v, sample))));
+                display->SetDirectory(nullptr);
+                display->SetStats(false);
+                // Normalize each truth-kinematic bin independently. Each vertical
+                // slice then shows the E/(E+H) distribution conditional on x.
+                for (int xbin = 1; xbin <= display->GetNbinsX(); ++xbin) {
+                    const double integral = display->Integral(xbin, xbin, 1, display->GetNbinsY());
+                    if (integral <= 0) continue;
+                    for (int ybin = 1; ybin <= display->GetNbinsY(); ++ybin) {
+                        display->SetBinContent(xbin, ybin, display->GetBinContent(xbin, ybin) / integral);
+                        display->SetBinError(xbin, ybin, display->GetBinError(xbin, ybin) / integral);
+                    }
+                }
+                display->SetTitle(Form("%s;%s;E/(E+H);Fraction per truth bin",
+                                       sample_labels[sample], variable_titles[sample][v]));
+                display->GetYaxis()->SetRangeUser(0, 1);
+                display->GetXaxis()->CenterTitle(); display->GetYaxis()->CenterTitle(); display->GetZaxis()->CenterTitle();
+                display->GetXaxis()->SetTitleOffset(1.2); display->GetYaxis()->SetTitleOffset(1.2);
+                display->GetZaxis()->SetTitleOffset(1.1);
+                display->SetMinimum(1e-4);
+                display->GetListOfFunctions()->Add(new TExec(
+                    Form("eoeh_palette_%d_%d_%d", r, v, sample), "gStyle->SetPalette(kLightTemperature);"));
+                display->Draw("colz");
+                TLine cut_line(display->GetXaxis()->GetXmin(), 0.85,
+                               display->GetXaxis()->GetXmax(), 0.85);
+                cut_line.SetLineColor(kRed + 1); cut_line.SetLineStyle(7); cut_line.SetLineWidth(2);
+                cut_line.DrawClone("same");
+                AddEIDPlotLabels(canvas, r, target_lumi_fb);
+                TLatex sample_label;
+                sample_label.SetNDC(); sample_label.SetTextFont(42); sample_label.SetTextSize(0.055); sample_label.SetTextAlign(12);
+                sample_label.DrawLatex(0.72, 0.855, sample_labels[sample]);
+                const std::string variable_name = v == 3
+                    ? (sample == 0 ? "electron_energy" : "hadron_energy")
+                    : variable_names[v];
+                SaveStudyCanvas(canvas, png_dir, page, r,
+                    std::string("eoeh_") + (sample == 0 ? "electron_vs_" : "negative_hadrons_vs_") + variable_name);
+                canvas.SetCanvasSize(1000, 600);
+                canvas.SetLogz(false);
+            }
+            canvas.SetTopMargin(0.1);
         }
         canvas.SetLogy(false);
         const char* gap_titles[]={"Backward gap E/p","Forward gap E/p","Backward gap E/(E+H)","Forward gap E/(E+H)"};
@@ -664,14 +1110,14 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
         gap_legend.AddEntry(h.gap_eop_b[r][0].get(),"Baseline E","l");
         gap_legend.AddEntry(h.gap_eop_b[r][1].get(),"Detector cone E","l");gap_legend.Draw();
         AddGapCanvasLogo(canvas, r);
-        SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);canvas.Clear();canvas.SetCanvasSize(1000,600);canvas.SetLogy(false);
+        SaveStudyCanvas(canvas, png_dir, page, r, "gap_response_four_panels");canvas.Clear();canvas.SetCanvasSize(1000,600);canvas.SetLogy(false);
         {
             auto* track=h.eminus_pz[r][0].get();auto* cal=h.eminus_pz[r][1].get();
             track->SetLineColor(kBlue);cal->SetLineColor(kGray+2);track->SetFillColor(kBlue);track->SetFillStyle(3003);
             cal->SetMaximum(1.4*std::max(track->GetMaximum(),cal->GetMaximum())+1);cal->Draw("hist");track->Draw("hist same");
             TLegend legend(0.65,0.42,0.88,0.59);legend.SetBorderSize(0);legend.AddEntry(track,"Using E_{Track}","l");legend.AddEntry(cal,"Using E_{Cluster}","l");legend.Draw();
             TLine cut(20,0,20,cal->GetMaximum());cut.SetLineStyle(7);cut.DrawClone("same");
-            AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, page, r, "eminus_pz_track_vs_cluster");
         }
         canvas.Clear();canvas.SetLogy(true);
         {
@@ -684,13 +1130,13 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
                 else hist->Draw("hist same");
                 legend.AddEntry(hist,labels[m],"l");
             }
-            legend.Draw();AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            legend.Draw();AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, page, r, "selected_candidate_multiplicity");
         }
         canvas.Clear();canvas.SetLogy(false);
         {
             auto hist=std::unique_ptr<TH2D>(static_cast<TH2D*>(h.n_clusters_tracks[r]->Clone(Form("display_clusters_%d",r))));
             if(hist->Integral()>0) hist->Scale(1.0/hist->Integral());
-            hist->SetStats(false);hist->Draw("colz text");AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            hist->SetStats(false);hist->Draw("colz text");AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, page, r, "cluster_vs_track_multiplicity");
         }
         canvas.Clear();
         {
@@ -710,7 +1156,7 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
                 else hist->Draw("p e1 same");
                 legend.AddEntry(hist,stages[series],series==0?"l":"lp");
             }
-            legend.Draw();AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            legend.Draw();AddEIDPlotLabels(canvas,r,target_lumi_fb);SaveStudyCanvas(canvas, png_dir, page, r, "pid_categorical_purity");
         }
         const char* stage_names[]={"Negative-track PID purity","Selected-candidate PID purity","All-particle PID purity"};
         const char* labels[]={"electron veto","electron","pion","kaon","proton"};
@@ -735,7 +1181,9 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
             legend.Draw();AddEIDPlotLabels(canvas,r,target_lumi_fb);
             TLatex heading;heading.SetNDC();heading.SetTextFont(42);heading.SetTextSize(0.027);
             heading.DrawLatex(0.16,0.62,stage_names[stage]);
-            SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            const char* stage_tags[]={"negative_track_pid","selected_candidate_pid","all_particle_pid"};
+            SaveStudyCanvas(canvas, png_dir, page, r,
+                std::string("purity_") + stage_tags[stage] + (axis ? "_vs_pt" : "_vs_eta"));
         }
         h.candidate_pt[r]->SetTitle(";p_{T} (GeV);Expected candidates");
         h.candidate_eta[r]->SetTitle(";#eta;Expected candidates");
@@ -745,6 +1193,7 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
         h.candidate_pt[r]->SetStats(false); h.candidate_eta[r]->SetStats(false);
         h.n_candidates[r]->SetStats(false); h.truth_q2[r]->SetStats(false);
         h.pt_theta[r]->SetStats(false);
+        const char* one_d_names[]={"candidate_pt","candidate_eta","candidate_multiplicity","truth_q2"};
         for (int i = 0; i < 4; ++i) {
             canvas.Clear();
             TH1D* one_d = i == 0 ? h.candidate_pt[r].get() : i == 1 ? h.candidate_eta[r].get() : i == 2 ? h.n_candidates[r].get() : h.truth_q2[r].get();
@@ -752,21 +1201,52 @@ void study_eIDana(const char* input_name = "tmp/ep_10x100_eid_ana.root",
             one_d->SetLineWidth(2);
             one_d->Draw("hist");
             AddEIDPlotLabels(canvas, r, target_lumi_fb);
-            SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
+            SaveStudyCanvas(canvas, png_dir, page, r, one_d_names[i]);
         }
         canvas.Clear();
         h.pt_theta[r]->Draw("colz");
         AddEIDPlotLabels(canvas, r, target_lumi_fb);
-        SaveStudyCanvas(canvas, png_dir, pdf_name, page, r);
-    }
-    if (!pdf_name.empty()) {
-        const std::string close_pdf = pdf_name + "]";
-        canvas.Print(close_pdf.c_str());
-    }
+        SaveStudyCanvas(canvas, png_dir, page, r, "truth_electron_pt_vs_theta");
 
+        // Signal efficiency is event-level; background survival is candidate-level.
+        canvas.Clear(); canvas.SetLogy(false);
+        canvas.SetTopMargin(0.34); canvas.SetBottomMargin(0.31);
+        auto signal_flow = MakeSurvivalRatio(*cut_study.signal_event_flow[r],1,Form("signal_cutflow_eff_%d",r));
+        auto background_flow = MakeSurvivalRatio(*cut_study.background_candidate_flow[r],4,Form("background_cutflow_survival_%d",r));
+        signal_flow->SetTitle(";;Fraction of respective baseline");
+        signal_flow->SetLineColor(kRed+1); signal_flow->SetMarkerColor(kRed+1); signal_flow->SetMarkerStyle(20); signal_flow->SetLineWidth(2);
+        background_flow->SetLineColor(kGray+2); background_flow->SetMarkerColor(kGray+2); background_flow->SetMarkerStyle(21); background_flow->SetLineWidth(2);
+        signal_flow->GetXaxis()->LabelsOption("v");
+        signal_flow->GetXaxis()->SetLabelSize(0.035);
+        signal_flow->Draw("hist e1"); background_flow->Draw("hist e1 same");
+        TLegend flow_legend(0.57,0.72,0.91,0.86); flow_legend.SetBorderSize(0); flow_legend.SetFillStyle(0); flow_legend.SetTextSize(0.025);
+        flow_legend.AddEntry(signal_flow.get(),"Truth-e event efficiency","lp");
+        flow_legend.AddEntry(background_flow.get(),"Background-candidate survival","lp");
+        flow_legend.Draw();
+        AddEIDPlotLabels(canvas,r,target_lumi_fb);
+        SaveStudyCanvas(canvas,png_dir,page,r,"selection_cutflow");
+
+        const char* scan_labels[]={"Track-point threshold scan","Isolation threshold scan","E/(E+H) threshold scan"};
+        for (int scan=0; scan<3; ++scan) {
+            canvas.Clear(); canvas.SetLogy(false); canvas.SetTopMargin(0.34); canvas.SetBottomMargin(0.16);
+            auto signal_scan = MakeEfficiencyRatio(*cut_study.signal_pass[scan][r],*cut_study.signal_total[scan][r],Form("signal_scan_ratio_%d_%d",r,scan));
+            auto background_scan = MakeEfficiencyRatio(*cut_study.background_pass[scan][r],*cut_study.background_total[scan][r],Form("background_scan_ratio_%d_%d",r,scan));
+            signal_scan->SetTitle(Form(";%s;Efficiency / acceptance",scan_labels[scan]));
+            signal_scan->SetLineColor(kRed+1); signal_scan->SetMarkerColor(kRed+1); signal_scan->SetMarkerStyle(20); signal_scan->SetLineWidth(2);
+            background_scan->SetLineColor(kGray+2); background_scan->SetMarkerColor(kGray+2); background_scan->SetMarkerStyle(21); background_scan->SetLineWidth(2);
+            signal_scan->Draw("hist e1"); background_scan->Draw("hist e1 same");
+            TLegend scan_legend(0.57,0.72,0.92,0.86); scan_legend.SetBorderSize(0); scan_legend.SetFillStyle(0); scan_legend.SetTextSize(0.025);
+            scan_legend.AddEntry(signal_scan.get(),"Truth-e event efficiency","lp");
+            scan_legend.AddEntry(background_scan.get(),"Background-candidate acceptance","lp");
+            scan_legend.Draw();
+            AddEIDPlotLabels(canvas,r,target_lumi_fb);
+            const char* scan_tags[]={"track_point_threshold_scan","isolation_threshold_scan","e_over_eh_threshold_scan"};
+            SaveStudyCanvas(canvas,png_dir,page,r,scan_tags[scan]);
+        }
+        canvas.SetTopMargin(0.1); canvas.SetBottomMargin(0.1);
+    }
     std::cout << "Weighted eID study plots\n  input: " << input_name
               << "\n  output ROOT: " << root_name << "\n  output PNG directory: " << png_dir;
-    if (!pdf_name.empty()) std::cout << "\n  output PDF: " << pdf_name;
     std::cout
               << "\n  target luminosity: " << target_lumi_fb << " fb^-1"
               << "\n  selected Events rows: " << event_rows.size()
